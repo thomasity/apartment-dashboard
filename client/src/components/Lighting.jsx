@@ -8,6 +8,10 @@ function DevicesView({ socket }) {
   const [devState, setDevState] = useState({ bridgeOnline: false, devices: [], pairing: false });
 
   useEffect(() => {
+    axios.get('/api/lighting/devices').then((r) => setDevState(r.data)).catch(console.warn);
+  }, []);
+
+  useEffect(() => {
     if (!socket) return;
     socket.on('lighting:devices', setDevState);
     return () => socket.off('lighting:devices', setDevState);
