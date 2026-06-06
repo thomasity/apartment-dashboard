@@ -133,7 +133,10 @@ class MqttManager extends EventEmitter {
 
     if (this.connected && this.client) {
       const payload = {};
-      if (brightness !== undefined) payload.brightness = Math.round((brightness / 100) * 254);
+      if (brightness !== undefined) {
+        payload.brightness = Math.round((brightness / 100) * 254);
+        payload.state = brightness > 0 ? 'ON' : 'OFF';
+      }
       if (colorTemp !== undefined) payload.color_temp = percentToMireds(colorTemp);
       this.client.publish(`zigbee2mqtt/${group}/set`, JSON.stringify(payload), { qos: 1 });
     }
