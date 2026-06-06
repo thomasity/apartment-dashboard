@@ -5,13 +5,7 @@ const EventEmitter = require('events');
 const MIRED_COOL = 153; // ~6500K
 const MIRED_WARM = 454; // ~2200K
 
-const GROUPS = {
-  living_room_main: { label: 'Main Lights', brightness: 70, colorTemp: 30 },
-  living_room_accent: { label: 'Accent Lights', brightness: 50, colorTemp: 30 },
-};
-
 // colorTemp: 0–100, where 0 = warmest (🔥 2200K) and 100 = coolest (❄️ 6500K)
-// Matches the slider gradient: amber on left (0) → blue on right (100)
 function miredsToPercent(mireds) {
   return Math.round(((MIRED_WARM - mireds) / (MIRED_WARM - MIRED_COOL)) * 100);
 }
@@ -25,9 +19,7 @@ class MqttManager extends EventEmitter {
     super();
     this.connected = false;
     this.client = null;
-    this.groups = Object.fromEntries(
-      Object.entries(GROUPS).map(([key, cfg]) => [key, { ...cfg }])
-    );
+    this.groups = {};
     this.bridgeOnline = false;
     this.devices = [];
     this.pairing = false;
@@ -45,11 +37,6 @@ class MqttManager extends EventEmitter {
     this.client.on('connect', () => {
       console.log('MQTT connected');
       this.connected = true;
-      Object.keys(GROUPS).forEach((group) => {
-        this.client.subscribe(`zigbee2mqtt/${group}`, (err) => {
-          if (!err) console.log(`  subscribed: zigbee2mqtt/${group}`);
-        });
-      });
       this.client.subscribe('zigbee2mqtt/bridge/state');
       this.client.subscribe('zigbee2mqtt/bridge/devices');
       this.client.subscribe('zigbee2mqtt/bridge/response/permit_join');
@@ -69,6 +56,7 @@ class MqttManager extends EventEmitter {
 
         if (topic === 'zigbee2mqtt/bridge/devices') {
           this.devices = JSON.parse(payload.toString());
+          this._syncDeviceSubscriptions();
           this.emit('devicesChange', this.getDevicesState());
           return;
         }
@@ -80,15 +68,16 @@ class MqttManager extends EventEmitter {
           return;
         }
 
-        const data = JSON.parse(payload.toString());
-        const group = topic.split('/')[1];
-        if (!this.groups[group]) return;
+        // Device state update — friendly name is everything after 'zigbee2mqtt/'
+        const friendlyName = topic.slice('zigbee2mqtt/'.length);
+        if (!this.groups[friendlyName]) return;
 
+        const data = JSON.parse(payload.toString());
         if (data.brightness !== undefined) {
-          this.groups[group].brightness = Math.round((data.brightness / 254) * 100);
+          this.groups[friendlyName].brightness = Math.round((data.brightness / 254) * 100);
         }
         if (data.color_temp !== undefined) {
-          this.groups[group].colorTemp = miredsToPercent(data.color_temp);
+          this.groups[friendlyName].colorTemp = miredsToPercent(data.color_temp);
         }
         this.emit('stateChange', this.getState());
       } catch (err) {
@@ -107,6 +96,31 @@ class MqttManager extends EventEmitter {
         console.warn('MQTT went offline');
         this.connected = false;
         this.emit('stateChange', this.getState());
+      }
+    });
+  }
+
+  _syncDeviceSubscriptions() {
+    const controllable = this.devices.filter(
+      (d) => d.type !== 'Coordinator' && d.interview_completed
+    );
+
+    // Subscribe to any newly discovered devices
+    controllable.forEach((d) => {
+      if (!this.groups[d.friendly_name]) {
+        this.groups[d.friendly_name] = { label: d.friendly_name, brightness: 70, colorTemp: 30 };
+        this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
+          if (!err) console.log(`  subscribed: zigbee2mqtt/${d.friendly_name}`);
+        });
+      }
+    });
+
+    // Unsubscribe from devices that have been removed
+    const activeNames = new Set(controllable.map((d) => d.friendly_name));
+    Object.keys(this.groups).forEach((name) => {
+      if (!activeNames.has(name)) {
+        this.client.unsubscribe(`zigbee2mqtt/${name}`);
+        delete this.groups[name];
       }
     });
   }
