@@ -2,10 +2,40 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 
-const DEVICE_TYPE_LABEL = { Coordinator: 'Coordinator', Router: 'Router', EndDevice: 'Device' };
+const SCAN_DURATION = 254;
+
+function PencilIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>
+  );
+}
 
 function DevicesView({ socket }) {
-  const [devState, setDevState] = useState({ bridgeOnline: false, devices: [], pairing: false });
+  const [devState, setDevState]       = useState({ bridgeOnline: false, devices: [], pairing: false });
+  const [editingId, setEditingId]     = useState(null);
+  const [draftName, setDraftName]     = useState('');
+  const [countdown, setCountdown]     = useState(0);
+  const [newDeviceIds, setNewDeviceIds] = useState(new Set());
+  const prevPairing                   = useRef(false);
+  const scanStartIds                  = useRef(null);
+  const countdownTimer                = useRef(null);
+  const scanStartTime                 = useRef(null);
 
   useEffect(() => {
     axios.get('/api/lighting/devices').then((r) => setDevState(r.data)).catch(console.warn);
@@ -17,58 +47,145 @@ function DevicesView({ socket }) {
     return () => socket.off('lighting:devices', setDevState);
   }, [socket]);
 
-  const togglePair = () =>
+  // Manage scan countdown and track newly joined devices
+  useEffect(() => {
+    if (devState.pairing && !prevPairing.current) {
+      scanStartIds.current = new Set(devState.devices.map((d) => d.ieee_address));
+      scanStartTime.current = Date.now();
+      setCountdown(SCAN_DURATION);
+      countdownTimer.current = setInterval(() => {
+        const remaining = Math.max(0, SCAN_DURATION - Math.floor((Date.now() - scanStartTime.current) / 1000));
+        setCountdown(remaining);
+        if (remaining === 0) clearInterval(countdownTimer.current);
+      }, 1000);
+    } else if (!devState.pairing && prevPairing.current) {
+      clearInterval(countdownTimer.current);
+      scanStartIds.current = null;
+      scanStartTime.current = null;
+      setCountdown(0);
+      setNewDeviceIds(new Set());
+    }
+    prevPairing.current = devState.pairing;
+    return () => clearInterval(countdownTimer.current);
+  }, [devState.pairing]);
+
+  // Highlight devices that joined during the current scan
+  useEffect(() => {
+    if (!scanStartIds.current) return;
+    const joined = devState.devices
+      .filter((d) => d.type !== 'Coordinator' && !scanStartIds.current.has(d.ieee_address))
+      .map((d) => d.ieee_address);
+    if (joined.length) setNewDeviceIds(new Set(joined));
+  }, [devState.devices]);
+
+  const toggleScan = () =>
     axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
 
+  const startEdit = (d) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
+
+  const submitRename = (oldName) => {
+    const trimmed = draftName.trim();
+    if (trimmed && trimmed !== oldName) {
+      axios.post('/api/lighting/devices/rename', { from: oldName, to: trimmed }).catch(console.warn);
+    }
+    setEditingId(null);
+  };
+
+  const removeDevice = (id) =>
+    axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const visible = devState.devices.filter((d) => d.type !== 'Coordinator');
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-8 py-6 gap-6">
+    <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-8 py-6 gap-5">
 
-      {/* Bridge status + pair button */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${devState.bridgeOnline ? 'bg-emerald-400' : 'bg-white/20'}`} />
           <span className="text-[11px] uppercase tracking-widest text-white/40">
-            {devState.bridgeOnline ? 'Bridge online' : 'Bridge offline'}
+            {devState.bridgeOnline
+              ? `${visible.length} device${visible.length !== 1 ? 's' : ''}`
+              : 'Bridge offline'}
           </span>
         </div>
         <button
-          onClick={togglePair}
+          onClick={toggleScan}
           disabled={!devState.bridgeOnline}
-          className={`px-4 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
             devState.pairing
-              ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40'
+              ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
               : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10] disabled:opacity-30'
           }`}
         >
-          {devState.pairing ? 'Pairing…' : 'Pair device'}
+          {devState.pairing && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+          {devState.pairing ? `Stop  ${fmt(countdown)}` : 'Scan'}
         </button>
       </div>
 
+      {devState.pairing && (
+        <p className="text-center text-[11px] text-white/25">
+          Power-cycle your bulb to pair it
+        </p>
+      )}
+
       {/* Device list */}
       {visible.length === 0 ? (
-        <p className="text-center text-[11px] text-white/20 uppercase tracking-widest pt-8">
+        <p className="text-center text-[11px] text-white/20 uppercase tracking-widest pt-6">
           No devices paired
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {visible.map((d) => (
-            <div
-              key={d.ieee_address}
-              className="flex items-center justify-between px-5 py-4 rounded-2xl bg-white/[0.04]"
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm text-white/70">{d.friendly_name}</span>
-                {d.definition?.description && (
-                  <span className="text-[10px] text-white/25">{d.definition.description}</span>
-                )}
+          {visible.map((d) => {
+            const isNew = newDeviceIds.has(d.ieee_address);
+            return (
+              <div
+                key={d.ieee_address}
+                className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-colors ${
+                  isNew ? 'bg-amber-500/10 ring-1 ring-amber-500/20' : 'bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  {editingId === d.ieee_address ? (
+                    <input
+                      autoFocus
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      onBlur={() => submitRename(d.friendly_name)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter')  submitRename(d.friendly_name);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      className="bg-white/[0.08] text-white/80 text-sm rounded-lg px-2 py-0.5 outline-none ring-1 ring-white/20 w-full"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white/70 truncate">{d.friendly_name}</span>
+                      {isNew && (
+                        <span className="text-[10px] text-amber-400 uppercase tracking-wider">New</span>
+                      )}
+                    </div>
+                  )}
+                  <span className="text-[10px] text-white/25">
+                    {d.definition?.description ?? (d.type === 'Router' ? 'Router' : 'Device')}
+                  </span>
+                </div>
+                <button
+                  onClick={() => startEdit(d)}
+                  className="p-2 text-white/20 hover:text-white/50 touch-manipulation transition-colors"
+                >
+                  <PencilIcon />
+                </button>
+                <button
+                  onClick={() => removeDevice(d.friendly_name)}
+                  className="p-2 text-white/20 hover:text-red-400/60 touch-manipulation transition-colors"
+                >
+                  <TrashIcon />
+                </button>
               </div>
-              <span className="text-[10px] text-white/25 uppercase tracking-wider">
-                {DEVICE_TYPE_LABEL[d.type] ?? d.type}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

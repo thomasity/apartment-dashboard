@@ -41,6 +41,10 @@ mqttManager.on('devicesChange', (state) => {
   io.emit('lighting:devices', state);
 });
 
+mqttManager.on('bridgeEvent', (event) => {
+  io.emit('lighting:bridge_event', event);
+});
+
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Dashboard server running on http://localhost:${PORT}`);

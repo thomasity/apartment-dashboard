@@ -16,6 +16,20 @@ module.exports = (io, mqttManager) => {
     res.json({ ok: true });
   });
 
+  router.post('/devices/rename', (req, res) => {
+    const { from, to } = req.body;
+    if (!from || !to) return res.status(400).json({ error: 'from and to required' });
+    mqttManager.renameDevice(from, to);
+    res.json({ ok: true });
+  });
+
+  router.post('/devices/remove', (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: 'id required' });
+    mqttManager.removeDevice(id);
+    res.json({ ok: true });
+  });
+
   router.post('/set', (req, res) => {
     const { group, brightness, colorTemp } = req.body;
 

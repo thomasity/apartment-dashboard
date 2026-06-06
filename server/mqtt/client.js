@@ -39,6 +39,7 @@ class MqttManager extends EventEmitter {
       this.connected = true;
       this.client.subscribe('zigbee2mqtt/bridge/state');
       this.client.subscribe('zigbee2mqtt/bridge/devices');
+      this.client.subscribe('zigbee2mqtt/bridge/event');
       this.client.subscribe('zigbee2mqtt/bridge/response/permit_join');
       this.emit('stateChange', this.getState());
     });
@@ -58,6 +59,11 @@ class MqttManager extends EventEmitter {
           this.devices = JSON.parse(payload.toString());
           this._syncDeviceSubscriptions();
           this.emit('devicesChange', this.getDevicesState());
+          return;
+        }
+
+        if (topic === 'zigbee2mqtt/bridge/event') {
+          this.emit('bridgeEvent', JSON.parse(payload.toString()));
           return;
         }
 
@@ -142,6 +148,24 @@ class MqttManager extends EventEmitter {
     }
 
     this.emit('stateChange', this.getState());
+  }
+
+  renameDevice(from, to) {
+    if (!this.client) return;
+    this.client.publish(
+      'zigbee2mqtt/bridge/request/device/rename',
+      JSON.stringify({ from, to }),
+      { qos: 1 }
+    );
+  }
+
+  removeDevice(id) {
+    if (!this.client) return;
+    this.client.publish(
+      'zigbee2mqtt/bridge/request/device/remove',
+      JSON.stringify({ id, force: false }),
+      { qos: 1 }
+    );
   }
 
   permitJoin(enable) {
