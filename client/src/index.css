@@ -54,6 +54,16 @@ input[type='range']::-moz-range-thumb {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
 }
 
+/* Mixed state: thumb fades to indicate indeterminate value */
+input[type='range'].slider-mixed::-webkit-slider-thumb {
+  background: rgba(226, 232, 240, 0.25);
+  box-shadow: none;
+}
+input[type='range'].slider-mixed::-moz-range-thumb {
+  background: rgba(226, 232, 240, 0.25);
+  box-shadow: none;
+}
+
 /* Brightness: dim → bright */
 input[type='range'].slider-brightness {
   background: linear-gradient(to right, #111120, #c8c8f0);

@@ -239,6 +239,12 @@ function avg(groups, key) {
   return Math.round(vals.reduce((s, g) => s + (g[key] ?? 50), 0) / vals.length);
 }
 
+function spread(devices, key) {
+  const vals = Object.values(devices).map((d) => d[key] ?? 50);
+  if (vals.length < 2) return 0;
+  return Math.max(...vals) - Math.min(...vals);
+}
+
 export default function Lighting() {
   const [view, setView]               = useState('controls');
   const [serverState, setServerState] = useState({ connected: false, groups: {} });
@@ -362,6 +368,14 @@ export default function Lighting() {
 
   const deviceEntries = Object.entries(serverState.groups);
 
+  const now = Date.now();
+  const brightnessMixed = deviceEntries.length > 1
+    && spread(localDevices, 'brightness') > 5
+    && now - (lastTouch.current.brightness ?? 0) > 1200;
+  const colorTempMixed = deviceEntries.length > 1
+    && spread(localDevices, 'colorTemp') > 5
+    && now - (lastTouch.current.colorTemp ?? 0) > 1200;
+
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
 
@@ -431,14 +445,16 @@ export default function Lighting() {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
-              <span className="text-[10px] text-white/35 tabular-nums">{local.brightness}%</span>
+              {brightnessMixed
+                ? <span className="text-[10px] text-white/25 italic">Mixed</span>
+                : <span className="text-[10px] text-white/35 tabular-nums">{local.brightness}%</span>}
             </div>
             <div className="flex items-center gap-3">
               <SunDim />
               <input
                 type="range" min={0} max={100} value={local.brightness}
                 onChange={(e) => handleSlider('brightness', e.target.value)}
-                className="slider-brightness flex-1 touch-manipulation"
+                className={`slider-brightness flex-1 touch-manipulation${brightnessMixed ? ' slider-mixed' : ''}`}
               />
               <SunBright />
             </div>
@@ -448,14 +464,16 @@ export default function Lighting() {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
-              <span className="text-[10px] text-white/35">{tempLabel}</span>
+              {colorTempMixed
+                ? <span className="text-[10px] text-white/25 italic">Mixed</span>
+                : <span className="text-[10px] text-white/35">{tempLabel}</span>}
             </div>
             <div className="flex items-center gap-3">
               <span className="text-base leading-none shrink-0">🔥</span>
               <input
                 type="range" min={0} max={100} value={local.colorTemp}
                 onChange={(e) => handleSlider('colorTemp', e.target.value)}
-                className="slider-colortemp flex-1 touch-manipulation"
+                className={`slider-colortemp flex-1 touch-manipulation${colorTempMixed ? ' slider-mixed' : ''}`}
               />
               <span className="text-base leading-none shrink-0">❄️</span>
             </div>
