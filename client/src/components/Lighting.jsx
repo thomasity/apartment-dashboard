@@ -435,7 +435,7 @@ export default function Lighting() {
       )}
 
       {/* ── All Devices (always visible) ── */}
-      <div className="shrink-0 px-8 pt-2 pb-2 flex flex-col gap-3" data-no-swipe>
+      <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-3" data-no-swipe>
         <div className="text-base font-semibold text-white/80 select-none">
           All Devices
         </div>
@@ -483,8 +483,8 @@ export default function Lighting() {
 
       {/* ── Individual Bulbs (scrollable) ── */}
       {deviceEntries.length > 0 && (
-        <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/[0.08]">
-          <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pt-3 pb-3 flex flex-col gap-4" data-no-swipe>
+        <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/20">
+          <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pt-5 pb-3 flex flex-col gap-4" data-no-swipe>
             {deviceEntries.map(([name]) => {
               const dev = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
               const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
