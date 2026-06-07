@@ -22,7 +22,7 @@ html, body, #root {
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
-  height: 8px;
+  height: 6px;
   border-radius: 9999px;
   outline: none;
   cursor: pointer;
@@ -31,8 +31,8 @@ input[type='range'] {
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #e2e8f0;
   cursor: pointer;
@@ -45,8 +45,8 @@ input[type='range']::-webkit-slider-thumb:active {
 }
 
 input[type='range']::-moz-range-thumb {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border: none;
   border-radius: 50%;
   background: #e2e8f0;
@@ -67,3 +67,22 @@ input[type='range'].slider-colortemp {
 /* Hide scrollbar on horizontal strips while keeping scroll behaviour */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* Subtle scrollbar matching the dark app aesthetic */
+.app-scrollbar::-webkit-scrollbar {
+  width: 3px;
+}
+.app-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.app-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 9999px;
+}
+.app-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.20);
+}
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.10) transparent;
+}

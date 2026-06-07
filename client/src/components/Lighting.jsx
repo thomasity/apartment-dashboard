@@ -348,9 +348,10 @@ export default function Lighting() {
     }, 220);
   }, []);
 
-  const applyPreset = ({ brightness, colorTemp }) => {
-    animateTo('brightness', brightness);
-    animateTo('colorTemp', colorTemp);
+  const applyPreset = (preset) => {
+    animateTo('brightness', preset.brightness);
+    animateTo('colorTemp', preset.colorTemp);
+    setView('controls');
   };
 
   const offline      = !serverState.connected;
@@ -365,14 +366,14 @@ export default function Lighting() {
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
 
-      {/* Controls / Devices toggle */}
+      {/* Controls / Presets / Devices toggle */}
       <div className="shrink-0 flex justify-center pt-5 pb-2">
         <div className="flex bg-white/[0.06] rounded-full p-1 gap-1">
-          {['controls', 'devices'].map((v) => (
+          {['controls', 'presets', 'devices'].map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-5 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
+              className={`px-4 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
                 view === v ? 'bg-white/[0.12] text-white/80' : 'text-white/30 hover:text-white/50'
               }`}
             >
@@ -384,6 +385,34 @@ export default function Lighting() {
 
       {view === 'devices' && <DevicesView socket={socket} />}
 
+      {view === 'presets' && (
+        <div className="flex-1 min-h-0 flex items-center justify-center px-8">
+          <div className="w-full grid grid-cols-2 gap-4">
+            {PRESETS.map((preset) => {
+              const isActive = activePreset?.label === preset.label;
+              const presetTempLabel = preset.colorTemp < 33 ? 'Warm' : preset.colorTemp < 67 ? 'Neutral' : 'Cool';
+              return (
+                <button
+                  key={preset.label}
+                  onClick={() => applyPreset(preset)}
+                  className={`flex flex-col items-center gap-3 py-8 rounded-2xl transition-colors touch-manipulation ${
+                    isActive
+                      ? 'bg-white/[0.12] ring-1 ring-white/20'
+                      : 'bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.15]'
+                  }`}
+                >
+                  <span className="text-4xl leading-none">{preset.icon}</span>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-sm font-medium text-white/70">{preset.label}</span>
+                    <span className="text-[10px] text-white/30">{preset.brightness}% · {presetTempLabel}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {view === 'controls' && <>
       {offline && (
         <div className="absolute top-5 right-8 flex items-center gap-1.5 text-[10px] text-amber-500/60 select-none z-10">
@@ -393,19 +422,19 @@ export default function Lighting() {
       )}
 
       {/* ── All Devices (always visible) ── */}
-      <div className="shrink-0 px-10 pt-3 pb-3 flex flex-col gap-4" data-no-swipe>
-        <div className="text-center text-[10px] font-medium text-white/25 uppercase tracking-widest select-none">
+      <div className="shrink-0 px-8 pt-2 pb-2 flex flex-col gap-3" data-no-swipe>
+        <div className="text-center text-[10px] font-medium text-white/20 uppercase tracking-widest select-none">
           All Devices
         </div>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3">
           {/* Brightness */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-white/30 uppercase tracking-widest">Brightness</span>
-              <span className="text-xs text-white/40 tabular-nums">{local.brightness}%</span>
+              <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
+              <span className="text-[10px] text-white/35 tabular-nums">{local.brightness}%</span>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <SunDim />
               <input
                 type="range" min={0} max={100} value={local.brightness}
@@ -417,69 +446,51 @@ export default function Lighting() {
           </div>
 
           {/* Color temperature */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-white/30 uppercase tracking-widest">Color Temp</span>
-              <span className="text-xs text-white/40">{tempLabel}</span>
+              <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
+              <span className="text-[10px] text-white/35">{tempLabel}</span>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-lg leading-none shrink-0">🔥</span>
+            <div className="flex items-center gap-3">
+              <span className="text-base leading-none shrink-0">🔥</span>
               <input
                 type="range" min={0} max={100} value={local.colorTemp}
                 onChange={(e) => handleSlider('colorTemp', e.target.value)}
                 className="slider-colortemp flex-1 touch-manipulation"
               />
-              <span className="text-lg leading-none shrink-0">❄️</span>
+              <span className="text-base leading-none shrink-0">❄️</span>
             </div>
           </div>
-        </div>
-
-        {/* Mood presets */}
-        <div className="grid grid-cols-4 gap-2">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              onClick={() => applyPreset(preset)}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-colors touch-manipulation ${
-                activePreset?.label === preset.label
-                  ? 'bg-white/[0.12] ring-1 ring-white/20'
-                  : 'bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.15]'
-              }`}
-            >
-              <span className="text-xl leading-none">{preset.icon}</span>
-              <span className="text-[11px] font-medium text-white/45">{preset.label}</span>
-            </button>
-          ))}
         </div>
       </div>
 
       {/* ── Individual Bulbs (scrollable) ── */}
       {deviceEntries.length > 0 && (
         <div className="flex-1 min-h-0 flex flex-col border-t border-white/[0.06]">
-          <div className="shrink-0 flex items-center gap-4 px-10 py-2">
+          <div className="shrink-0 flex items-center gap-3 px-8 py-1.5">
             <div className="flex-1 h-px bg-white/[0.06]" />
-            <span className="text-[10px] font-medium text-white/20 uppercase tracking-widest select-none">
+            <span className="text-[9px] font-medium text-white/15 uppercase tracking-widest select-none">
               Individual
             </span>
             <div className="flex-1 h-px bg-white/[0.06]" />
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-10 pb-4 flex flex-col gap-6" data-no-swipe>
+          <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pb-3 flex flex-col gap-4" data-no-swipe>
             {deviceEntries.map(([name]) => {
               const dev = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
               const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
               return (
-                <div key={name} className="flex flex-col gap-3">
-                  <div className="text-center text-[10px] font-medium text-white/25 uppercase tracking-widest select-none">
+                <div key={name} className="flex flex-col gap-2">
+                  <div className="text-center text-[9px] font-medium text-white/20 uppercase tracking-widest select-none">
                     {name}
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-white/30 uppercase tracking-widest">Brightness</span>
-                      <span className="text-xs text-white/40 tabular-nums">{dev.brightness}%</span>
+                      <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
+                      <span className="text-[10px] text-white/35 tabular-nums">{dev.brightness}%</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <SunDim />
                       <input
                         type="range" min={0} max={100} value={dev.brightness}
@@ -490,19 +501,19 @@ export default function Lighting() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-white/30 uppercase tracking-widest">Color Temp</span>
-                      <span className="text-xs text-white/40">{devTempLabel}</span>
+                      <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
+                      <span className="text-[10px] text-white/35">{devTempLabel}</span>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-lg leading-none shrink-0">🔥</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-base leading-none shrink-0">🔥</span>
                       <input
                         type="range" min={0} max={100} value={dev.colorTemp}
                         onChange={(e) => handleDeviceSlider(name, 'colorTemp', e.target.value)}
                         className="slider-colortemp flex-1 touch-manipulation"
                       />
-                      <span className="text-lg leading-none shrink-0">❄️</span>
+                      <span className="text-base leading-none shrink-0">❄️</span>
                     </div>
                   </div>
                 </div>
