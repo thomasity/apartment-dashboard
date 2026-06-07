@@ -1,0 +1,6 @@
+[
+  { "label": "Relax",  "icon": "🌙", "brightness": 40,  "colorTemp": 25 },
+  { "label": "Focus",  "icon": "💡", "brightness": 90,  "colorTemp": 85 },
+  { "label": "Movie",  "icon": "🎬", "brightness": 20,  "colorTemp": 18 },
+  { "label": "Bright", "icon": "☀️", "brightness": 100, "colorTemp": 60 }
+]
