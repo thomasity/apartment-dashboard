@@ -250,10 +250,13 @@ export default function Lighting() {
   const [view, setView]               = useState('controls');
   const [serverState, setServerState] = useState({ connected: false, groups: {} });
   const [local, setLocal]             = useState({ brightness: 70, colorTemp: 30 });
+  const [localDevices, setLocalDevices] = useState({});
   const [socket, setSocket]           = useState(null);
   const timers                        = useRef({});
   const animFrames                    = useRef({});
   const lastTouch                     = useRef({});
+  const lastTouchDevices              = useRef({});
+  const timersDevices                 = useRef({});
   const localRef                      = useRef(local);
 
   // Keep ref in sync so RAF closures always read the current value
@@ -281,6 +284,22 @@ export default function Lighting() {
 
     return () => s.disconnect();
   }, []);
+
+  // Sync per-device local state from server, but don't clobber a slider the user is actively dragging
+  useEffect(() => {
+    const now = Date.now();
+    setLocalDevices((prev) => {
+      const next = {};
+      Object.entries(serverState.groups).forEach(([name, g]) => {
+        const dt = lastTouchDevices.current[name] ?? {};
+        next[name] = {
+          brightness: now - (dt.brightness ?? 0) > 1200 ? g.brightness : (prev[name]?.brightness ?? g.brightness),
+          colorTemp:  now - (dt.colorTemp  ?? 0) > 1200 ? g.colorTemp  : (prev[name]?.colorTemp  ?? g.colorTemp),
+        };
+      });
+      return next;
+    });
+  }, [serverState.groups]);
 
   const sendAll = useCallback((payload) => {
     axios.post('/api/lighting/set', { group: 'all', ...payload }).catch(console.warn);
@@ -318,12 +337,23 @@ export default function Lighting() {
   const handleSlider = (key, raw) => {
     const value = Number(raw);
     lastTouch.current[key] = Date.now();
-    // Cancel any preset animation in progress for this key
     cancelAnimationFrame(animFrames.current[key]);
     setLocal((prev) => ({ ...prev, [key]: value }));
     clearTimeout(timers.current[key]);
     timers.current[key] = setTimeout(() => sendAll({ [key]: value }), 220);
   };
+
+  const handleDeviceSlider = useCallback((deviceName, key, raw) => {
+    const value = Number(raw);
+    if (!lastTouchDevices.current[deviceName]) lastTouchDevices.current[deviceName] = {};
+    lastTouchDevices.current[deviceName][key] = Date.now();
+    setLocalDevices((prev) => ({ ...prev, [deviceName]: { ...(prev[deviceName] ?? {}), [key]: value } }));
+    const timerKey = `${deviceName}-${key}`;
+    clearTimeout(timersDevices.current[timerKey]);
+    timersDevices.current[timerKey] = setTimeout(() => {
+      axios.post('/api/lighting/set', { group: deviceName, [key]: value }).catch(console.warn);
+    }, 220);
+  }, []);
 
   const applyPreset = ({ brightness, colorTemp }) => {
     animateTo('brightness', brightness);
@@ -336,6 +366,8 @@ export default function Lighting() {
   );
   const tempLabel =
     local.colorTemp < 33 ? 'Warm' : local.colorTemp < 67 ? 'Neutral' : 'Cool';
+
+  const deviceEntries = Object.entries(serverState.groups);
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -367,15 +399,16 @@ export default function Lighting() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex items-center justify-center">
-        <div className="w-full px-12 flex flex-col gap-10">
+      <div className="flex-1 min-h-0 overflow-y-auto" data-no-swipe>
+        <div className="w-full px-12 py-8 flex flex-col gap-10">
 
+          {/* ── All Devices ── */}
           <div className="text-center text-[10px] font-medium text-white/25 uppercase tracking-widest select-none">
-            Living Room
+            All Devices
           </div>
 
-          {/* ── Sliders ── */}
-          <div className="flex flex-col gap-8" data-no-swipe>
+          {/* Sliders */}
+          <div className="flex flex-col gap-8">
 
             {/* Brightness */}
             <div className="flex flex-col gap-4">
@@ -435,6 +468,71 @@ export default function Lighting() {
               </button>
             ))}
           </div>
+
+          {/* ── Individual Bulbs ── */}
+          {deviceEntries.length > 0 && (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="flex-1 h-px bg-white/[0.06]" />
+                <span className="text-[10px] font-medium text-white/20 uppercase tracking-widest select-none">
+                  Individual
+                </span>
+                <div className="flex-1 h-px bg-white/[0.06]" />
+              </div>
+
+              {deviceEntries.map(([name]) => {
+                const dev = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
+                const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
+                return (
+                  <div key={name} className="flex flex-col gap-6">
+                    <div className="text-center text-[10px] font-medium text-white/25 uppercase tracking-widest select-none">
+                      {name}
+                    </div>
+
+                    {/* Brightness */}
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-white/30 uppercase tracking-widest">Brightness</span>
+                        <span className="text-sm text-white/40 tabular-nums">{dev.brightness}%</span>
+                      </div>
+                      <div className="flex items-center gap-5">
+                        <SunDim />
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={dev.brightness}
+                          onChange={(e) => handleDeviceSlider(name, 'brightness', e.target.value)}
+                          className="slider-brightness flex-1 touch-manipulation"
+                        />
+                        <SunBright />
+                      </div>
+                    </div>
+
+                    {/* Color temperature */}
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-white/30 uppercase tracking-widest">Color Temp</span>
+                        <span className="text-sm text-white/40">{devTempLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-5">
+                        <span className="text-xl leading-none shrink-0">🔥</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={dev.colorTemp}
+                          onChange={(e) => handleDeviceSlider(name, 'colorTemp', e.target.value)}
+                          className="slider-colortemp flex-1 touch-manipulation"
+                        />
+                        <span className="text-xl leading-none shrink-0">❄️</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
 
         </div>
       </div>
