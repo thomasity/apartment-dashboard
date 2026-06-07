@@ -351,7 +351,6 @@ export default function Lighting() {
   const applyPreset = (preset) => {
     animateTo('brightness', preset.brightness);
     animateTo('colorTemp', preset.colorTemp);
-    setView('controls');
   };
 
   const offline      = !serverState.connected;
@@ -387,7 +386,7 @@ export default function Lighting() {
 
       {view === 'presets' && (
         <div className="flex-1 min-h-0 flex items-center justify-center px-8">
-          <div className="w-full grid grid-cols-2 gap-4">
+          <div className="w-full grid grid-cols-3 gap-4">
             {PRESETS.map((preset) => {
               const isActive = activePreset?.label === preset.label;
               const presetTempLabel = preset.colorTemp < 33 ? 'Warm' : preset.colorTemp < 67 ? 'Neutral' : 'Cool';
@@ -423,7 +422,7 @@ export default function Lighting() {
 
       {/* ── All Devices (always visible) ── */}
       <div className="shrink-0 px-8 pt-2 pb-2 flex flex-col gap-3" data-no-swipe>
-        <div className="text-center text-[10px] font-medium text-white/20 uppercase tracking-widest select-none">
+        <div className="text-[13px] font-semibold text-white/70 select-none">
           All Devices
         </div>
 
@@ -466,22 +465,14 @@ export default function Lighting() {
 
       {/* ── Individual Bulbs (scrollable) ── */}
       {deviceEntries.length > 0 && (
-        <div className="flex-1 min-h-0 flex flex-col border-t border-white/[0.06]">
-          <div className="shrink-0 flex items-center gap-3 px-8 py-1.5">
-            <div className="flex-1 h-px bg-white/[0.06]" />
-            <span className="text-[9px] font-medium text-white/15 uppercase tracking-widest select-none">
-              Individual
-            </span>
-            <div className="flex-1 h-px bg-white/[0.06]" />
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pb-3 flex flex-col gap-4" data-no-swipe>
+        <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/[0.08]">
+          <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pt-3 pb-3 flex flex-col gap-4" data-no-swipe>
             {deviceEntries.map(([name]) => {
               const dev = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
               const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
               return (
                 <div key={name} className="flex flex-col gap-2">
-                  <div className="text-center text-[9px] font-medium text-white/20 uppercase tracking-widest select-none">
+                  <div className="text-[12px] font-semibold text-white/60 select-none">
                     {name}
                   </div>
 
