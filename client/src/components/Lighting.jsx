@@ -436,7 +436,7 @@ export default function Lighting() {
 
       {/* ── All Devices (always visible) ── */}
       <div className="shrink-0 px-8 pt-2 pb-2 flex flex-col gap-3" data-no-swipe>
-        <div className="text-[13px] font-semibold text-white/70 select-none">
+        <div className="text-base font-semibold text-white/80 select-none">
           All Devices
         </div>
 
@@ -490,7 +490,7 @@ export default function Lighting() {
               const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
               return (
                 <div key={name} className="flex flex-col gap-2">
-                  <div className="text-[12px] font-semibold text-white/60 select-none">
+                  <div className="text-sm font-semibold text-white/70 select-none">
                     {name}
                   </div>
 
