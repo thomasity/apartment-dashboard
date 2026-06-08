@@ -99,7 +99,10 @@ export default function Spotify() {
             )}
           </>
         ) : (
-          <p className="text-white/20 text-sm tracking-widest uppercase">Nothing playing</p>
+          <div className="text-center">
+            <p className="text-white/25 text-sm tracking-widest uppercase">Nothing playing</p>
+            <p className="text-white/15 text-xs mt-2">Tap a playlist to start</p>
+          </div>
         )}
       </div>
 
