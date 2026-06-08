@@ -5,8 +5,14 @@ const router   = express.Router();
 let scanInProgress = false;
 
 function bt(cmd) {
-  return new Promise((resolve) => {
-    exec(`bluetoothctl ${cmd}`, (err, stdout) => resolve(stdout ?? ''));
+  return new Promise((resolve, reject) => {
+    exec(`bluetoothctl ${cmd}`, (err, stdout, stderr) => {
+      if (err) {
+        console.error(`[bluetooth] bluetoothctl ${cmd} failed:`, stderr || err.message);
+        return reject(err);
+      }
+      resolve(stdout ?? '');
+    });
   });
 }
 
@@ -21,21 +27,25 @@ function parseDeviceLines(stdout) {
 
 // Paired devices with connected status
 router.get('/devices', async (_req, res) => {
-  const [pairedOut, connectedOut] = await Promise.all([
-    bt('devices Paired'),
-    bt('devices Connected'),
-  ]);
+  try {
+    const [pairedOut, connectedOut] = await Promise.all([
+      bt('devices Paired'),
+      bt('devices Connected'),
+    ]);
 
-  const connectedMacs = new Set(
-    parseDeviceLines(connectedOut).map((d) => d.mac)
-  );
+    const connectedMacs = new Set(
+      parseDeviceLines(connectedOut).map((d) => d.mac)
+    );
 
-  const devices = parseDeviceLines(pairedOut).map((d) => ({
-    ...d,
-    connected: connectedMacs.has(d.mac),
-  }));
+    const devices = parseDeviceLines(pairedOut).map((d) => ({
+      ...d,
+      connected: connectedMacs.has(d.mac),
+    }));
 
-  res.json(devices);
+    res.json(devices);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Scan for nearby unpaired devices (~8 seconds)
@@ -43,23 +53,29 @@ router.get('/scan', async (_req, res) => {
   if (scanInProgress) return res.status(409).json({ error: 'Scan already in progress' });
 
   scanInProgress = true;
-  await bt('power on');
+  try {
+    await bt('power on');
 
-  const proc = spawn('bluetoothctl', ['scan', 'on']);
-  await new Promise((resolve) => setTimeout(resolve, 8000));
-  proc.kill();
-  await bt('scan off');
+    const proc = spawn('bluetoothctl', ['scan', 'on']);
+    proc.stderr.on('data', (d) => console.error('[bluetooth] scan stderr:', d.toString()));
+    await new Promise((resolve) => setTimeout(resolve, 8000));
+    proc.kill();
+    await bt('scan off');
 
-  const [allOut, pairedOut] = await Promise.all([
-    bt('devices'),
-    bt('devices Paired'),
-  ]);
+    const [allOut, pairedOut] = await Promise.all([
+      bt('devices'),
+      bt('devices Paired'),
+    ]);
 
-  const pairedMacs = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
-  const discovered = parseDeviceLines(allOut).filter((d) => !pairedMacs.has(d.mac));
+    const pairedMacs = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
+    const discovered = parseDeviceLines(allOut).filter((d) => !pairedMacs.has(d.mac));
 
-  scanInProgress = false;
-  res.json(discovered);
+    res.json(discovered);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    scanInProgress = false;
+  }
 });
 
 // Pair + trust + connect
