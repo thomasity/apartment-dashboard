@@ -74,16 +74,59 @@ function BluetoothIcon() {
 }
 
 function DevicePicker({ onClose, devices, transferTo }) {
-  const [btDevices, setBtDevices] = useState([]);
+  const [btPaired,     setBtPaired]     = useState([]);
+  const [btDiscovered, setBtDiscovered] = useState([]);
+  const [scanning,     setScanning]     = useState(false);
+  const [pairing,      setPairing]      = useState(null); // mac being paired
 
   useEffect(() => {
-    axios.get('/api/bluetooth/devices').then((r) => setBtDevices(r.data)).catch(() => {});
+    axios.get('/api/bluetooth/devices').then((r) => setBtPaired(r.data)).catch(() => {});
   }, []);
 
-  const handleSelect = useCallback(async (deviceId) => {
+  const handleSpotifySelect = useCallback(async (deviceId) => {
     await transferTo(deviceId, true);
     onClose();
   }, [transferTo, onClose]);
+
+  const scan = useCallback(async () => {
+    setScanning(true);
+    setBtDiscovered([]);
+    try {
+      const { data } = await axios.get('/api/bluetooth/scan');
+      setBtDiscovered(data);
+    } catch {}
+    setScanning(false);
+  }, []);
+
+  const pair = useCallback(async (mac) => {
+    setPairing(mac);
+    try {
+      await axios.post('/api/bluetooth/pair', { mac });
+      const { data } = await axios.get('/api/bluetooth/devices');
+      setBtPaired(data);
+      setBtDiscovered((prev) => prev.filter((d) => d.mac !== mac));
+    } catch {}
+    setPairing(null);
+  }, []);
+
+  const toggleConnect = useCallback(async (d) => {
+    try {
+      if (d.connected) {
+        await axios.post('/api/bluetooth/disconnect', { mac: d.mac });
+      } else {
+        await axios.post('/api/bluetooth/connect', { mac: d.mac });
+      }
+      const { data } = await axios.get('/api/bluetooth/devices');
+      setBtPaired(data);
+    } catch {}
+  }, []);
+
+  const forget = useCallback(async (mac) => {
+    try {
+      await axios.delete(`/api/bluetooth/device/${mac}`);
+      setBtPaired((prev) => prev.filter((d) => d.mac !== mac));
+    } catch {}
+  }, []);
 
   return (
     <div
@@ -91,18 +134,19 @@ function DevicePicker({ onClose, devices, transferTo }) {
       onClick={onClose}
     >
       <div
-        className="bg-[#111118] border border-white/10 rounded-2xl p-5 w-72 flex flex-col gap-2"
+        className="bg-[#111118] border border-white/10 rounded-2xl p-5 w-80 flex flex-col gap-2 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
+        data-no-swipe
       >
+        {/* ── Spotify devices ── */}
         <p className="text-white/40 text-xs tracking-widest uppercase mb-1">Play on…</p>
-
         {devices.length === 0 ? (
-          <p className="text-white/25 text-sm py-4 text-center">No devices found.<br/>Open Spotify on a device first.</p>
+          <p className="text-white/25 text-sm py-2 text-center">No devices found.<br/>Open Spotify on a device first.</p>
         ) : (
           devices.map((d) => (
             <button
               key={d.id}
-              onClick={() => handleSelect(d.id)}
+              onClick={() => handleSpotifySelect(d.id)}
               className={`flex items-center gap-3 px-3 py-3 rounded-xl touch-manipulation transition-colors ${
                 d.isActive ? 'bg-white/10 text-white' : 'text-white/50 active:bg-white/5'
               }`}
@@ -111,32 +155,69 @@ function DevicePicker({ onClose, devices, transferTo }) {
                 <DeviceTypeIcon type={d.type} />
               </span>
               <span className="text-sm truncate">{d.name}</span>
-              {d.isActive && (
-                <span className="ml-auto text-white/30 text-xs">Active</span>
-              )}
+              {d.isActive && <span className="ml-auto text-white/30 text-xs">Active</span>}
             </button>
           ))
         )}
 
-        {/* Pi Bluetooth audio output */}
+        {/* ── Pi Bluetooth speakers ── */}
         <div className="mt-2 pt-3 border-t border-white/[0.07]">
-          <p className="text-white/25 text-xs tracking-widest uppercase mb-2">Pi Audio Output</p>
-          {btDevices.length === 0 ? (
-            <div className="flex items-center gap-2 px-3 py-2">
-              <span className="text-white/15"><BluetoothIcon /></span>
-              <span className="text-white/20 text-xs">No speaker connected</span>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white/25 text-xs tracking-widest uppercase">Pi Speakers</p>
+            <button
+              onClick={scan}
+              disabled={scanning}
+              className="text-white/30 text-xs active:text-white/60 disabled:opacity-40 touch-manipulation"
+            >
+              {scanning ? 'Scanning…' : '+ Scan'}
+            </button>
+          </div>
+
+          {/* Paired devices */}
+          {btPaired.length === 0 && !scanning && btDiscovered.length === 0 && (
+            <p className="text-white/20 text-xs px-3 py-1">No speakers paired. Tap Scan to find one.</p>
+          )}
+          {btPaired.map((d) => (
+            <div key={d.mac} className="flex items-center gap-3 px-3 py-2 rounded-xl">
+              <span className={d.connected ? 'text-blue-400/70' : 'text-white/20'}>
+                <BluetoothIcon />
+              </span>
+              <span className={`text-sm truncate flex-1 ${d.connected ? 'text-white/70' : 'text-white/35'}`}>
+                {d.name}
+              </span>
+              <button
+                onClick={() => toggleConnect(d)}
+                className="text-xs text-white/30 active:text-white/60 touch-manipulation ml-1"
+              >
+                {d.connected ? 'Disconnect' : 'Connect'}
+              </button>
+              <button
+                onClick={() => forget(d.mac)}
+                className="text-xs text-white/20 active:text-red-400/60 touch-manipulation"
+              >
+                ✕
+              </button>
             </div>
-          ) : (
-            btDevices.map((d) => (
-              <div key={d.mac} className="flex items-center gap-3 px-3 py-2">
-                <span className="text-blue-400/70"><BluetoothIcon /></span>
-                <span className="text-white/60 text-sm truncate">{d.name}</span>
-                <span className="ml-auto flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-pulse" />
-                  <span className="text-blue-400/60 text-xs">Connected</span>
-                </span>
-              </div>
-            ))
+          ))}
+
+          {/* Scan results — unpaired discovered devices */}
+          {btDiscovered.length > 0 && (
+            <>
+              <p className="text-white/20 text-xs px-3 pt-2 pb-1">Nearby</p>
+              {btDiscovered.map((d) => (
+                <div key={d.mac} className="flex items-center gap-3 px-3 py-2 rounded-xl">
+                  <span className="text-white/20"><BluetoothIcon /></span>
+                  <span className="text-white/40 text-sm truncate flex-1">{d.name || d.mac}</span>
+                  <button
+                    onClick={() => pair(d.mac)}
+                    disabled={pairing === d.mac}
+                    className="text-xs text-blue-400/60 active:text-blue-400 disabled:opacity-40 touch-manipulation"
+                  >
+                    {pairing === d.mac ? 'Pairing…' : 'Pair'}
+                  </button>
+                </div>
+              ))}
+            </>
           )}
         </div>
       </div>
