@@ -17,7 +17,7 @@ const INACTIVITY_MS  = 5 * 60 * 1000;
 const NAV_HIDE_MS    = 3 * 1000;
 
 export default function App() {
-  const [tab,        setTab]        = useState('weather');
+  const [tab,        setTab]        = useState('home');
   const [navVisible, setNavVisible] = useState(true);
 
   const touchStart    = useRef(null);
