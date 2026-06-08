@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Header from './components/Header';
-import Home from './components/Home';
+import Header  from './components/Header';
+import Home    from './components/Home';
 import Weather from './components/Weather';
-import Stocks from './components/Stocks';
+import Stocks  from './components/Stocks';
 import Lighting from './components/Lighting';
+import Spotify from './components/Spotify';
 
 const TABS      = [
   { id: 'home',    label: 'Home'    },
   { id: 'weather', label: 'Weather' },
   { id: 'stocks',  label: 'Markets' },
   { id: 'lights',  label: 'Lights'  },
+  { id: 'spotify', label: 'Music'   },
 ];
 const TAB_ORDER = TABS.map((t) => t.id);
 
@@ -105,6 +107,7 @@ export default function App() {
             {id === 'weather' && <Weather />}
             {id === 'stocks'  && <Stocks />}
             {id === 'lights'  && <Lighting />}
+            {id === 'spotify' && <Spotify />}
           </div>
         ))}
       </div>
@@ -118,7 +121,7 @@ export default function App() {
 
       {/* ── Nav overlay — frosted glass, auto-hides on Home ── */}
       <nav
-        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-4 border-t border-white/10 backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
+        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-white/10 backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
           navVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >

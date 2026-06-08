@@ -16,9 +16,10 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-app.use('/api/weather', require('./routes/weather'));
-app.use('/api/stocks',  require('./routes/stocks'));
+app.use('/api/weather',  require('./routes/weather'));
+app.use('/api/stocks',   require('./routes/stocks'));
 app.use('/api/lighting', require('./routes/lighting')(io, mqttManager));
+app.use('/api/spotify',  require('./routes/spotify'));
 
 if (process.env.NODE_ENV === 'production') {
   const clientBuild = path.join(__dirname, '../client/dist');
