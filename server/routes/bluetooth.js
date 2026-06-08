@@ -1,28 +1,52 @@
-const express  = require('express');
-const { exec }        = require('child_process');
-const { spawn }       = require('child_process');
-const router   = express.Router();
+const express = require('express');
+const { spawn } = require('child_process');
+const router  = express.Router();
 
 let scanInProgress = false;
 
-function bt(cmd) {
+// Run one or more bluetoothctl commands via stdin and return stdout
+function bt(...cmds) {
   return new Promise((resolve, reject) => {
-    // Pipe cmd + exit through stdin so bluetoothctl exits cleanly
-    exec(`echo -e "${cmd}\\nexit" | bluetoothctl`, { timeout: 8000 }, (err, stdout, stderr) => {
-      if (err && !err.killed) {
-        console.error(`[bluetooth] "${cmd}" failed:`, stderr || err.message);
-        return reject(err);
-      }
-      resolve(stdout ?? '');
-    });
+    const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let out = '';
+
+    proc.stdout.on('data', (d) => { out += d.toString(); });
+    proc.stderr.on('data', (d) => console.error('[bluetooth]', d.toString().trim()));
+
+    cmds.forEach((c) => proc.stdin.write(c + '\n'));
+    proc.stdin.write('exit\n');
+    proc.stdin.end();
+
+    const timer = setTimeout(() => { proc.kill(); resolve(out); }, 8000);
+    proc.on('close', () => { clearTimeout(timer); resolve(out); });
+    proc.on('error', (err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
+// Run bt() with a longer timeout for operations that take time (pair, connect)
+function btSlow(...cmds) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let out = '';
+
+    proc.stdout.on('data', (d) => { out += d.toString(); });
+    proc.stderr.on('data', (d) => console.error('[bluetooth]', d.toString().trim()));
+
+    cmds.forEach((c) => proc.stdin.write(c + '\n'));
+    proc.stdin.write('exit\n');
+    proc.stdin.end();
+
+    const timer = setTimeout(() => { proc.kill(); resolve(out); }, 20000);
+    proc.on('close', () => { clearTimeout(timer); resolve(out); });
+    proc.on('error', (err) => { clearTimeout(timer); reject(err); });
   });
 }
 
 function parseDeviceLines(stdout) {
-  return stdout.trim().split('\n')
+  return stdout.split('\n')
     .map((line) => {
-      const match = line.match(/^Device\s+([0-9A-Fa-f:]{17})\s+(.+)$/);
-      return match ? { mac: match[1], name: match[2] } : null;
+      const match = line.match(/Device\s+([0-9A-Fa-f:]{17})\s+(.+)/);
+      return match ? { mac: match[1], name: match[2].trim() } : null;
     })
     .filter(Boolean);
 }
@@ -30,22 +54,23 @@ function parseDeviceLines(stdout) {
 // Paired devices with connected status
 router.get('/devices', async (_req, res) => {
   try {
-    const [pairedOut, connectedOut] = await Promise.all([
-      bt('devices Paired'),
-      bt('devices Connected'),
-    ]);
+    const out = await bt('devices');
+    const allDevices = parseDeviceLines(out);
 
-    const connectedMacs = new Set(
-      parseDeviceLines(connectedOut).map((d) => d.mac)
-    );
+    // Check connected status for each paired device
+    const connectedOut = await bt('devices Connected');
+    const connectedMacs = new Set(parseDeviceLines(connectedOut).map((d) => d.mac));
 
-    const devices = parseDeviceLines(pairedOut).map((d) => ({
-      ...d,
-      connected: connectedMacs.has(d.mac),
-    }));
+    const pairedOut = await bt('devices Paired');
+    const pairedMacs = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
+
+    const devices = allDevices
+      .filter((d) => pairedMacs.has(d.mac))
+      .map((d) => ({ ...d, connected: connectedMacs.has(d.mac) }));
 
     res.json(devices);
   } catch (err) {
+    console.error('[bluetooth] /devices error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -53,15 +78,30 @@ router.get('/devices', async (_req, res) => {
 // Scan for nearby unpaired devices (~8 seconds)
 router.get('/scan', async (_req, res) => {
   if (scanInProgress) return res.status(409).json({ error: 'Scan already in progress' });
-
   scanInProgress = true;
-  try {
-    await bt('power on');
 
-    // Use timeout to auto-kill the scan after 8 seconds
-    const proc = spawn('timeout', ['8', 'bluetoothctl', 'scan', 'on']);
-    proc.stderr.on('data', (d) => console.error('[bluetooth] scan:', d.toString()));
-    await new Promise((resolve) => { proc.on('close', resolve); });
+  try {
+    // Power on then scan for 8 seconds via stdin
+    await new Promise((resolve, reject) => {
+      const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      let out = '';
+
+      proc.stdout.on('data', (d) => { out += d.toString(); });
+      proc.stderr.on('data', (d) => console.error('[bluetooth] scan:', d.toString().trim()));
+      proc.on('error', reject);
+
+      proc.stdin.write('power on\n');
+      proc.stdin.write('scan on\n');
+
+      // After 8 seconds, stop and exit
+      setTimeout(() => {
+        proc.stdin.write('scan off\n');
+        proc.stdin.write('exit\n');
+        proc.stdin.end();
+      }, 8000);
+
+      proc.on('close', resolve);
+    });
 
     const [allOut, pairedOut] = await Promise.all([
       bt('devices'),
@@ -71,8 +111,10 @@ router.get('/scan', async (_req, res) => {
     const pairedMacs = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
     const discovered = parseDeviceLines(allOut).filter((d) => !pairedMacs.has(d.mac));
 
+    console.log(`[bluetooth] scan found ${discovered.length} unpaired device(s)`);
     res.json(discovered);
   } catch (err) {
+    console.error('[bluetooth] scan error:', err.message);
     res.status(500).json({ error: err.message });
   } finally {
     scanInProgress = false;
@@ -83,33 +125,47 @@ router.get('/scan', async (_req, res) => {
 router.post('/pair', async (req, res) => {
   const { mac } = req.body;
   if (!mac) return res.status(400).json({ error: 'mac required' });
-
-  await bt(`pair ${mac}`);
-  await bt(`trust ${mac}`);
-  await bt(`connect ${mac}`);
-  res.json({ ok: true });
+  try {
+    const out = await btSlow(`pair ${mac}`, `trust ${mac}`, `connect ${mac}`);
+    console.log('[bluetooth] pair result:', out);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Connect an already-paired device
 router.post('/connect', async (req, res) => {
   const { mac } = req.body;
   if (!mac) return res.status(400).json({ error: 'mac required' });
-  await bt(`connect ${mac}`);
-  res.json({ ok: true });
+  try {
+    await btSlow(`connect ${mac}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Disconnect
 router.post('/disconnect', async (req, res) => {
   const { mac } = req.body;
   if (!mac) return res.status(400).json({ error: 'mac required' });
-  await bt(`disconnect ${mac}`);
-  res.json({ ok: true });
+  try {
+    await bt(`disconnect ${mac}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Forget (remove pairing)
 router.delete('/device/:mac', async (req, res) => {
-  await bt(`remove ${req.params.mac}`);
-  res.json({ ok: true });
+  try {
+    await bt(`remove ${req.params.mac}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
