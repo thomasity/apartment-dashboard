@@ -101,4 +101,24 @@ router.post('/volume', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.get('/devices', async (_req, res) => {
+  try {
+    const { data } = await spotify('GET', '/me/player/devices');
+    res.json(data.devices.map((d) => ({
+      id:       d.id,
+      name:     d.name,
+      type:     d.type.toLowerCase(),
+      isActive: d.is_active,
+      volume:   d.volume_percent,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/transfer', async (req, res) => {
+  try {
+    await spotify('PUT', '/me/player', { device_ids: [req.body.deviceId], play: req.body.play ?? false });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

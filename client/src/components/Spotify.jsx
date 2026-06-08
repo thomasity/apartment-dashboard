@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { useSpotify } from '../hooks/useSpotify';
 
 function PrevIcon() {
@@ -32,19 +33,95 @@ function PauseIcon() {
   );
 }
 
+function CastIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2C12 14.14 7.05 10 1 10zm20-6H3C1.9 4 1 4.9 1 6v3h2V6h18v12h-7v2h7c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/>
+    </svg>
+  );
+}
+
+function DeviceTypeIcon({ type }) {
+  if (type === 'smartphone') return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
+    </svg>
+  );
+  if (type === 'computer') return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
+    </svg>
+  );
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 1.99 2 1.99L17 22c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 16c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm5-5H7V7h10v8z"/>
+    </svg>
+  );
+}
+
 function fmtMs(ms) {
   const s = Math.floor((ms ?? 0) / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+function DevicePicker({ onClose, devices, transferTo }) {
+  const handleSelect = useCallback(async (deviceId) => {
+    await transferTo(deviceId, true);
+    onClose();
+  }, [transferTo, onClose]);
+
+  return (
+    <div
+      className="absolute inset-0 z-30 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#111118] border border-white/10 rounded-2xl p-5 w-72 flex flex-col gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-white/40 text-xs tracking-widest uppercase mb-1">Play on…</p>
+
+        {devices.length === 0 ? (
+          <p className="text-white/25 text-sm py-4 text-center">No devices found.<br/>Open Spotify on a device first.</p>
+        ) : (
+          devices.map((d) => (
+            <button
+              key={d.id}
+              onClick={() => handleSelect(d.id)}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl touch-manipulation transition-colors ${
+                d.isActive ? 'bg-white/10 text-white' : 'text-white/50 active:bg-white/5'
+              }`}
+            >
+              <span className={d.isActive ? 'text-white' : 'text-white/30'}>
+                <DeviceTypeIcon type={d.type} />
+              </span>
+              <span className="text-sm truncate">{d.name}</span>
+              {d.isActive && (
+                <span className="ml-auto text-white/30 text-xs">Active</span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Spotify() {
-  const { state, control, playContext, playlists } = useSpotify();
+  const { state, control, playContext, playlists, devices, fetchDevices, transferTo } = useSpotify();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const track     = state?.track ?? null;
   const isPlaying = state?.isPlaying ?? false;
   const pct       = track && track.duration > 0 ? (track.progress / track.duration) * 100 : 0;
 
+  const openPicker = useCallback(async () => {
+    await fetchDevices();
+    setPickerOpen(true);
+  }, [fetchDevices]);
+
   return (
-    <div className="h-full flex select-none">
+    <div className="relative h-full flex select-none">
 
       {/* ── Left: Now Playing ── */}
       <div className="w-2/5 flex flex-col items-center justify-center gap-6 px-8 border-r border-white/[0.06]">
@@ -93,10 +170,6 @@ export default function Spotify() {
                 <NextIcon />
               </button>
             </div>
-
-            {state.device?.name && (
-              <div className="text-white/20 text-xs tracking-wider uppercase">{state.device.name}</div>
-            )}
           </>
         ) : (
           <div className="text-center">
@@ -104,6 +177,19 @@ export default function Spotify() {
             <p className="text-white/15 text-xs mt-2">Tap a playlist to start</p>
           </div>
         )}
+
+        {/* Device picker button — always visible at bottom of left panel */}
+        <button
+          onClick={openPicker}
+          className={`flex items-center gap-2 touch-manipulation transition-colors ${
+            state?.device?.name ? 'text-white/30 active:text-white/60' : 'text-white/15 active:text-white/40'
+          }`}
+        >
+          <CastIcon />
+          <span className="text-xs tracking-wider uppercase truncate max-w-[120px]">
+            {state?.device?.name ?? 'No device'}
+          </span>
+        </button>
       </div>
 
       {/* ── Right: Playlists ── */}
@@ -133,6 +219,15 @@ export default function Spotify() {
           </div>
         )}
       </div>
+
+      {/* ── Device picker modal ── */}
+      {pickerOpen && (
+        <DevicePicker
+          devices={devices}
+          transferTo={transferTo}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
 
     </div>
   );

@@ -4,6 +4,7 @@ import axios from 'axios';
 export function useSpotify() {
   const [state,     setState]     = useState(null);
   const [playlists, setPlaylists] = useState([]);
+  const [devices,   setDevices]   = useState([]);
   const [tick,      setTick]      = useState(0);
   const polledAt                  = useRef(0);
 
@@ -46,6 +47,21 @@ export function useSpotify() {
     } catch {}
   }, [poll]);
 
+  const fetchDevices = useCallback(async () => {
+    try {
+      const { data } = await axios.get('/api/spotify/devices');
+      setDevices(data);
+      return data;
+    } catch { return []; }
+  }, []);
+
+  const transferTo = useCallback(async (deviceId, play = false) => {
+    try {
+      await axios.post('/api/spotify/transfer', { deviceId, play });
+      setTimeout(poll, 600);
+    } catch {}
+  }, [poll]);
+
   const liveState = state?.track ? {
     ...state,
     track: {
@@ -56,5 +72,5 @@ export function useSpotify() {
     },
   } : state;
 
-  return { state: liveState, control, playContext, playlists, _tick: tick };
+  return { state: liveState, control, playContext, playlists, devices, fetchDevices, transferTo, _tick: tick };
 }
