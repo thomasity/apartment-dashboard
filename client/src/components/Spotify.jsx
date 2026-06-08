@@ -77,6 +77,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
   const [btPaired,     setBtPaired]     = useState([]);
   const [btDiscovered, setBtDiscovered] = useState([]);
   const [scanning,     setScanning]     = useState(false);
+  const [scanError,    setScanError]    = useState(null);
   const [pairing,      setPairing]      = useState(null); // mac being paired
 
   useEffect(() => {
@@ -90,11 +91,16 @@ function DevicePicker({ onClose, devices, transferTo }) {
 
   const scan = useCallback(async () => {
     setScanning(true);
+    setScanError(null);
     setBtDiscovered([]);
     try {
       const { data } = await axios.get('/api/bluetooth/scan');
       setBtDiscovered(data);
-    } catch {}
+      if (data.length === 0) setScanError('No devices found. Make sure your speaker is in pairing mode.');
+    } catch (err) {
+      const msg = err.response?.status === 409 ? 'Scan already in progress — try again in a moment.' : 'Scan failed. Check server logs.';
+      setScanError(msg);
+    }
     setScanning(false);
   }, []);
 
@@ -199,6 +205,10 @@ function DevicePicker({ onClose, devices, transferTo }) {
               </button>
             </div>
           ))}
+
+          {scanError && (
+            <p className="text-white/30 text-xs px-3 py-1">{scanError}</p>
+          )}
 
           {/* Scan results — unpaired discovered devices */}
           {btDiscovered.length > 0 && (

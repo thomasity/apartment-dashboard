@@ -79,6 +79,8 @@ router.get('/devices', async (_req, res) => {
 router.get('/scan', async (_req, res) => {
   if (scanInProgress) return res.status(409).json({ error: 'Scan already in progress' });
   scanInProgress = true;
+  // Safety reset — never leave the flag stuck for more than 20 seconds
+  const safetyTimer = setTimeout(() => { scanInProgress = false; }, 20000);
 
   try {
     // Power on then scan for 8 seconds via stdin
@@ -117,6 +119,7 @@ router.get('/scan', async (_req, res) => {
     console.error('[bluetooth] scan error:', err.message);
     res.status(500).json({ error: err.message });
   } finally {
+    clearTimeout(safetyTimer);
     scanInProgress = false;
   }
 });
