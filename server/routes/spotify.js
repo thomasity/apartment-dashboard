@@ -58,9 +58,25 @@ router.get('/now-playing', async (req, res) => {
   }
 });
 
-router.post('/play',     async (_req, res) => {
-  try { await spotify('PUT',  '/me/player/play');     res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+router.post('/play', async (req, res) => {
+  try {
+    const body = req.body?.context_uri ? { context_uri: req.body.context_uri } : undefined;
+    await spotify('PUT', '/me/player/play', body);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/playlists', async (_req, res) => {
+  try {
+    const { data } = await spotify('GET', '/me/playlists?limit=50');
+    res.json(data.items.map((pl) => ({
+      id:    pl.id,
+      uri:   pl.uri,
+      name:  pl.name,
+      image: pl.images?.[0]?.url ?? null,
+      total: pl.tracks?.total ?? 0,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/pause',    async (_req, res) => {

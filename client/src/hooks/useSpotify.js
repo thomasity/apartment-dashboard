@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
 export function useSpotify() {
-  const [state, setState]   = useState(null);
-  const [tick,  setTick]    = useState(0);
-  const polledAt            = useRef(0);
+  const [state,     setState]     = useState(null);
+  const [playlists, setPlaylists] = useState([]);
+  const [tick,      setTick]      = useState(0);
+  const polledAt                  = useRef(0);
 
   const poll = useCallback(async () => {
     try {
@@ -20,6 +21,10 @@ export function useSpotify() {
     return () => clearInterval(id);
   }, [poll]);
 
+  useEffect(() => {
+    axios.get('/api/spotify/playlists').then((r) => setPlaylists(r.data)).catch(() => {});
+  }, []);
+
   // Tick every second while playing so the progress bar moves smoothly
   useEffect(() => {
     if (!state?.isPlaying) return;
@@ -34,16 +39,22 @@ export function useSpotify() {
     } catch {}
   }, [poll]);
 
-  if (!state?.track) return { state, control };
+  const playContext = useCallback(async (context_uri) => {
+    try {
+      await axios.post('/api/spotify/play', { context_uri });
+      setTimeout(poll, 400);
+    } catch {}
+  }, [poll]);
 
-  // Interpolate progress locally between server polls
-  const elapsed  = state.isPlaying ? Date.now() - polledAt.current : 0;
-  const progress = Math.min(state.track.progress + elapsed, state.track.duration);
+  const liveState = state?.track ? {
+    ...state,
+    track: {
+      ...state.track,
+      progress: state.isPlaying
+        ? Math.min(state.track.progress + (Date.now() - polledAt.current), state.track.duration)
+        : state.track.progress,
+    },
+  } : state;
 
-  return {
-    state: { ...state, track: { ...state.track, progress } },
-    control,
-    // expose tick so callers can force re-render awareness (unused but available)
-    _tick: tick,
-  };
+  return { state: liveState, control, playContext, playlists, _tick: tick };
 }
