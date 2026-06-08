@@ -266,6 +266,18 @@ export default function Lighting() {
     return () => Object.values(animFrames.current).forEach(cancelAnimationFrame);
   }, []);
 
+  // Seed sliders from HTTP before the socket even connects
+  useEffect(() => {
+    axios.get('/api/lighting/state').then(({ data }) => {
+      if (!Object.keys(data.groups).length) return;
+      setServerState(data);
+      setLocal({
+        brightness: avg(data.groups, 'brightness'),
+        colorTemp:  avg(data.groups, 'colorTemp'),
+      });
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     const s = io({ transports: ['websocket', 'polling'] });
     setSocket(s);

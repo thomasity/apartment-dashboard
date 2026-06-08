@@ -116,7 +116,14 @@ class MqttManager extends EventEmitter {
       if (!this.groups[d.friendly_name]) {
         this.groups[d.friendly_name] = { label: d.friendly_name, brightness: 70, colorTemp: 30 };
         this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
-          if (!err) console.log(`  subscribed: zigbee2mqtt/${d.friendly_name}`);
+          if (err) return;
+          console.log(`  subscribed: zigbee2mqtt/${d.friendly_name}`);
+          // Ask the bulb for its current state so we don't show stale defaults
+          this.client.publish(
+            `zigbee2mqtt/${d.friendly_name}/get`,
+            JSON.stringify({ state: '', brightness: '', color_temp: '' }),
+            { qos: 0 },
+          );
         });
       }
     });
