@@ -37,7 +37,7 @@ else
     cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Apartment Dashboard Server
-After=network.target mosquitto.service zigbee2mqtt.service
+After=network.target mosquitto.service zigbee2mqtt.service raspotify.service
 
 [Service]
 Type=simple

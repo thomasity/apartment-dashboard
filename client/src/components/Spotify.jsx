@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import { useSpotify } from '../hooks/useSpotify';
 
 function PrevIcon() {
@@ -64,7 +65,21 @@ function fmtMs(ms) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+function BluetoothIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.71 7.71 12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
+    </svg>
+  );
+}
+
 function DevicePicker({ onClose, devices, transferTo }) {
+  const [btDevices, setBtDevices] = useState([]);
+
+  useEffect(() => {
+    axios.get('/api/bluetooth/devices').then((r) => setBtDevices(r.data)).catch(() => {});
+  }, []);
+
   const handleSelect = useCallback(async (deviceId) => {
     await transferTo(deviceId, true);
     onClose();
@@ -102,6 +117,28 @@ function DevicePicker({ onClose, devices, transferTo }) {
             </button>
           ))
         )}
+
+        {/* Pi Bluetooth audio output */}
+        <div className="mt-2 pt-3 border-t border-white/[0.07]">
+          <p className="text-white/25 text-xs tracking-widest uppercase mb-2">Pi Audio Output</p>
+          {btDevices.length === 0 ? (
+            <div className="flex items-center gap-2 px-3 py-2">
+              <span className="text-white/15"><BluetoothIcon /></span>
+              <span className="text-white/20 text-xs">No speaker connected</span>
+            </div>
+          ) : (
+            btDevices.map((d) => (
+              <div key={d.mac} className="flex items-center gap-3 px-3 py-2">
+                <span className="text-blue-400/70"><BluetoothIcon /></span>
+                <span className="text-white/60 text-sm truncate">{d.name}</span>
+                <span className="ml-auto flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-pulse" />
+                  <span className="text-blue-400/60 text-xs">Connected</span>
+                </span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

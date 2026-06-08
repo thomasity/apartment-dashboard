@@ -17,6 +17,7 @@ bash "$SCRIPT_DIR/install-deps.sh"
 bash "$SCRIPT_DIR/install-mosquitto.sh"
 bash "$SCRIPT_DIR/install-zigbee2mqtt.sh"
 bash "$SCRIPT_DIR/install-raspotify.sh"
+bash "$SCRIPT_DIR/install-bluetooth.sh"
 bash "$SCRIPT_DIR/install-dashboard.sh"
 
 log "All done. Reboot recommended to ensure all services start cleanly."
