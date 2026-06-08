@@ -1,68 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import { useCoords } from '../hooks/useCoords';
-
-const WMO = {
-  0:  { label: 'Clear',          icon: '☀️' },
-  1:  { label: 'Mostly Clear',   icon: '🌤' },
-  2:  { label: 'Partly Cloudy',  icon: '⛅' },
-  3:  { label: 'Overcast',       icon: '☁️' },
-  45: { label: 'Foggy',          icon: '🌫' },
-  48: { label: 'Icy Fog',        icon: '🌫' },
-  51: { label: 'Light Drizzle',  icon: '🌦' },
-  53: { label: 'Drizzle',        icon: '🌦' },
-  55: { label: 'Heavy Drizzle',  icon: '🌧' },
-  61: { label: 'Light Rain',     icon: '🌧' },
-  63: { label: 'Rain',           icon: '🌧' },
-  65: { label: 'Heavy Rain',     icon: '🌧' },
-  71: { label: 'Light Snow',     icon: '🌨' },
-  73: { label: 'Snow',           icon: '❄️' },
-  75: { label: 'Heavy Snow',     icon: '❄️' },
-  77: { label: 'Snow Grains',    icon: '🌨' },
-  80: { label: 'Showers',        icon: '🌦' },
-  81: { label: 'Rain Showers',   icon: '🌧' },
-  82: { label: 'Heavy Showers',  icon: '⛈' },
-  85: { label: 'Snow Showers',   icon: '🌨' },
-  86: { label: 'Heavy Snow',     icon: '❄️' },
-  95: { label: 'Thunderstorm',   icon: '⛈' },
-  96: { label: 'Thunderstorm',   icon: '⛈' },
-  99: { label: 'Thunderstorm',   icon: '⛈' },
-};
+import { useWeather } from '../hooks/useWeather';
+import { wmo } from '../lib/wmo';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function cond(code) {
-  return WMO[code] ?? { label: 'Unknown', icon: '🌡' };
-}
-
 export default function Weather() {
-  const [data, setData]       = useState(null);
-  const [error, setError]     = useState(false);
-  const [location, setLocation] = useState(null);
-  const coords = useCoords();
-
-  const load = useCallback(async () => {
-    try {
-      const res = await axios.get('/api/weather', { params: coords ?? {} });
-      setData(res.data);
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, [coords]);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 10 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [load]);
-
-  useEffect(() => {
-    if (!coords) return;
-    axios.get('/api/geocode', { params: coords })
-      .then((res) => setLocation(res.data))
-      .catch(() => {});
-  }, [coords]);
+  const { data, error } = useWeather();
 
   if (error && !data) {
     return (
@@ -81,16 +23,14 @@ export default function Weather() {
   }
 
   const { current, hourly, daily } = data;
-  const weather  = cond(current.weather_code);
+  const weather  = wmo(current.weather_code);
   const todayStr = daily.time[0];
   const nowHour  = new Date().getHours();
 
-  // Find the current hour's index in the hourly array, then take the next 12 hours.
-  // This spans midnight naturally — 11 PM shows midnight, 1 AM, 2 AM, etc.
   const startIdx = hourly.time.findIndex(
     (t) => t.startsWith(todayStr) && parseInt(t.split('T')[1]) === nowHour
   );
-  const safeStart  = startIdx >= 0 ? startIdx : 0;
+  const safeStart   = startIdx >= 0 ? startIdx : 0;
   const hourlyItems = hourly.time.slice(safeStart, safeStart + 12).map((timeStr, offset) => {
     const i        = safeStart + offset;
     const datePart = timeStr.split('T')[0];
@@ -122,11 +62,6 @@ export default function Weather() {
           <div className="text-sm text-white/40 mt-1.5">
             Feels like {Math.round(current.apparent_temperature)}° · {weather.label}
           </div>
-          {location?.city && (
-            <div className="text-xs text-white/20 mt-1 tracking-wide">
-              {location.city}{location.state ? `, ${location.state}` : ''}
-            </div>
-          )}
         </div>
         <div className="text-right text-white/25 text-sm leading-loose shrink-0">
           <div>Humidity {current.relative_humidity_2m}%</div>
@@ -139,10 +74,9 @@ export default function Weather() {
         <div className="text-[10px] font-medium text-white/25 uppercase tracking-widest mb-3">
           Hourly
         </div>
-        {/* data-no-swipe prevents the horizontal scroll from triggering tab swipe */}
         <div data-no-swipe className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
           {hourlyItems.map((item, idx) => {
-            const w          = cond(item.code);
+            const w          = wmo(item.code);
             const label      = item.isNow
               ? 'Now'
               : `${item.hour % 12 || 12} ${item.hour >= 12 ? 'PM' : 'AM'}`;
@@ -190,7 +124,7 @@ export default function Weather() {
         <div className="flex-1 min-h-0 flex flex-col justify-evenly overflow-hidden">
           {daily.time.map((dateStr, i) => {
             const d = new Date(dateStr + 'T12:00:00');
-            const w = cond(daily.weather_code[i]);
+            const w = wmo(daily.weather_code[i]);
             return (
               <div key={dateStr} className="flex items-center gap-4">
                 <span className="text-sm text-white/40 w-12 shrink-0">

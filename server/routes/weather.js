@@ -3,9 +3,9 @@ const axios = require('axios');
 
 const router = express.Router();
 
-const CACHE_TTL      = 10 * 60 * 1000;
-const DEFAULT_LAT    = 38.627;
-const DEFAULT_LON    = -90.1994;
+const CACHE_TTL   = 10 * 60 * 1000;
+const DEFAULT_LAT = parseFloat(process.env.LATITUDE)  || 38.627;
+const DEFAULT_LON = parseFloat(process.env.LONGITUDE) || -90.1994;
 let cache = {};
 
 router.get('/', async (req, res) => {
