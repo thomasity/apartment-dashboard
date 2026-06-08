@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useCoords } from '../hooks/useCoords';
 
 const WMO = {
   0:  { label: 'Clear',          icon: '☀️' },
@@ -35,24 +36,33 @@ function cond(code) {
 }
 
 export default function Weather() {
-  const [data, setData]   = useState(null);
-  const [error, setError] = useState(false);
+  const [data, setData]       = useState(null);
+  const [error, setError]     = useState(false);
+  const [location, setLocation] = useState(null);
+  const coords = useCoords();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
-      const res = await axios.get('/api/weather');
+      const res = await axios.get('/api/weather', { params: coords ?? {} });
       setData(res.data);
       setError(false);
     } catch {
       setError(true);
     }
-  };
+  }, [coords]);
 
   useEffect(() => {
     load();
     const id = setInterval(load, 10 * 60 * 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [load]);
+
+  useEffect(() => {
+    if (!coords) return;
+    axios.get('/api/geocode', { params: coords })
+      .then((res) => setLocation(res.data))
+      .catch(() => {});
+  }, [coords]);
 
   if (error && !data) {
     return (
@@ -112,6 +122,11 @@ export default function Weather() {
           <div className="text-sm text-white/40 mt-1.5">
             Feels like {Math.round(current.apparent_temperature)}° · {weather.label}
           </div>
+          {location?.city && (
+            <div className="text-xs text-white/20 mt-1 tracking-wide">
+              {location.city}{location.state ? `, ${location.state}` : ''}
+            </div>
+          )}
         </div>
         <div className="text-right text-white/25 text-sm leading-loose shrink-0">
           <div>Humidity {current.relative_humidity_2m}%</div>

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useCoords } from '../hooks/useCoords';
 
 const WMO_ICON = {
   0: '☀️', 1: '🌤', 2: '⛅', 3: '☁️',
@@ -12,25 +13,27 @@ const WMO_ICON = {
 };
 
 export default function Header() {
-  const [now, setNow]       = useState(new Date());
+  const [now, setNow]         = useState(new Date());
   const [current, setCurrent] = useState(null);
+  const coords = useCoords();
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
 
+  const load = useCallback(async () => {
+    try {
+      const res = await axios.get('/api/weather', { params: coords ?? {} });
+      setCurrent(res.data.current);
+    } catch {}
+  }, [coords]);
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await axios.get('/api/weather');
-        setCurrent(res.data.current);
-      } catch {}
-    };
     load();
     const id = setInterval(load, 10 * 60 * 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [load]);
 
   const h    = now.getHours();
   const m    = String(now.getMinutes()).padStart(2, '0');

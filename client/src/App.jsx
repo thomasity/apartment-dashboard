@@ -1,49 +1,65 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './components/Header';
-import Clock from './components/Clock';
+import Home from './components/Home';
 import Weather from './components/Weather';
 import Stocks from './components/Stocks';
 import Lighting from './components/Lighting';
 
 const TABS      = [
-  { id: 'clock',   label: 'Clock'   },
+  { id: 'home',    label: 'Home'    },
   { id: 'weather', label: 'Weather' },
   { id: 'stocks',  label: 'Markets' },
   { id: 'lights',  label: 'Lights'  },
 ];
 const TAB_ORDER = TABS.map((t) => t.id);
 
-const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes → return to clock
-
-// 11 PM – 6 AM: dim to 30%, otherwise full brightness
-function nightBrightness() {
-  const h = new Date().getHours();
-  return h >= 23 || h < 6 ? 0.3 : 1;
-}
+const INACTIVITY_MS  = 5 * 60 * 1000;
+const NAV_HIDE_MS    = 3 * 1000;
 
 export default function App() {
   const [tab,        setTab]        = useState('weather');
-  const [brightness, setBrightness] = useState(nightBrightness);
+  const [navVisible, setNavVisible] = useState(true);
 
   const touchStart    = useRef(null);
   const inactivityRef = useRef(null);
+  const navHideRef    = useRef(null);
+  const tabRef        = useRef(tab);
 
-  // ── Inactivity: reset timer on every touch, return to clock on expiry ──
+  useEffect(() => { tabRef.current = tab; }, [tab]);
+
+  // ── Nav auto-hide: fades out after 3 s on Home, always visible elsewhere ──
+  const scheduleNavHide = useCallback(() => {
+    clearTimeout(navHideRef.current);
+    navHideRef.current = setTimeout(() => setNavVisible(false), NAV_HIDE_MS);
+  }, []);
+
+  useEffect(() => {
+    clearTimeout(navHideRef.current);
+    if (tab === 'home') {
+      scheduleNavHide();
+    } else {
+      setNavVisible(true);
+    }
+    return () => clearTimeout(navHideRef.current);
+  }, [tab, scheduleNavHide]);
+
+  // ── Inactivity: reset timer on every touch, return to home on expiry ──
   const resetInactivity = useCallback(() => {
     clearTimeout(inactivityRef.current);
-    inactivityRef.current = setTimeout(() => setTab('clock'), INACTIVITY_MS);
+    inactivityRef.current = setTimeout(() => setTab('home'), INACTIVITY_MS);
+
+    // Any touch shows the nav; if already on Home, restart the hide countdown
+    setNavVisible(true);
+    clearTimeout(navHideRef.current);
+    if (tabRef.current === 'home') {
+      navHideRef.current = setTimeout(() => setNavVisible(false), NAV_HIDE_MS);
+    }
   }, []);
 
   useEffect(() => {
     resetInactivity();
     return () => clearTimeout(inactivityRef.current);
   }, [resetInactivity]);
-
-  // ── Night dimming: re-evaluate every minute ─────────────────────────
-  useEffect(() => {
-    const id = setInterval(() => setBrightness(nightBrightness()), 60_000);
-    return () => clearInterval(id);
-  }, []);
 
   // ── Swipe detection ─────────────────────────────────────────────────
   const handleTouchStart = (e) => {
@@ -68,19 +84,13 @@ export default function App() {
 
   return (
     <div
-      className="w-screen flex flex-col overflow-hidden bg-[#07070f]"
-      style={{
-        height:     '100dvh',
-        filter:     `brightness(${brightness})`,
-        transition: 'filter 2s ease',
-      }}
-      // Any touch anywhere resets the inactivity timer
+      className="relative w-screen overflow-hidden bg-[#07070f]"
+      style={{ height: '100dvh' }}
       onTouchStart={resetInactivity}
     >
-      {tab !== 'clock' && <Header />}
-
+      {/* ── Tab content — fills full viewport ── */}
       <div
-        className="flex-1 min-h-0 relative overflow-hidden"
+        className="absolute inset-0"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -89,9 +99,9 @@ export default function App() {
             key={id}
             className={`absolute inset-0 overflow-hidden transition-opacity duration-200 ${
               tab === id ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
+            } ${id !== 'home' ? 'pt-[52px] pb-14' : ''}`}
           >
-            {id === 'clock'   && <Clock />}
+            {id === 'home'    && <Home />}
             {id === 'weather' && <Weather />}
             {id === 'stocks'  && <Stocks />}
             {id === 'lights'  && <Lighting />}
@@ -99,7 +109,19 @@ export default function App() {
         ))}
       </div>
 
-      <nav className="shrink-0 grid grid-cols-4 border-t border-white/[0.05] bg-[#07070f]">
+      {/* ── Header overlay (non-home tabs only) ── */}
+      {tab !== 'home' && (
+        <div className="absolute top-0 inset-x-0 z-20">
+          <Header />
+        </div>
+      )}
+
+      {/* ── Nav overlay — frosted glass, auto-hides on Home ── */}
+      <nav
+        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-4 border-t border-white/10 backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
+          navVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
         {TABS.map(({ id, label }) => (
           <button
             key={id}
