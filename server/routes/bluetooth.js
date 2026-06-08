@@ -1,14 +1,16 @@
 const express  = require('express');
-const { exec, spawn } = require('child_process');
+const { exec }        = require('child_process');
+const { spawn }       = require('child_process');
 const router   = express.Router();
 
 let scanInProgress = false;
 
 function bt(cmd) {
   return new Promise((resolve, reject) => {
-    exec(`bluetoothctl ${cmd}`, (err, stdout, stderr) => {
-      if (err) {
-        console.error(`[bluetooth] bluetoothctl ${cmd} failed:`, stderr || err.message);
+    // Pipe cmd + exit through stdin so bluetoothctl exits cleanly
+    exec(`echo -e "${cmd}\\nexit" | bluetoothctl`, { timeout: 8000 }, (err, stdout, stderr) => {
+      if (err && !err.killed) {
+        console.error(`[bluetooth] "${cmd}" failed:`, stderr || err.message);
         return reject(err);
       }
       resolve(stdout ?? '');
@@ -56,11 +58,10 @@ router.get('/scan', async (_req, res) => {
   try {
     await bt('power on');
 
-    const proc = spawn('bluetoothctl', ['scan', 'on']);
-    proc.stderr.on('data', (d) => console.error('[bluetooth] scan stderr:', d.toString()));
-    await new Promise((resolve) => setTimeout(resolve, 8000));
-    proc.kill();
-    await bt('scan off');
+    // Use timeout to auto-kill the scan after 8 seconds
+    const proc = spawn('timeout', ['8', 'bluetoothctl', 'scan', 'on']);
+    proc.stderr.on('data', (d) => console.error('[bluetooth] scan:', d.toString()));
+    await new Promise((resolve) => { proc.on('close', resolve); });
 
     const [allOut, pairedOut] = await Promise.all([
       bt('devices'),
