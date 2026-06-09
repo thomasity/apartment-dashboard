@@ -2,41 +2,23 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 import PRESETS from '../presets.json';
+import { PencilIcon, TrashIcon } from './icons';
+import { LightSliders } from './LightSliders';
 
 const SCAN_DURATION = 254;
 
-function PencilIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6"/>
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-      <path d="M10 11v6M14 11v6"/>
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-    </svg>
-  );
-}
+// ── Zigbee device manager ─────────────────────────────────────────────────────
 
 function DevicesView({ socket }) {
-  const [devState, setDevState]       = useState({ bridgeOnline: false, devices: [], pairing: false });
-  const [editingId, setEditingId]     = useState(null);
-  const [draftName, setDraftName]     = useState('');
-  const [countdown, setCountdown]     = useState(0);
+  const [devState, setDevState]         = useState({ bridgeOnline: false, devices: [], pairing: false });
+  const [editingId, setEditingId]       = useState(null);
+  const [draftName, setDraftName]       = useState('');
+  const [countdown, setCountdown]       = useState(0);
   const [newDeviceIds, setNewDeviceIds] = useState(new Set());
-  const prevPairing                   = useRef(false);
-  const scanStartIds                  = useRef(null);
-  const countdownTimer                = useRef(null);
-  const scanStartTime                 = useRef(null);
+  const prevPairing    = useRef(false);
+  const scanStartIds   = useRef(null);
+  const countdownTimer = useRef(null);
+  const scanStartTime  = useRef(null);
 
   useEffect(() => {
     axios.get('/api/lighting/devices').then((r) => setDevState(r.data)).catch(console.warn);
@@ -48,10 +30,9 @@ function DevicesView({ socket }) {
     return () => socket.off('lighting:devices', setDevState);
   }, [socket]);
 
-  // Manage scan countdown and track newly joined devices
   useEffect(() => {
     if (devState.pairing && !prevPairing.current) {
-      scanStartIds.current = new Set(devState.devices.map((d) => d.ieee_address));
+      scanStartIds.current  = new Set(devState.devices.map((d) => d.ieee_address));
       scanStartTime.current = Date.now();
       setCountdown(SCAN_DURATION);
       countdownTimer.current = setInterval(() => {
@@ -61,7 +42,7 @@ function DevicesView({ socket }) {
       }, 1000);
     } else if (!devState.pairing && prevPairing.current) {
       clearInterval(countdownTimer.current);
-      scanStartIds.current = null;
+      scanStartIds.current  = null;
       scanStartTime.current = null;
       setCountdown(0);
       setNewDeviceIds(new Set());
@@ -70,7 +51,6 @@ function DevicesView({ socket }) {
     return () => clearInterval(countdownTimer.current);
   }, [devState.pairing]);
 
-  // Highlight devices that joined during the current scan
   useEffect(() => {
     if (!scanStartIds.current) return;
     const joined = devState.devices
@@ -79,10 +59,9 @@ function DevicesView({ socket }) {
     if (joined.length) setNewDeviceIds(new Set(joined));
   }, [devState.devices]);
 
-  const toggleScan = () =>
-    axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
-
-  const startEdit = (d) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
+  const toggleScan   = () => axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
+  const startEdit    = (d) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
+  const removeDevice = (id) => axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
 
   const submitRename = (oldName) => {
     const trimmed = draftName.trim();
@@ -92,16 +71,11 @@ function DevicesView({ socket }) {
     setEditingId(null);
   };
 
-  const removeDevice = (id) =>
-    axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
-
-  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const fmt     = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const visible = devState.devices.filter((d) => d.type !== 'Coordinator');
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-8 py-6 gap-5">
-
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${devState.bridgeOnline ? 'bg-emerald-400' : 'bg-white/20'}`} />
@@ -126,16 +100,11 @@ function DevicesView({ socket }) {
       </div>
 
       {devState.pairing && (
-        <p className="text-center text-[11px] text-white/25">
-          Power-cycle your bulb to pair it
-        </p>
+        <p className="text-center text-[11px] text-white/25">Power-cycle your bulb to pair it</p>
       )}
 
-      {/* Device list */}
       {visible.length === 0 ? (
-        <p className="text-center text-[11px] text-white/20 uppercase tracking-widest pt-6">
-          No devices paired
-        </p>
+        <p className="text-center text-[11px] text-white/20 uppercase tracking-widest pt-6">No devices paired</p>
       ) : (
         <div className="flex flex-col gap-2">
           {visible.map((d) => {
@@ -163,25 +132,17 @@ function DevicesView({ socket }) {
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-white/70 truncate">{d.friendly_name}</span>
-                      {isNew && (
-                        <span className="text-[10px] text-amber-400 uppercase tracking-wider">New</span>
-                      )}
+                      {isNew && <span className="text-[10px] text-amber-400 uppercase tracking-wider">New</span>}
                     </div>
                   )}
                   <span className="text-[10px] text-white/25">
                     {d.definition?.description ?? (d.type === 'Router' ? 'Router' : 'Device')}
                   </span>
                 </div>
-                <button
-                  onClick={() => startEdit(d)}
-                  className="p-2 text-white/20 hover:text-white/50 touch-manipulation transition-colors"
-                >
+                <button onClick={() => startEdit(d)} className="p-2 text-white/20 hover:text-white/50 touch-manipulation transition-colors">
                   <PencilIcon />
                 </button>
-                <button
-                  onClick={() => removeDevice(d.friendly_name)}
-                  className="p-2 text-white/20 hover:text-red-400/60 touch-manipulation transition-colors"
-                >
+                <button onClick={() => removeDevice(d.friendly_name)} className="p-2 text-white/20 hover:text-red-400/60 touch-manipulation transition-colors">
                   <TrashIcon />
                 </button>
               </div>
@@ -193,45 +154,7 @@ function DevicesView({ socket }) {
   );
 }
 
-// Sun with short rays — dim end of brightness slider
-function SunDim() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
-         className="shrink-0 text-white/25">
-      <circle cx="12" cy="12" r="4" />
-      {/* Short rays: inner r=6.5, outer r=8.5 */}
-      <line x1="12"   y1="6.5"  x2="12"   y2="4.5"  />
-      <line x1="12"   y1="17.5" x2="12"   y2="19.5" />
-      <line x1="6.5"  y1="12"   x2="4.5"  y2="12"   />
-      <line x1="17.5" y1="12"   x2="19.5" y2="12"   />
-      <line x1="15.9" y1="8.1"  x2="17.3" y2="6.7"  />
-      <line x1="8.1"  y1="15.9" x2="6.7"  y2="17.3" />
-      <line x1="8.1"  y1="8.1"  x2="6.7"  y2="6.7"  />
-      <line x1="15.9" y1="15.9" x2="17.3" y2="17.3" />
-    </svg>
-  );
-}
-
-// Sun with long rays — bright end of brightness slider
-function SunBright() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-         className="shrink-0 text-white/50">
-      <circle cx="12" cy="12" r="4" />
-      {/* Long rays: inner r=6.5, outer r=11.5 */}
-      <line x1="12"   y1="6.5"  x2="12"   y2="0.5"  />
-      <line x1="12"   y1="17.5" x2="12"   y2="23.5" />
-      <line x1="6.5"  y1="12"   x2="0.5"  y2="12"   />
-      <line x1="17.5" y1="12"   x2="23.5" y2="12"   />
-      <line x1="15.9" y1="8.1"  x2="20.0" y2="4.0"  />
-      <line x1="8.1"  y1="15.9" x2="4.0"  y2="20.0" />
-      <line x1="8.1"  y1="8.1"  x2="4.0"  y2="4.0"  />
-      <line x1="15.9" y1="15.9" x2="20.0" y2="20.0" />
-    </svg>
-  );
-}
+// ── Circadian / Auto controls ─────────────────────────────────────────────────
 
 function AutoToggle({ on, onClick }) {
   return (
@@ -259,7 +182,7 @@ function CircadianStrip({ circadian }) {
   const nextMs  = nextChange ? Math.max(0, new Date(nextChange).getTime() - Date.now()) : null;
   const nextMin = nextMs !== null ? Math.floor(nextMs / 60000) : null;
 
-  // Same 3-stop gradient as slider-colortemp: #ffb300 → #fff4e0 45% → #a8c8ff
+  // Interpolates the same 3-stop gradient as slider-colortemp: #ffb300 → #fff4e0 45% → #a8c8ff
   const stops = timeline.length > 0
     ? timeline.map((pt, i) => {
         const pct = ((i / 23) * 100).toFixed(1);
@@ -269,7 +192,7 @@ function CircadianStrip({ circadian }) {
           const f = t / 45;
           r = 255;
           g = Math.round(179 + (244 - 179) * f);
-          b = Math.round(       (224      ) * f);
+          b = Math.round(224 * f);
         } else {
           const f = (t - 45) / 55;
           r = Math.round(255 + (168 - 255) * f);
@@ -300,6 +223,8 @@ function CircadianStrip({ circadian }) {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function avg(groups, key) {
   const vals = Object.values(groups);
   if (!vals.length) return 50;
@@ -312,6 +237,12 @@ function spread(devices, key) {
   return Math.max(...vals) - Math.min(...vals);
 }
 
+function tempLabel(ct) {
+  return ct < 33 ? 'Warm' : ct < 67 ? 'Neutral' : 'Cool';
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function Lighting() {
   const [view, setView]               = useState('controls');
   const [serverState, setServerState] = useState({ connected: false, groups: {} });
@@ -319,58 +250,43 @@ export default function Lighting() {
   const [localDevices, setLocalDevices] = useState({});
   const [socket, setSocket]           = useState(null);
   const [circadian, setCircadian]     = useState({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
-  const timers                        = useRef({});
-  const animFrames                    = useRef({});
-  const lastTouch                     = useRef({});
-  const lastTouchDevices              = useRef({});
-  const timersDevices                 = useRef({});
-  const localRef                      = useRef(local);
+  const timers         = useRef({});
+  const animFrames     = useRef({});
+  const lastTouch      = useRef({});
+  const lastTouchDevices = useRef({});
+  const timersDevices  = useRef({});
+  const localRef       = useRef(local);
 
-  // Keep ref in sync so RAF closures always read the current value
   useEffect(() => { localRef.current = local; }, [local]);
-
-  // Cancel all in-flight animations on unmount
-  useEffect(() => {
-    return () => Object.values(animFrames.current).forEach(cancelAnimationFrame);
-  }, []);
+  useEffect(() => () => Object.values(animFrames.current).forEach(cancelAnimationFrame), []);
 
   useEffect(() => {
     axios.get('/api/lighting/circadian').then((r) => setCircadian(r.data)).catch(() => {});
   }, []);
 
-  // Seed sliders from HTTP before the socket even connects
   useEffect(() => {
     axios.get('/api/lighting/state').then(({ data }) => {
       if (!Object.keys(data.groups).length) return;
       setServerState(data);
-      setLocal({
-        brightness: avg(data.groups, 'brightness'),
-        colorTemp:  avg(data.groups, 'colorTemp'),
-      });
+      setLocal({ brightness: avg(data.groups, 'brightness'), colorTemp: avg(data.groups, 'colorTemp') });
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
     const s = io({ transports: ['websocket', 'polling'] });
     setSocket(s);
-
     s.on('lighting:state', (state) => {
       setServerState(state);
       const now = Date.now();
       setLocal((prev) => ({
-        brightness: now - (lastTouch.current.brightness ?? 0) > 1200
-          ? avg(state.groups, 'brightness') : prev.brightness,
-        colorTemp: now - (lastTouch.current.colorTemp ?? 0) > 1200
-          ? avg(state.groups, 'colorTemp')  : prev.colorTemp,
+        brightness: now - (lastTouch.current.brightness ?? 0) > 1200 ? avg(state.groups, 'brightness') : prev.brightness,
+        colorTemp:  now - (lastTouch.current.colorTemp  ?? 0) > 1200 ? avg(state.groups, 'colorTemp')  : prev.colorTemp,
       }));
     });
-
     s.on('lighting:circadian', (data) => setCircadian((prev) => ({ ...prev, ...data })));
-
     return () => s.disconnect();
   }, []);
 
-  // Sync per-device local state from server, but don't clobber a slider the user is actively dragging
   useEffect(() => {
     const now = Date.now();
     setLocalDevices((prev) => {
@@ -390,37 +306,25 @@ export default function Lighting() {
     axios.post('/api/lighting/set', { group: 'all', ...payload }).catch(console.warn);
   }, []);
 
-  // Smoothly tween a slider key from its current value to target over ~450ms
   const animateTo = useCallback((key, target) => {
     const from = localRef.current[key];
     if (from === target) return;
-
     lastTouch.current[key] = Date.now();
     cancelAnimationFrame(animFrames.current[key]);
-
     const duration = 450;
     const start    = performance.now();
-
     const tick = (now) => {
-      const t      = Math.min((now - start) / duration, 1);
-      const eased  = 1 - Math.pow(1 - t, 3); // ease-out cubic
-      const value  = Math.round(from + (target - from) * eased);
-
-      lastTouch.current[key] = Date.now(); // keep socket updates blocked during tween
-      setLocal((prev) => ({ ...prev, [key]: value }));
-
-      if (t < 1) {
-        animFrames.current[key] = requestAnimationFrame(tick);
-      } else {
-        sendAll({ [key]: target });
-      }
+      const t     = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      lastTouch.current[key] = Date.now();
+      setLocal((prev) => ({ ...prev, [key]: Math.round(from + (target - from) * eased) }));
+      if (t < 1) animFrames.current[key] = requestAnimationFrame(tick);
+      else sendAll({ [key]: target });
     };
-
     animFrames.current[key] = requestAnimationFrame(tick);
   }, [sendAll]);
 
-  const handleSlider = (key, raw) => {
-    const value = Number(raw);
+  const handleSlider = (key, value) => {
     lastTouch.current[key] = Date.now();
     cancelAnimationFrame(animFrames.current[key]);
     setLocal((prev) => ({ ...prev, [key]: value }));
@@ -428,15 +332,14 @@ export default function Lighting() {
     timers.current[key] = setTimeout(() => sendAll({ [key]: value }), 220);
   };
 
-  const handleDeviceSlider = useCallback((deviceName, key, raw) => {
-    const value = Number(raw);
-    if (!lastTouchDevices.current[deviceName]) lastTouchDevices.current[deviceName] = {};
-    lastTouchDevices.current[deviceName][key] = Date.now();
-    setLocalDevices((prev) => ({ ...prev, [deviceName]: { ...(prev[deviceName] ?? {}), [key]: value } }));
-    const timerKey = `${deviceName}-${key}`;
+  const handleDeviceSlider = useCallback((name, key, value) => {
+    if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
+    lastTouchDevices.current[name][key] = Date.now();
+    setLocalDevices((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), [key]: value } }));
+    const timerKey = `${name}-${key}`;
     clearTimeout(timersDevices.current[timerKey]);
     timersDevices.current[timerKey] = setTimeout(() => {
-      axios.post('/api/lighting/set', { group: deviceName, [key]: value }).catch(console.warn);
+      axios.post('/api/lighting/set', { group: name, [key]: value }).catch(console.warn);
     }, 220);
   }, []);
 
@@ -444,13 +347,6 @@ export default function Lighting() {
     animateTo('brightness', preset.brightness);
     animateTo('colorTemp', preset.colorTemp);
   };
-
-  const offline      = !serverState.connected;
-  const activePreset = PRESETS.find(
-    (p) => p.brightness === local.brightness && p.colorTemp === local.colorTemp
-  );
-  const tempLabel =
-    local.colorTemp < 33 ? 'Warm' : local.colorTemp < 67 ? 'Neutral' : 'Cool';
 
   const deviceEntries = Object.entries(serverState.groups);
 
@@ -460,22 +356,20 @@ export default function Lighting() {
       : !(circadian.enabledGroups ?? []).includes(group);
     await axios.post('/api/lighting/circadian', { group, enabled }).catch(console.warn);
   }, [circadian.enabledGroups, deviceEntries]);
+
+  const offline       = !serverState.connected;
+  const activePreset  = PRESETS.find((p) => p.brightness === local.brightness && p.colorTemp === local.colorTemp);
   const enabledGroups = circadian.enabledGroups ?? [];
-  const allCircadian  = deviceEntries.length > 0
-    && deviceEntries.every(([n]) => enabledGroups.includes(n));
+  const allCircadian  = deviceEntries.length > 0 && deviceEntries.every(([n]) => enabledGroups.includes(n));
 
   const now = Date.now();
-  const brightnessMixed = deviceEntries.length > 1
-    && spread(localDevices, 'brightness') > 5
-    && now - (lastTouch.current.brightness ?? 0) > 1200;
-  const colorTempMixed = deviceEntries.length > 1
-    && spread(localDevices, 'colorTemp') > 5
-    && now - (lastTouch.current.colorTemp ?? 0) > 1200;
+  const brightnessMixed = deviceEntries.length > 1 && spread(localDevices, 'brightness') > 5 && now - (lastTouch.current.brightness ?? 0) > 1200;
+  const colorTempMixed  = deviceEntries.length > 1 && spread(localDevices, 'colorTemp')  > 5 && now - (lastTouch.current.colorTemp  ?? 0) > 1200;
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
 
-      {/* Controls / Presets / Devices toggle */}
+      {/* Nav pill */}
       <div className="shrink-0 flex justify-center pt-5 pb-2">
         <div className="flex bg-white/[0.06] rounded-full p-1 gap-1">
           {['controls', 'presets', 'devices'].map((v) => (
@@ -499,21 +393,18 @@ export default function Lighting() {
           <div className="w-full grid grid-cols-3 gap-4">
             {PRESETS.map((preset) => {
               const isActive = activePreset?.label === preset.label;
-              const presetTempLabel = preset.colorTemp < 33 ? 'Warm' : preset.colorTemp < 67 ? 'Neutral' : 'Cool';
               return (
                 <button
                   key={preset.label}
                   onClick={() => applyPreset(preset)}
                   className={`flex flex-col items-center gap-3 py-8 rounded-2xl transition-colors touch-manipulation ${
-                    isActive
-                      ? 'bg-white/[0.12] ring-1 ring-white/20'
-                      : 'bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.15]'
+                    isActive ? 'bg-white/[0.12] ring-1 ring-white/20' : 'bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.15]'
                   }`}
                 >
                   <span className="text-4xl leading-none">{preset.icon}</span>
                   <div className="flex flex-col items-center gap-0.5">
                     <span className="text-sm font-medium text-white/70">{preset.label}</span>
-                    <span className="text-[10px] text-white/30">{preset.brightness}% · {presetTempLabel}</span>
+                    <span className="text-[10px] text-white/30">{preset.brightness}% · {tempLabel(preset.colorTemp)}</span>
                   </div>
                 </button>
               );
@@ -522,119 +413,82 @@ export default function Lighting() {
         </div>
       )}
 
-      {view === 'controls' && <>
-      {offline && (
-        <div className="absolute top-5 right-8 flex items-center gap-1.5 text-[10px] text-amber-500/60 select-none z-10">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" />
-          Local mode
+      {view === 'controls' && (deviceEntries.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 pb-8">
+          <span className={`w-2 h-2 rounded-full ${offline ? 'bg-white/20' : 'bg-emerald-400/40'}`} />
+          <p className="text-[11px] uppercase tracking-widest text-white/25 mt-1">
+            {offline ? 'Bridge offline' : 'No devices paired'}
+          </p>
+          {!offline && (
+            <>
+              <p className="text-white/15 text-xs">Pair a bulb in the Devices tab</p>
+              <button
+                onClick={() => setView('devices')}
+                className="mt-2 px-4 py-1.5 rounded-full bg-white/[0.06] text-white/40 text-[11px] font-medium uppercase tracking-widest touch-manipulation hover:bg-white/[0.10] transition-colors"
+              >
+                Open Devices
+              </button>
+            </>
+          )}
         </div>
-      )}
+      ) : <>
+        {offline && (
+          <div className="absolute top-5 right-8 flex items-center gap-1.5 text-[10px] text-amber-500/60 select-none z-10">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+            Local mode
+          </div>
+        )}
 
-      {/* ── All Devices (always visible) ── */}
-      <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-3" data-no-swipe>
-        <div className="flex items-center justify-between">
-          <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
-          <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
+        {/* All Devices */}
+        <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-3" data-no-swipe>
+          <div className="flex items-center justify-between">
+            <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
+            <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
+          </div>
+          {allCircadian
+            ? <CircadianStrip circadian={circadian} />
+            : <LightSliders
+                brightness={local.brightness}
+                colorTemp={local.colorTemp}
+                tempLabel={tempLabel(local.colorTemp)}
+                onBrightness={(v) => handleSlider('brightness', v)}
+                onColorTemp={(v) => handleSlider('colorTemp', v)}
+                brightnessMixed={brightnessMixed}
+                colorTempMixed={colorTempMixed}
+              />
+          }
         </div>
 
-        {allCircadian ? <CircadianStrip circadian={circadian} /> : (
-          <div className="flex flex-col gap-3">
-            {/* Brightness */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
-                {brightnessMixed
-                  ? <span className="text-[10px] text-white/25 italic">Mixed</span>
-                  : <span className="text-[10px] text-white/35 tabular-nums">{local.brightness}%</span>}
-              </div>
-              <div className="flex items-center gap-3">
-                <SunDim />
-                <input
-                  type="range" min={0} max={100} value={local.brightness}
-                  onChange={(e) => handleSlider('brightness', e.target.value)}
-                  className={`slider-brightness flex-1 touch-manipulation${brightnessMixed ? ' slider-mixed' : ''}`}
-                />
-                <SunBright />
-              </div>
-            </div>
-
-            {/* Color temperature */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
-                {colorTempMixed
-                  ? <span className="text-[10px] text-white/25 italic">Mixed</span>
-                  : <span className="text-[10px] text-white/35">{tempLabel}</span>}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-base leading-none shrink-0">🔥</span>
-                <input
-                  type="range" min={0} max={100} value={local.colorTemp}
-                  onChange={(e) => handleSlider('colorTemp', e.target.value)}
-                  className={`slider-colortemp flex-1 touch-manipulation${colorTempMixed ? ' slider-mixed' : ''}`}
-                />
-                <span className="text-base leading-none shrink-0">❄️</span>
-              </div>
+        {/* Individual devices */}
+        {deviceEntries.length > 0 && (
+          <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/20">
+            <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pt-5 pb-3 flex flex-col gap-4" data-no-swipe>
+              {deviceEntries.map(([name]) => {
+                const dev         = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
+                const isCircadian = enabledGroups.includes(name);
+                return (
+                  <div key={name} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
+                      <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
+                    </div>
+                    {isCircadian
+                      ? <CircadianStrip circadian={circadian} />
+                      : <LightSliders
+                          brightness={dev.brightness}
+                          colorTemp={dev.colorTemp}
+                          tempLabel={tempLabel(dev.colorTemp)}
+                          onBrightness={(v) => handleDeviceSlider(name, 'brightness', v)}
+                          onColorTemp={(v) => handleDeviceSlider(name, 'colorTemp', v)}
+                        />
+                    }
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
-      </div>
-
-      {/* ── Individual Bulbs (scrollable) ── */}
-      {deviceEntries.length > 0 && (
-        <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/20">
-          <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pt-5 pb-3 flex flex-col gap-4" data-no-swipe>
-            {deviceEntries.map(([name]) => {
-              const dev = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
-              const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
-              const isCircadian  = enabledGroups.includes(name);
-              return (
-                <div key={name} className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
-                    <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
-                  </div>
-
-                  {isCircadian ? <CircadianStrip circadian={circadian} /> : <>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
-                        <span className="text-[10px] text-white/35 tabular-nums">{dev.brightness}%</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <SunDim />
-                        <input
-                          type="range" min={0} max={100} value={dev.brightness}
-                          onChange={(e) => handleDeviceSlider(name, 'brightness', e.target.value)}
-                          className="slider-brightness flex-1 touch-manipulation"
-                        />
-                        <SunBright />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
-                        <span className="text-[10px] text-white/35">{devTempLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-base leading-none shrink-0">🔥</span>
-                        <input
-                          type="range" min={0} max={100} value={dev.colorTemp}
-                          onChange={(e) => handleDeviceSlider(name, 'colorTemp', e.target.value)}
-                          className="slider-colortemp flex-1 touch-manipulation"
-                        />
-                        <span className="text-base leading-none shrink-0">❄️</span>
-                      </div>
-                    </div>
-                  </>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      </>}
+      </>)}
     </div>
   );
 }
