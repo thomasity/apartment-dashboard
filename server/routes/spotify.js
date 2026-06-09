@@ -62,8 +62,10 @@ router.get('/now-playing', async (req, res) => {
 
 router.post('/play', async (req, res) => {
   try {
-    const body = req.body?.context_uri ? { context_uri: req.body.context_uri } : undefined;
-    await spotify('PUT', '/me/player/play', body);
+    const body = {};
+    if (req.body?.context_uri) body.context_uri = req.body.context_uri;
+    if (req.body?.offset_uri)  body.offset = { uri: req.body.offset_uri };
+    await spotify('PUT', '/me/player/play', Object.keys(body).length ? body : undefined);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -120,14 +122,41 @@ router.post('/shuffle', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/shuffle?state=${req.body.state ? 'true' : 'false'}`);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[spotify] shuffle error:', err.response?.status, err.response?.data ?? err.message);
+    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
+  }
 });
 
 router.post('/repeat', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/repeat?state=${req.body.state}`);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[spotify] repeat error:', err.response?.status, err.response?.data ?? err.message);
+    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
+  }
+});
+
+router.get('/playlist/:id/tracks', async (req, res) => {
+  try {
+    const { data } = await spotify('GET', `/playlists/${req.params.id}/tracks?limit=100`);
+    res.json(
+      data.items
+        .filter((i) => i.track?.id)
+        .map((i) => ({
+          id:       i.track.id,
+          uri:      i.track.uri,
+          name:     i.track.name,
+          artist:   i.track.artists.map((a) => a.name).join(', '),
+          duration: i.track.duration_ms,
+          art:      i.track.album?.images?.[2]?.url ?? i.track.album?.images?.[0]?.url ?? null,
+        }))
+    );
+  } catch (err) {
+    console.error('[spotify] tracks error:', err.response?.status, err.response?.data ?? err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/transfer', async (req, res) => {

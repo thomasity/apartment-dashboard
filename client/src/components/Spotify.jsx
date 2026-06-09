@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useSpotify } from '../hooks/useSpotify';
 
+// ── Icons ────────────────────────────────────────────────────────────────────
+
 function PrevIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
@@ -18,9 +20,9 @@ function NextIcon() {
   );
 }
 
-function PlayIcon() {
+function PlayIcon({ size = 28 }) {
   return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M8 5v14l11-7z"/>
     </svg>
   );
@@ -71,6 +73,14 @@ function VolumeIcon() {
   );
 }
 
+function BackIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+    </svg>
+  );
+}
+
 function DeviceTypeIcon({ type }) {
   if (type === 'smartphone') return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -89,11 +99,6 @@ function DeviceTypeIcon({ type }) {
   );
 }
 
-function fmtMs(ms) {
-  const s = Math.floor((ms ?? 0) / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-
 function BluetoothIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -101,6 +106,71 @@ function BluetoothIcon() {
     </svg>
   );
 }
+
+function fmtMs(ms) {
+  const s = Math.floor((ms ?? 0) / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// ── Track list (right panel when a playlist is open) ─────────────────────────
+
+function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll }) {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-3 sticky top-0 bg-[#07070f] pb-2">
+        <button
+          onClick={onBack}
+          className="text-white/40 active:text-white touch-manipulation flex-shrink-0"
+        >
+          <BackIcon />
+        </button>
+        {playlist.image && (
+          <img src={playlist.image} alt={playlist.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-white text-sm font-medium truncate">{playlist.name}</div>
+          <div className="text-white/30 text-xs">{playlist.total} tracks</div>
+        </div>
+        <button
+          onClick={onPlayAll}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-xs active:bg-white/20 touch-manipulation flex-shrink-0"
+        >
+          <PlayIcon size={12} />
+          Play All
+        </button>
+      </div>
+
+      {/* Tracks */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-white/20 text-sm tracking-widest uppercase">Loading…</p>
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          {tracks.map((t, i) => (
+            <button
+              key={t.id}
+              onClick={() => onPlay(t.uri)}
+              className="flex items-center gap-3 px-1 py-2.5 rounded-xl active:bg-white/5 touch-manipulation text-left"
+            >
+              <span className="text-white/20 text-xs w-5 text-right flex-shrink-0 tabular-nums">
+                {i + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-white/80 text-sm truncate leading-tight">{t.name}</div>
+                <div className="text-white/35 text-xs truncate mt-0.5">{t.artist}</div>
+              </div>
+              <span className="text-white/25 text-xs tabular-nums flex-shrink-0">{fmtMs(t.duration)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Device picker modal ───────────────────────────────────────────────────────
 
 function DevicePicker({ onClose, devices, transferTo }) {
   const [btPaired,     setBtPaired]     = useState([]);
@@ -127,7 +197,9 @@ function DevicePicker({ onClose, devices, transferTo }) {
       setBtDiscovered(data);
       if (data.length === 0) setScanError('No devices found. Make sure your speaker is in pairing mode.');
     } catch (err) {
-      const msg = err.response?.status === 409 ? 'Scan already in progress — try again in a moment.' : 'Scan failed. Check server logs.';
+      const msg = err.response?.status === 409
+        ? 'Scan already in progress — try again in a moment.'
+        : 'Scan failed. Check server logs.';
       setScanError(msg);
     }
     setScanning(false);
@@ -232,9 +304,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
             </div>
           ))}
 
-          {scanError && (
-            <p className="text-white/30 text-xs px-3 py-1">{scanError}</p>
-          )}
+          {scanError && <p className="text-white/30 text-xs px-3 py-1">{scanError}</p>}
 
           {btDiscovered.length > 0 && (
             <>
@@ -260,11 +330,21 @@ function DevicePicker({ onClose, devices, transferTo }) {
   );
 }
 
-export default function Spotify() {
-  const { state, control, playContext, playlists, devices, fetchDevices, transferTo, toggleShuffle, cycleRepeat, setVolume } = useSpotify();
-  const [pickerOpen, setPickerOpen] = useState(false);
+// ── Main component ────────────────────────────────────────────────────────────
 
-  // Local volume state — initialized once from server, then tracks local changes
+export default function Spotify() {
+  const {
+    state, control, playContext, playlists,
+    devices, fetchDevices, transferTo,
+    toggleShuffle, cycleRepeat, setVolume,
+  } = useSpotify();
+
+  const [pickerOpen,        setPickerOpen]        = useState(false);
+  const [selectedPlaylist,  setSelectedPlaylist]  = useState(null);
+  const [tracks,            setTracks]            = useState([]);
+  const [tracksLoading,     setTracksLoading]     = useState(false);
+
+  // Local volume — syncs from server unless recently changed locally
   const [localVolume,  setLocalVolume]  = useState(100);
   const localChangedAt                  = useRef(0);
 
@@ -281,6 +361,24 @@ export default function Spotify() {
     localChangedAt.current = Date.now();
     setVolume(val);
   }, [setVolume]);
+
+  const handleSelectPlaylist = useCallback(async (pl) => {
+    setSelectedPlaylist(pl);
+    setTracks([]);
+    setTracksLoading(true);
+    try {
+      const { data } = await axios.get(`/api/spotify/playlist/${pl.id}/tracks`);
+      setTracks(data);
+    } catch (err) {
+      console.error('[spotify] tracks fetch failed:', err.message);
+    }
+    setTracksLoading(false);
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setSelectedPlaylist(null);
+    setTracks([]);
+  }, []);
 
   const track     = state?.track ?? null;
   const isPlaying = state?.isPlaying ?? false;
@@ -329,25 +427,19 @@ export default function Spotify() {
               </div>
             </div>
 
-            {/* ── Playback controls: shuffle · prev · play/pause · next · repeat ── */}
+            {/* Controls: shuffle · prev · play/pause · next · repeat */}
             <div className="flex items-center gap-5">
-              {/* Shuffle */}
-              <button
-                onClick={toggleShuffle}
-                className="flex flex-col items-center gap-0.5 touch-manipulation transition-colors"
-              >
+              <button onClick={toggleShuffle} className="flex flex-col items-center gap-0.5 touch-manipulation">
                 <span className={shuffle ? 'text-white' : 'text-white/30 active:text-white/60'}>
                   <ShuffleIcon />
                 </span>
                 <span className={`w-1 h-1 rounded-full ${shuffle ? 'bg-white' : 'bg-transparent'}`} />
               </button>
 
-              {/* Previous */}
               <button onClick={() => control('previous')} className="text-white/50 active:text-white touch-manipulation pb-1.5">
                 <PrevIcon />
               </button>
 
-              {/* Play / Pause */}
               <button
                 onClick={() => control(isPlaying ? 'pause' : 'play')}
                 className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-black active:scale-95 transition-transform touch-manipulation"
@@ -355,16 +447,11 @@ export default function Spotify() {
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </button>
 
-              {/* Next */}
               <button onClick={() => control('next')} className="text-white/50 active:text-white touch-manipulation pb-1.5">
                 <NextIcon />
               </button>
 
-              {/* Repeat */}
-              <button
-                onClick={cycleRepeat}
-                className="flex flex-col items-center gap-0.5 touch-manipulation transition-colors"
-              >
+              <button onClick={cycleRepeat} className="flex flex-col items-center gap-0.5 touch-manipulation">
                 <span className={repeat !== 'off' ? 'text-white' : 'text-white/30 active:text-white/60'}>
                   <RepeatIcon one={repeat === 'track'} />
                 </span>
@@ -372,7 +459,7 @@ export default function Spotify() {
               </button>
             </div>
 
-            {/* ── Volume ── */}
+            {/* Volume */}
             <div className="w-full flex items-center gap-3">
               <span className="text-white/30 flex-shrink-0"><VolumeIcon /></span>
               <input
@@ -394,7 +481,6 @@ export default function Spotify() {
           </div>
         )}
 
-        {/* Device picker button — always visible at bottom of left panel */}
         <button
           onClick={openPicker}
           className={`flex items-center gap-2 touch-manipulation transition-colors ${
@@ -408,9 +494,18 @@ export default function Spotify() {
         </button>
       </div>
 
-      {/* ── Right: Playlists ── */}
+      {/* ── Right: Playlists or Track List ── */}
       <div className="flex-1 overflow-y-auto p-4" data-no-swipe>
-        {playlists.length === 0 ? (
+        {selectedPlaylist ? (
+          <TrackList
+            playlist={selectedPlaylist}
+            tracks={tracks}
+            loading={tracksLoading}
+            onBack={handleBack}
+            onPlay={(trackUri) => playContext(selectedPlaylist.uri, trackUri)}
+            onPlayAll={() => playContext(selectedPlaylist.uri)}
+          />
+        ) : playlists.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-white/20 text-sm tracking-widest uppercase">Loading playlists…</p>
           </div>
@@ -419,7 +514,7 @@ export default function Spotify() {
             {playlists.map((pl) => (
               <button
                 key={pl.id}
-                onClick={() => playContext(pl.uri)}
+                onClick={() => handleSelectPlaylist(pl)}
                 className="text-left active:scale-95 transition-transform touch-manipulation"
               >
                 {pl.image ? (

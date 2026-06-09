@@ -41,9 +41,11 @@ export function useSpotify() {
     } catch {}
   }, [poll]);
 
-  const playContext = useCallback(async (context_uri) => {
+  const playContext = useCallback(async (context_uri, offset_uri) => {
     try {
-      await axios.post('/api/spotify/play', { context_uri });
+      const body = { context_uri };
+      if (offset_uri) body.offset_uri = offset_uri;
+      await axios.post('/api/spotify/play', body);
       setTimeout(poll, 400);
     } catch {}
   }, [poll]);
@@ -66,8 +68,8 @@ export function useSpotify() {
   const toggleShuffle = useCallback(async () => {
     try {
       await axios.post('/api/spotify/shuffle', { state: !(state?.shuffle ?? false) });
-      setTimeout(poll, 400);
-    } catch {}
+      setTimeout(poll, 1000);
+    } catch (err) { console.error('[spotify] shuffle:', err.response?.data ?? err.message); }
   }, [state?.shuffle, poll]);
 
   const cycleRepeat = useCallback(async () => {
@@ -75,8 +77,8 @@ export function useSpotify() {
       const order = ['off', 'context', 'track'];
       const next = order[(order.indexOf(state?.repeat ?? 'off') + 1) % order.length];
       await axios.post('/api/spotify/repeat', { state: next });
-      setTimeout(poll, 400);
-    } catch {}
+      setTimeout(poll, 1000);
+    } catch (err) { console.error('[spotify] repeat:', err.response?.data ?? err.message); }
   }, [state?.repeat, poll]);
 
   const setVolume = useCallback((vol) => {
