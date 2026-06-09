@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 import PRESETS from '../presets.json';
-import { PencilIcon, TrashIcon } from './icons';
+import { PencilIcon, TrashIcon, PowerIcon } from './icons';
 import { LightSliders } from './LightSliders';
 
 const SCAN_DURATION = 254;
@@ -350,6 +350,10 @@ export default function Lighting() {
 
   const deviceEntries = Object.entries(serverState.groups);
 
+  const powerOff = useCallback((group) => {
+    axios.post('/api/lighting/power', { group, on: false }).catch(console.warn);
+  }, []);
+
   const toggleCircadianGroup = useCallback(async (group) => {
     const enabled = group === 'all'
       ? !deviceEntries.every(([n]) => (circadian.enabledGroups ?? []).includes(n))
@@ -443,7 +447,15 @@ export default function Lighting() {
         <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-3" data-no-swipe>
           <div className="flex items-center justify-between">
             <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
-            <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
+            <div className="flex items-center gap-2">
+              <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
+              <button
+                onClick={() => powerOff('all')}
+                className="p-1.5 rounded-full text-white/20 hover:text-white/50 active:text-red-400/60 touch-manipulation transition-colors"
+              >
+                <PowerIcon />
+              </button>
+            </div>
           </div>
           <div className="h-24 flex flex-col justify-center">
             {allCircadian
@@ -472,7 +484,15 @@ export default function Lighting() {
                   <div key={name} className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
-                      <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
+                      <div className="flex items-center gap-2">
+                        <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
+                        <button
+                          onClick={() => powerOff(name)}
+                          className="p-1.5 rounded-full text-white/20 hover:text-white/50 active:text-red-400/60 touch-manipulation transition-colors"
+                        >
+                          <PowerIcon />
+                        </button>
+                      </div>
                     </div>
                     <div className="h-24 flex flex-col justify-center">
                       {isCircadian

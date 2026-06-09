@@ -157,6 +157,19 @@ class MqttManager extends EventEmitter {
     this.emit('stateChange', this.getState());
   }
 
+  setPower(group, on) {
+    if (!this.connected || !this.client) return;
+    const payload = JSON.stringify({ state: on ? 'ON' : 'OFF' });
+    if (!group || group === 'all') {
+      Object.keys(this.groups).forEach((g) =>
+        this.client.publish(`zigbee2mqtt/${g}/set`, payload, { qos: 1 })
+      );
+    } else {
+      if (!this.groups[group]) return;
+      this.client.publish(`zigbee2mqtt/${group}/set`, payload, { qos: 1 });
+    }
+  }
+
   renameDevice(from, to) {
     if (!this.client) return;
     this.client.publish(

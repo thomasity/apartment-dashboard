@@ -49,6 +49,12 @@ module.exports = (io, mqttManager) => {
     res.json({ ok: true });
   });
 
+  router.post('/power', (req, res) => {
+    const { group = 'all', on } = req.body;
+    mqttManager.setPower(group, on);
+    res.json({ ok: true });
+  });
+
   router.get('/circadian', (_req, res) => {
     res.json({ ...circadian.getState(), timeline: circadian.getTimeline() });
   });

@@ -40,7 +40,7 @@ function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, curre
           <BackIcon />
         </button>
         {playlist.image && (
-          <img src={playlist.image} alt={playlist.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+          <img src={playlist.image} alt={playlist.name} className="w-10 h-10 object-cover flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <div className="text-white text-md font-medium truncate">{playlist.name}</div>
@@ -353,11 +353,11 @@ export default function Spotify() {
                 <img
                   src={track.art}
                   alt={track.album}
-                  className="w-40 h-40 rounded-2xl object-cover"
+                  className="w-40 h-40 object-cover"
                   style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
                 />
               ) : (
-                <div className="w-40 h-40 rounded-2xl bg-white/5 flex items-center justify-center">
+                <div className="w-40 h-40 bg-white/5 flex items-center justify-center">
                   <span className="text-white/20 text-4xl">♪</span>
                 </div>
               )}
