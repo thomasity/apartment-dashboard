@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useSpotify } from '../hooks/useSpotify';
 
@@ -34,10 +34,39 @@ function PauseIcon() {
   );
 }
 
+function ShuffleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+    </svg>
+  );
+}
+
+function RepeatIcon({ one }) {
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+      </svg>
+      {one && (
+        <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold leading-none mt-px">1</span>
+      )}
+    </div>
+  );
+}
+
 function CastIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
       <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2C12 14.14 7.05 10 1 10zm20-6H3C1.9 4 1 4.9 1 6v3h2V6h18v12h-7v2h7c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/>
+    </svg>
+  );
+}
+
+function VolumeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
     </svg>
   );
 }
@@ -78,7 +107,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
   const [btDiscovered, setBtDiscovered] = useState([]);
   const [scanning,     setScanning]     = useState(false);
   const [scanError,    setScanError]    = useState(null);
-  const [pairing,      setPairing]      = useState(null); // mac being paired
+  const [pairing,      setPairing]      = useState(null);
 
   useEffect(() => {
     axios.get('/api/bluetooth/devices').then((r) => setBtPaired(r.data)).catch(() => {});
@@ -144,7 +173,6 @@ function DevicePicker({ onClose, devices, transferTo }) {
         onClick={(e) => e.stopPropagation()}
         data-no-swipe
       >
-        {/* ── Spotify devices ── */}
         <p className="text-white/40 text-xs tracking-widest uppercase mb-1">Play on…</p>
         {devices.length === 0 ? (
           <p className="text-white/25 text-sm py-2 text-center">No devices found.<br/>Open Spotify on a device first.</p>
@@ -166,7 +194,6 @@ function DevicePicker({ onClose, devices, transferTo }) {
           ))
         )}
 
-        {/* ── Pi Bluetooth speakers ── */}
         <div className="mt-2 pt-3 border-t border-white/[0.07]">
           <div className="flex items-center justify-between mb-2">
             <p className="text-white/25 text-xs tracking-widest uppercase">Pi Speakers</p>
@@ -179,7 +206,6 @@ function DevicePicker({ onClose, devices, transferTo }) {
             </button>
           </div>
 
-          {/* Paired devices */}
           {btPaired.length === 0 && !scanning && btDiscovered.length === 0 && (
             <p className="text-white/20 text-xs px-3 py-1">No speakers paired. Tap Scan to find one.</p>
           )}
@@ -210,7 +236,6 @@ function DevicePicker({ onClose, devices, transferTo }) {
             <p className="text-white/30 text-xs px-3 py-1">{scanError}</p>
           )}
 
-          {/* Scan results — unpaired discovered devices */}
           {btDiscovered.length > 0 && (
             <>
               <p className="text-white/20 text-xs px-3 pt-2 pb-1">Nearby</p>
@@ -236,11 +261,31 @@ function DevicePicker({ onClose, devices, transferTo }) {
 }
 
 export default function Spotify() {
-  const { state, control, playContext, playlists, devices, fetchDevices, transferTo } = useSpotify();
+  const { state, control, playContext, playlists, devices, fetchDevices, transferTo, toggleShuffle, cycleRepeat, setVolume } = useSpotify();
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Local volume state — initialized once from server, then tracks local changes
+  const [localVolume,  setLocalVolume]  = useState(100);
+  const localChangedAt                  = useRef(0);
+
+  useEffect(() => {
+    const devVol = state?.device?.volume;
+    if (devVol !== undefined && Date.now() - localChangedAt.current > 5000) {
+      setLocalVolume(devVol);
+    }
+  }, [state?.device?.volume]);
+
+  const handleVolumeChange = useCallback((e) => {
+    const val = Number(e.target.value);
+    setLocalVolume(val);
+    localChangedAt.current = Date.now();
+    setVolume(val);
+  }, [setVolume]);
 
   const track     = state?.track ?? null;
   const isPlaying = state?.isPlaying ?? false;
+  const shuffle   = state?.shuffle   ?? false;
+  const repeat    = state?.repeat    ?? 'off';
   const pct       = track && track.duration > 0 ? (track.progress / track.duration) * 100 : 0;
 
   const openPicker = useCallback(async () => {
@@ -252,7 +297,7 @@ export default function Spotify() {
     <div className="relative h-full flex select-none">
 
       {/* ── Left: Now Playing ── */}
-      <div className="w-2/5 flex flex-col items-center justify-center gap-6 px-8 border-r border-white/[0.06]">
+      <div className="w-2/5 flex flex-col items-center justify-center gap-5 px-8 border-r border-white/[0.06]">
         {track ? (
           <>
             {track.art ? (
@@ -284,19 +329,62 @@ export default function Spotify() {
               </div>
             </div>
 
-            <div className="flex items-center gap-8">
-              <button onClick={() => control('previous')} className="text-white/50 active:text-white touch-manipulation">
+            {/* ── Playback controls: shuffle · prev · play/pause · next · repeat ── */}
+            <div className="flex items-center gap-5">
+              {/* Shuffle */}
+              <button
+                onClick={toggleShuffle}
+                className="flex flex-col items-center gap-0.5 touch-manipulation transition-colors"
+              >
+                <span className={shuffle ? 'text-white' : 'text-white/30 active:text-white/60'}>
+                  <ShuffleIcon />
+                </span>
+                <span className={`w-1 h-1 rounded-full ${shuffle ? 'bg-white' : 'bg-transparent'}`} />
+              </button>
+
+              {/* Previous */}
+              <button onClick={() => control('previous')} className="text-white/50 active:text-white touch-manipulation pb-1.5">
                 <PrevIcon />
               </button>
+
+              {/* Play / Pause */}
               <button
                 onClick={() => control(isPlaying ? 'pause' : 'play')}
                 className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-black active:scale-95 transition-transform touch-manipulation"
               >
                 {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </button>
-              <button onClick={() => control('next')} className="text-white/50 active:text-white touch-manipulation">
+
+              {/* Next */}
+              <button onClick={() => control('next')} className="text-white/50 active:text-white touch-manipulation pb-1.5">
                 <NextIcon />
               </button>
+
+              {/* Repeat */}
+              <button
+                onClick={cycleRepeat}
+                className="flex flex-col items-center gap-0.5 touch-manipulation transition-colors"
+              >
+                <span className={repeat !== 'off' ? 'text-white' : 'text-white/30 active:text-white/60'}>
+                  <RepeatIcon one={repeat === 'track'} />
+                </span>
+                <span className={`w-1 h-1 rounded-full ${repeat !== 'off' ? 'bg-white' : 'bg-transparent'}`} />
+              </button>
+            </div>
+
+            {/* ── Volume ── */}
+            <div className="w-full flex items-center gap-3">
+              <span className="text-white/30 flex-shrink-0"><VolumeIcon /></span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={localVolume}
+                onChange={handleVolumeChange}
+                className="flex-1 h-1 rounded-full cursor-pointer touch-manipulation"
+                style={{ accentColor: 'rgba(255,255,255,0.55)' }}
+                data-no-swipe
+              />
             </div>
           </>
         ) : (

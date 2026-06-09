@@ -37,7 +37,7 @@ After=network.target mosquitto.service
 
 [Service]
 Environment=NODE_ENV=production
-Type=notify
+Type=simple
 ExecStart=$(which node) index.js
 WorkingDirectory=$Z2M_DIR
 StandardOutput=inherit
@@ -61,4 +61,38 @@ else
     log "zigbee2mqtt already running."
 fi
 
-warn "Reminder: configure $Z2M_DIR/data/configuration.yaml for your Zigbee adapter if this is a fresh install."
+BACKUP_FILE="$PROJECT_DIR/backups/coordinator_backup.json"
+if [[ -f "$BACKUP_FILE" && ! -f "$Z2M_DIR/data/coordinator_backup.json" ]]; then
+    log "Restoring coordinator backup..."
+    mkdir -p "$Z2M_DIR/data"
+    cp "$BACKUP_FILE" "$Z2M_DIR/data/coordinator_backup.json"
+    chown "$PI_USER":"$PI_USER" "$Z2M_DIR/data/coordinator_backup.json"
+fi
+
+CONFIG_FILE="$Z2M_DIR/data/configuration.yaml"
+if [[ -f "$CONFIG_FILE" ]]; then
+    log "zigbee2mqtt configuration already exists, skipping."
+else
+    log "Writing zigbee2mqtt configuration..."
+    mkdir -p "$Z2M_DIR/data"
+    cat > "$CONFIG_FILE" <<'EOF'
+homeassistant:
+  enabled: false
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://localhost:1883
+serial:
+  port: /dev/ttyUSB0
+  adapter: ember
+frontend:
+  enabled: false
+version: 4
+devices:
+  '0xb4e8428f4ad10000':
+    friendly_name: Hello, World
+  '0x7cb94c67ffcc0000':
+    friendly_name: '0x7cb94c67ffcc0000'
+EOF
+    chown -R "$PI_USER":"$PI_USER" "$Z2M_DIR/data"
+    log "Configuration written to $CONFIG_FILE"
+fi

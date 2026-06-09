@@ -7,6 +7,7 @@ export function useSpotify() {
   const [devices,   setDevices]   = useState([]);
   const [tick,      setTick]      = useState(0);
   const polledAt                  = useRef(0);
+  const volumeDebounce            = useRef(null);
 
   const poll = useCallback(async () => {
     try {
@@ -62,6 +63,29 @@ export function useSpotify() {
     } catch {}
   }, [poll]);
 
+  const toggleShuffle = useCallback(async () => {
+    try {
+      await axios.post('/api/spotify/shuffle', { state: !(state?.shuffle ?? false) });
+      setTimeout(poll, 400);
+    } catch {}
+  }, [state?.shuffle, poll]);
+
+  const cycleRepeat = useCallback(async () => {
+    try {
+      const order = ['off', 'context', 'track'];
+      const next = order[(order.indexOf(state?.repeat ?? 'off') + 1) % order.length];
+      await axios.post('/api/spotify/repeat', { state: next });
+      setTimeout(poll, 400);
+    } catch {}
+  }, [state?.repeat, poll]);
+
+  const setVolume = useCallback((vol) => {
+    clearTimeout(volumeDebounce.current);
+    volumeDebounce.current = setTimeout(() => {
+      axios.post('/api/spotify/volume', { volume: vol }).catch(() => {});
+    }, 300);
+  }, []);
+
   const liveState = state?.track ? {
     ...state,
     track: {
@@ -72,5 +96,17 @@ export function useSpotify() {
     },
   } : state;
 
-  return { state: liveState, control, playContext, playlists, devices, fetchDevices, transferTo, _tick: tick };
+  return {
+    state: liveState,
+    control,
+    playContext,
+    playlists,
+    devices,
+    fetchDevices,
+    transferTo,
+    toggleShuffle,
+    cycleRepeat,
+    setVolume,
+    _tick: tick,
+  };
 }

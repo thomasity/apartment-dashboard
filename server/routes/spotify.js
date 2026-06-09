@@ -39,6 +39,8 @@ router.get('/now-playing', async (req, res) => {
     if (!data) return res.json(null);
     res.json({
       isPlaying: data.is_playing,
+      shuffle:   data.shuffle_state ?? false,
+      repeat:    data.repeat_state  ?? 'off',
       track: {
         name:     data.item?.name,
         artist:   data.item?.artists?.map((a) => a.name).join(', '),
@@ -111,6 +113,20 @@ router.get('/devices', async (_req, res) => {
       isActive: d.is_active,
       volume:   d.volume_percent,
     })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/shuffle', async (req, res) => {
+  try {
+    await spotify('PUT', `/me/player/shuffle?state=${req.body.state ? 'true' : 'false'}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/repeat', async (req, res) => {
+  try {
+    await spotify('PUT', `/me/player/repeat?state=${req.body.state}`);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
