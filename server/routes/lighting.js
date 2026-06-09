@@ -1,4 +1,5 @@
-const express = require('express');
+const express   = require('express');
+const circadian = require('../services/circadian');
 
 module.exports = (io, mqttManager) => {
   const router = express.Router();
@@ -45,6 +46,17 @@ module.exports = (io, mqttManager) => {
       mqttManager.setGroup(group, payload);
     }
 
+    res.json({ ok: true });
+  });
+
+  router.get('/circadian', (_req, res) => {
+    res.json({ ...circadian.getState(), timeline: circadian.getTimeline() });
+  });
+
+  router.post('/circadian', (req, res) => {
+    const { group = 'all', enabled } = req.body;
+    if (enabled) circadian.enable(group);
+    else circadian.disable(group);
     res.json({ ok: true });
   });
 

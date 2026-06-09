@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const mqttManager = require('./mqtt/client');
+const circadian   = require('./services/circadian');
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +34,7 @@ if (process.env.NODE_ENV === 'production') {
 io.on('connection', (socket) => {
   socket.emit('lighting:state', mqttManager.getState());
   socket.emit('lighting:devices', mqttManager.getDevicesState());
+  socket.emit('lighting:circadian', circadian.getState());
 });
 
 mqttManager.on('stateChange', (state) => {
@@ -46,6 +48,8 @@ mqttManager.on('devicesChange', (state) => {
 mqttManager.on('bridgeEvent', (event) => {
   io.emit('lighting:bridge_event', event);
 });
+
+circadian.init(mqttManager, io);
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

@@ -233,6 +233,73 @@ function SunBright() {
   );
 }
 
+function AutoToggle({ on, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
+        on
+          ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
+          : 'bg-white/[0.04] text-white/20 hover:text-white/40'
+      }`}
+    >
+      {on && <span className="w-1 h-1 rounded-full bg-amber-400 shrink-0" />}
+      Auto
+    </button>
+  );
+}
+
+function CircadianStrip({ circadian }) {
+  const { brightness, colorTemp, nextChange, timeline } = circadian;
+  const tempLabel = colorTemp < 33 ? 'Warm' : colorTemp < 67 ? 'Neutral' : 'Cool';
+
+  const now    = new Date();
+  const nowPct = ((now.getHours() * 60 + now.getMinutes()) / (24 * 60)) * 100;
+
+  const nextMs  = nextChange ? Math.max(0, new Date(nextChange).getTime() - Date.now()) : null;
+  const nextMin = nextMs !== null ? Math.floor(nextMs / 60000) : null;
+
+  // Same 3-stop gradient as slider-colortemp: #ffb300 → #fff4e0 45% → #a8c8ff
+  const stops = timeline.length > 0
+    ? timeline.map((pt, i) => {
+        const pct = ((i / 23) * 100).toFixed(1);
+        const t   = pt.colorTemp;
+        let r, g, b;
+        if (t <= 45) {
+          const f = t / 45;
+          r = 255;
+          g = Math.round(179 + (244 - 179) * f);
+          b = Math.round(       (224      ) * f);
+        } else {
+          const f = (t - 45) / 55;
+          r = Math.round(255 + (168 - 255) * f);
+          g = Math.round(244 + (200 - 244) * f);
+          b = Math.round(224 + (255 - 224) * f);
+        }
+        const a = (0.25 + 0.7 * (pt.brightness / 100)).toFixed(2);
+        return `rgba(${r},${g},${b},${a}) ${pct}%`;
+      }).join(', ')
+    : '#ffb300 0%, #fff4e0 45%, #a8c8ff 100%';
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div
+        className="relative h-2 rounded-full overflow-hidden"
+        style={{ background: `linear-gradient(to right, ${stops})` }}
+      >
+        <div
+          className="absolute top-0 bottom-0 w-px bg-white/70"
+          style={{ left: `${nowPct}%`, boxShadow: '0 0 3px rgba(255,255,255,0.5)' }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] text-white/30">{brightness}% · {tempLabel}</span>
+        {nextMin !== null && <span className="text-[9px] text-white/20">~{nextMin}m</span>}
+      </div>
+    </div>
+  );
+}
+
 function avg(groups, key) {
   const vals = Object.values(groups);
   if (!vals.length) return 50;
@@ -251,6 +318,7 @@ export default function Lighting() {
   const [local, setLocal]             = useState({ brightness: 70, colorTemp: 30 });
   const [localDevices, setLocalDevices] = useState({});
   const [socket, setSocket]           = useState(null);
+  const [circadian, setCircadian]     = useState({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
   const timers                        = useRef({});
   const animFrames                    = useRef({});
   const lastTouch                     = useRef({});
@@ -264,6 +332,10 @@ export default function Lighting() {
   // Cancel all in-flight animations on unmount
   useEffect(() => {
     return () => Object.values(animFrames.current).forEach(cancelAnimationFrame);
+  }, []);
+
+  useEffect(() => {
+    axios.get('/api/lighting/circadian').then((r) => setCircadian(r.data)).catch(() => {});
   }, []);
 
   // Seed sliders from HTTP before the socket even connects
@@ -292,6 +364,8 @@ export default function Lighting() {
           ? avg(state.groups, 'colorTemp')  : prev.colorTemp,
       }));
     });
+
+    s.on('lighting:circadian', (data) => setCircadian((prev) => ({ ...prev, ...data })));
 
     return () => s.disconnect();
   }, []);
@@ -380,6 +454,16 @@ export default function Lighting() {
 
   const deviceEntries = Object.entries(serverState.groups);
 
+  const toggleCircadianGroup = useCallback(async (group) => {
+    const enabled = group === 'all'
+      ? !deviceEntries.every(([n]) => (circadian.enabledGroups ?? []).includes(n))
+      : !(circadian.enabledGroups ?? []).includes(group);
+    await axios.post('/api/lighting/circadian', { group, enabled }).catch(console.warn);
+  }, [circadian.enabledGroups, deviceEntries]);
+  const enabledGroups = circadian.enabledGroups ?? [];
+  const allCircadian  = deviceEntries.length > 0
+    && deviceEntries.every(([n]) => enabledGroups.includes(n));
+
   const now = Date.now();
   const brightnessMixed = deviceEntries.length > 1
     && spread(localDevices, 'brightness') > 5
@@ -448,49 +532,52 @@ export default function Lighting() {
 
       {/* ── All Devices (always visible) ── */}
       <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-3" data-no-swipe>
-        <div className="text-base font-semibold text-white/80 select-none">
-          All Devices
+        <div className="flex items-center justify-between">
+          <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
+          <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
         </div>
 
-        <div className="flex flex-col gap-3">
-          {/* Brightness */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
-              {brightnessMixed
-                ? <span className="text-[10px] text-white/25 italic">Mixed</span>
-                : <span className="text-[10px] text-white/35 tabular-nums">{local.brightness}%</span>}
+        {allCircadian ? <CircadianStrip circadian={circadian} /> : (
+          <div className="flex flex-col gap-3">
+            {/* Brightness */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
+                {brightnessMixed
+                  ? <span className="text-[10px] text-white/25 italic">Mixed</span>
+                  : <span className="text-[10px] text-white/35 tabular-nums">{local.brightness}%</span>}
+              </div>
+              <div className="flex items-center gap-3">
+                <SunDim />
+                <input
+                  type="range" min={0} max={100} value={local.brightness}
+                  onChange={(e) => handleSlider('brightness', e.target.value)}
+                  className={`slider-brightness flex-1 touch-manipulation${brightnessMixed ? ' slider-mixed' : ''}`}
+                />
+                <SunBright />
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <SunDim />
-              <input
-                type="range" min={0} max={100} value={local.brightness}
-                onChange={(e) => handleSlider('brightness', e.target.value)}
-                className={`slider-brightness flex-1 touch-manipulation${brightnessMixed ? ' slider-mixed' : ''}`}
-              />
-              <SunBright />
-            </div>
-          </div>
 
-          {/* Color temperature */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
-              {colorTempMixed
-                ? <span className="text-[10px] text-white/25 italic">Mixed</span>
-                : <span className="text-[10px] text-white/35">{tempLabel}</span>}
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-base leading-none shrink-0">🔥</span>
-              <input
-                type="range" min={0} max={100} value={local.colorTemp}
-                onChange={(e) => handleSlider('colorTemp', e.target.value)}
-                className={`slider-colortemp flex-1 touch-manipulation${colorTempMixed ? ' slider-mixed' : ''}`}
-              />
-              <span className="text-base leading-none shrink-0">❄️</span>
+            {/* Color temperature */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
+                {colorTempMixed
+                  ? <span className="text-[10px] text-white/25 italic">Mixed</span>
+                  : <span className="text-[10px] text-white/35">{tempLabel}</span>}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-base leading-none shrink-0">🔥</span>
+                <input
+                  type="range" min={0} max={100} value={local.colorTemp}
+                  onChange={(e) => handleSlider('colorTemp', e.target.value)}
+                  className={`slider-colortemp flex-1 touch-manipulation${colorTempMixed ? ' slider-mixed' : ''}`}
+                />
+                <span className="text-base leading-none shrink-0">❄️</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Individual Bulbs (scrollable) ── */}
@@ -500,43 +587,47 @@ export default function Lighting() {
             {deviceEntries.map(([name]) => {
               const dev = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
               const devTempLabel = dev.colorTemp < 33 ? 'Warm' : dev.colorTemp < 67 ? 'Neutral' : 'Cool';
+              const isCircadian  = enabledGroups.includes(name);
               return (
                 <div key={name} className="flex flex-col gap-2">
-                  <div className="text-sm font-semibold text-white/70 select-none">
-                    {name}
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
+                    <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
-                      <span className="text-[10px] text-white/35 tabular-nums">{dev.brightness}%</span>
+                  {isCircadian ? <CircadianStrip circadian={circadian} /> : <>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-white/25 uppercase tracking-widest">Brightness</span>
+                        <span className="text-[10px] text-white/35 tabular-nums">{dev.brightness}%</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <SunDim />
+                        <input
+                          type="range" min={0} max={100} value={dev.brightness}
+                          onChange={(e) => handleDeviceSlider(name, 'brightness', e.target.value)}
+                          className="slider-brightness flex-1 touch-manipulation"
+                        />
+                        <SunBright />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <SunDim />
-                      <input
-                        type="range" min={0} max={100} value={dev.brightness}
-                        onChange={(e) => handleDeviceSlider(name, 'brightness', e.target.value)}
-                        className="slider-brightness flex-1 touch-manipulation"
-                      />
-                      <SunBright />
-                    </div>
-                  </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
-                      <span className="text-[10px] text-white/35">{devTempLabel}</span>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-white/25 uppercase tracking-widest">Color Temp</span>
+                        <span className="text-[10px] text-white/35">{devTempLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-base leading-none shrink-0">🔥</span>
+                        <input
+                          type="range" min={0} max={100} value={dev.colorTemp}
+                          onChange={(e) => handleDeviceSlider(name, 'colorTemp', e.target.value)}
+                          className="slider-colortemp flex-1 touch-manipulation"
+                        />
+                        <span className="text-base leading-none shrink-0">❄️</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-base leading-none shrink-0">🔥</span>
-                      <input
-                        type="range" min={0} max={100} value={dev.colorTemp}
-                        onChange={(e) => handleDeviceSlider(name, 'colorTemp', e.target.value)}
-                        className="slider-colortemp flex-1 touch-manipulation"
-                      />
-                      <span className="text-base leading-none shrink-0">❄️</span>
-                    </div>
-                  </div>
+                  </>}
                 </div>
               );
             })}
