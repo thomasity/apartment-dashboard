@@ -445,18 +445,20 @@ export default function Lighting() {
             <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
             <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
           </div>
-          {allCircadian
-            ? <CircadianStrip circadian={circadian} />
-            : <LightSliders
-                brightness={local.brightness}
-                colorTemp={local.colorTemp}
-                tempLabel={tempLabel(local.colorTemp)}
-                onBrightness={(v) => handleSlider('brightness', v)}
-                onColorTemp={(v) => handleSlider('colorTemp', v)}
-                brightnessMixed={brightnessMixed}
-                colorTempMixed={colorTempMixed}
-              />
-          }
+          <div className="h-24 flex flex-col justify-center">
+            {allCircadian
+              ? <CircadianStrip circadian={circadian} />
+              : <LightSliders
+                  brightness={local.brightness}
+                  colorTemp={local.colorTemp}
+                  tempLabel={tempLabel(local.colorTemp)}
+                  onBrightness={(v) => handleSlider('brightness', v)}
+                  onColorTemp={(v) => handleSlider('colorTemp', v)}
+                  brightnessMixed={brightnessMixed}
+                  colorTempMixed={colorTempMixed}
+                />
+            }
+          </div>
         </div>
 
         {/* Individual devices */}
@@ -472,16 +474,18 @@ export default function Lighting() {
                       <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
                       <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
                     </div>
-                    {isCircadian
-                      ? <CircadianStrip circadian={circadian} />
-                      : <LightSliders
-                          brightness={dev.brightness}
-                          colorTemp={dev.colorTemp}
-                          tempLabel={tempLabel(dev.colorTemp)}
-                          onBrightness={(v) => handleDeviceSlider(name, 'brightness', v)}
-                          onColorTemp={(v) => handleDeviceSlider(name, 'colorTemp', v)}
-                        />
-                    }
+                    <div className="h-24 flex flex-col justify-center">
+                      {isCircadian
+                        ? <CircadianStrip circadian={circadian} />
+                        : <LightSliders
+                            brightness={dev.brightness}
+                            colorTemp={dev.colorTemp}
+                            tempLabel={tempLabel(dev.colorTemp)}
+                            onBrightness={(v) => handleDeviceSlider(name, 'brightness', v)}
+                            onColorTemp={(v) => handleDeviceSlider(name, 'colorTemp', v)}
+                          />
+                      }
+                    </div>
                   </div>
                 );
               })}
