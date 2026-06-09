@@ -41,6 +41,7 @@ router.get('/now-playing', async (req, res) => {
       isPlaying: data.is_playing,
       shuffle:   data.shuffle_state ?? false,
       repeat:    data.repeat_state  ?? 'off',
+      context: data.context ? { type: data.context.type, uri: data.context.uri } : null,
       track: {
         uri:      data.item?.uri ?? null,
         name:     data.item?.name,
@@ -99,6 +100,13 @@ router.post('/previous', async (_req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.post('/seek', async (req, res) => {
+  try {
+    await spotify('PUT', `/me/player/seek?position_ms=${req.body.position}`);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post('/volume', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/volume?volume_percent=${req.body.volume}`);
@@ -141,10 +149,15 @@ router.post('/repeat', async (req, res) => {
 
 router.get('/playlist/:id/tracks', async (req, res) => {
   try {
-    const { data } = await spotify('GET', `/playlists/${req.params.id}/items?limit=100`);
-    console.info('[spotify] data returned:', data);
+    let path = `/playlists/${req.params.id}/items?limit=100`;
+    let allItems = [];
+    while (path) {
+      const { data } = await spotify('GET', path);
+      allItems = allItems.concat(data.items);
+      path = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+    }
     res.json(
-      data.items
+      allItems
         .filter((i) => i.item?.id && i.item?.type === 'track')
         .map((i) => ({
           id:       i.item.id,

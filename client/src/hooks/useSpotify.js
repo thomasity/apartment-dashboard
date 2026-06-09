@@ -81,6 +81,14 @@ export function useSpotify() {
     } catch (err) { console.error('[spotify] repeat:', err.response?.data ?? err.message); }
   }, [state?.repeat, poll]);
 
+  const seek = useCallback(async (position) => {
+    try {
+      await axios.post('/api/spotify/seek', { position });
+      polledAt.current = Date.now();
+      setState((prev) => prev?.track ? { ...prev, track: { ...prev.track, progress: position } } : prev);
+    } catch {}
+  }, []);
+
   const setVolume = useCallback((vol) => {
     clearTimeout(volumeDebounce.current);
     volumeDebounce.current = setTimeout(() => {
@@ -108,6 +116,7 @@ export function useSpotify() {
     transferTo,
     toggleShuffle,
     cycleRepeat,
+    seek,
     setVolume,
     _tick: tick,
   };

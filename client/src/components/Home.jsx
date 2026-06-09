@@ -98,7 +98,7 @@ export default function Home() {
 
       {/* ── Spotify now-playing strip ── */}
       {spotify?.track && (
-        <div className="absolute bottom-20 left-5 flex items-center gap-3" style={{ textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}>
+        <div className="absolute top-10 left-5 flex items-center gap-3" style={{ textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}>
           {spotify.track.art && (
             <img src={spotify.track.art} alt="" className="w-10 h-10 rounded-md shadow-lg flex-shrink-0" />
           )}
@@ -136,7 +136,7 @@ export default function Home() {
 
       {/* ── Weather strip ── */}
       {cond && (
-        <div className="absolute bottom-20 right-5 text-right">
+        <div className="absolute top-10 right-5 text-right">
           <div
             className="flex items-center justify-end gap-2 leading-none"
             style={{ textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}
@@ -148,12 +148,6 @@ export default function Home() {
             >
               {Math.round(current.temperature_2m)}°
             </span>
-          </div>
-          <div
-            className="font-light text-white/40 tracking-wider uppercase mt-1"
-            style={{ fontSize: 'clamp(0.55rem, 0.9vw, 0.75rem)', textShadow: '0 1px 8px rgba(0,0,0,0.7)' }}
-          >
-            {cond.label}
           </div>
         </div>
       )}

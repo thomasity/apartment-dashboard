@@ -145,7 +145,7 @@ function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, curre
         )}
         <div className="flex-1 min-w-0">
           <div className="text-white text-md font-medium truncate">{playlist.name}</div>
-          <div className="text-white/30 text-xs">{playlist.total} tracks</div>
+          <div className="text-white/30 text-xs">{tracks.length} tracks</div>
         </div>
         <button
           onClick={onPlayAll}
@@ -357,13 +357,22 @@ export default function Spotify() {
   const {
     state, control, playContext, playlists,
     devices, fetchDevices, transferTo,
-    toggleShuffle, cycleRepeat, setVolume,
+    toggleShuffle, cycleRepeat, seek, setVolume,
   } = useSpotify();
 
   const [pickerOpen,        setPickerOpen]        = useState(false);
   const [selectedPlaylist,  setSelectedPlaylist]  = useState(null);
   const [tracks,            setTracks]            = useState([]);
   const [tracksLoading,     setTracksLoading]     = useState(false);
+
+  // Seek — null when idle, number (ms) while dragging
+  const [seekValue, setSeekValue] = useState(null);
+
+  const handleSeekEnd = useCallback((e) => {
+    const pos = Number(e.target.value);
+    seek(pos);
+    setSeekValue(null);
+  }, [seek]);
 
   // Local volume — syncs from server unless recently changed locally
   const [localVolume,  setLocalVolume]  = useState(100);
@@ -405,7 +414,17 @@ export default function Spotify() {
   const isPlaying = state?.isPlaying ?? false;
   const shuffle   = state?.shuffle   ?? false;
   const repeat    = state?.repeat    ?? 'off';
-  const pct       = track && track.duration > 0 ? (track.progress / track.duration) * 100 : 0;
+
+  const contextPlaylist = state?.context?.type === 'playlist'
+    ? (playlists.find((pl) => pl.uri === state.context.uri) ?? null)
+    : null;
+  const contextLabel =
+    state?.context?.type === 'collection' ? 'Liked Songs' :
+    state?.context?.type === 'album'      ? track?.album  :
+    state?.context?.type === 'artist'     ? track?.artist :
+    contextPlaylist?.name ?? null;
+  const contextTypeLabel =
+    state?.context?.type === 'collection' ? 'library' : state?.context?.type ?? '';
 
   const openPicker = useCallback(async () => {
     await fetchDevices();
@@ -419,18 +438,31 @@ export default function Spotify() {
       <div className="w-2/5 flex flex-col items-center justify-center gap-5 px-8 border-r border-white/[0.06]">
         {track ? (
           <>
-            {track.art ? (
-              <img
-                src={track.art}
-                alt={track.album}
-                className="w-40 h-40 rounded-2xl object-cover"
-                style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
-              />
-            ) : (
-              <div className="w-40 h-40 rounded-2xl bg-white/5 flex items-center justify-center">
-                <span className="text-white/20 text-4xl">♪</span>
-              </div>
-            )}
+            <div className="flex flex-col items-center gap-2">
+              {contextLabel && contextPlaylist && (
+                <div 
+                  className="text-center mb-4 cursor-pointer"
+                  onClick={() => handleSelectPlaylist(contextPlaylist)}
+                >
+                  <p className="text-white/20 text-[9px] tracking-widest uppercase">Playing from {contextTypeLabel}</p>
+                  <p className="text-white/50 text-xs mt-0.5 truncate max-w-[160px] touch-manipulation">
+                    {contextLabel}
+                  </p>
+                </div>
+              )}
+              {track.art ? (
+                <img
+                  src={track.art}
+                  alt={track.album}
+                  className="w-40 h-40 rounded-2xl object-cover"
+                  style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
+                />
+              ) : (
+                <div className="w-40 h-40 rounded-2xl bg-white/5 flex items-center justify-center">
+                  <span className="text-white/20 text-4xl">♪</span>
+                </div>
+              )}
+            </div>
 
             <div className="w-full text-center">
               <div className="text-white font-medium text-lg leading-tight truncate">{track.name}</div>
@@ -438,11 +470,26 @@ export default function Spotify() {
               <div className="text-white/25 text-xs mt-0.5 truncate">{track.album}</div>
 
               <div className="mt-4">
-                <div className="h-0.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-white/50 rounded-full" style={{ width: `${pct}%` }} />
+                <div className="relative h-4 flex items-center" data-no-swipe>
+                  <div className="absolute w-full h-0.5 bg-white/10 rounded-full overflow-hidden pointer-events-none">
+                    <div
+                      className="h-full bg-white/50 rounded-full"
+                      style={{ width: `${(seekValue != null ? seekValue : track.progress) / track.duration * 100}%` }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={track.duration || 1}
+                    value={seekValue ?? track.progress}
+                    onChange={(e) => setSeekValue(Number(e.target.value))}
+                    onMouseUp={handleSeekEnd}
+                    onTouchEnd={handleSeekEnd}
+                    className="absolute w-full h-full cursor-pointer opacity-0"
+                  />
                 </div>
                 <div className="flex justify-between mt-1.5">
-                  <span className="text-white/25 text-xs tabular-nums">{fmtMs(track.progress)}</span>
+                  <span className="text-white/25 text-xs tabular-nums">{fmtMs(seekValue ?? track.progress)}</span>
                   <span className="text-white/25 text-xs tabular-nums">{fmtMs(track.duration)}</span>
                 </div>
               </div>
@@ -480,39 +527,43 @@ export default function Spotify() {
               </button>
             </div>
 
-            {/* Volume */}
-            <div className="w-full flex items-center gap-3">
-              <span className="text-white/30 flex-shrink-0"><VolumeIcon /></span>
+            {/* Utility strip: volume + device */}
+            <div className="w-full border-t border-white/[0.07] pt-4 flex items-center gap-3">
+              <span className="text-white/25 flex-shrink-0"><VolumeIcon /></span>
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={localVolume}
                 onChange={handleVolumeChange}
-                className="flex-1 h-1 rounded-full cursor-pointer touch-manipulation"
-                style={{ accentColor: 'rgba(255,255,255,0.55)' }}
+                className="flex-1 cursor-pointer touch-manipulation"
+                style={{ accentColor: 'rgba(255,255,255,0.4)' }}
                 data-no-swipe
               />
+              <button
+                onClick={openPicker}
+                className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-white/10 text-white/40 active:border-white/25 active:text-white/70 touch-manipulation"
+              >
+                <CastIcon />
+                <span className="text-xs truncate max-w-[80px]">{state?.device?.name ?? 'No device'}</span>
+              </button>
             </div>
           </>
         ) : (
-          <div className="text-center">
-            <p className="text-white/25 text-sm tracking-widest uppercase">Nothing playing</p>
-            <p className="text-white/15 text-xs mt-2">Tap a playlist to start</p>
-          </div>
+          <>
+            <div className="text-center">
+              <p className="text-white/25 text-sm tracking-widest uppercase">Nothing playing</p>
+              <p className="text-white/15 text-xs mt-2">Tap a playlist to start</p>
+            </div>
+            <button
+              onClick={openPicker}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-white/10 text-white/30 active:border-white/25 active:text-white/60 touch-manipulation"
+            >
+              <CastIcon />
+              <span className="text-xs truncate max-w-[100px]">{state?.device?.name ?? 'No device'}</span>
+            </button>
+          </>
         )}
-
-        <button
-          onClick={openPicker}
-          className={`flex items-center gap-2 touch-manipulation transition-colors ${
-            state?.device?.name ? 'text-white/30 active:text-white/60' : 'text-white/15 active:text-white/40'
-          }`}
-        >
-          <CastIcon />
-          <span className="text-xs tracking-wider uppercase truncate max-w-[120px]">
-            {state?.device?.name ?? 'No device'}
-          </span>
-        </button>
       </div>
 
       {/* ── Right: Playlists or Track List ── */}
@@ -533,7 +584,7 @@ export default function Spotify() {
             <p className="text-white/20 text-sm tracking-widest uppercase">Loading playlists…</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-y-8 gap-x-16 p-16">
             {playlists.map((pl) => (
               <button
                 key={pl.id}
@@ -541,7 +592,7 @@ export default function Spotify() {
                 className="text-left active:scale-95 transition-transform touch-manipulation"
               >
                 {pl.image ? (
-                  <img src={pl.image} alt={pl.name} className="w-full aspect-square rounded-xl object-cover" />
+                  <img src={pl.image} alt={pl.name} className="w-full aspect-square object-cover" />
                 ) : (
                   <div className="w-full aspect-square rounded-xl bg-white/5 flex items-center justify-center">
                     <span className="text-white/20 text-3xl">♪</span>
