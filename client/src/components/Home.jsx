@@ -100,7 +100,7 @@ export default function Home() {
       {spotify?.track && (
         <div className="absolute top-10 left-5 flex items-center gap-3" style={{ textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}>
           {spotify.track.art && (
-            <img src={spotify.track.art} alt="" className="w-10 h-10 rounded-md shadow-lg flex-shrink-0" />
+            <img src={spotify.track.art} alt="" className="w-10 h-10 shadow-lg flex-shrink-0" />
           )}
           <div className="max-w-[130px]">
             <div

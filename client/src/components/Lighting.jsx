@@ -160,13 +160,13 @@ function AutoToggle({ on, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-widest transition-colors touch-manipulation ${
         on
-          ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
-          : 'bg-white/[0.04] text-white/20 hover:text-white/40'
+          ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40'
+          : 'bg-white/[0.08] text-white/40 hover:text-white/60'
       }`}
     >
-      {on && <span className="w-1 h-1 rounded-full bg-amber-400 shrink-0" />}
+      {on && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
       Auto
     </button>
   );
@@ -444,32 +444,32 @@ export default function Lighting() {
         )}
 
         {/* All Devices */}
-        <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-3" data-no-swipe>
-          <div className="flex items-center justify-between">
-            <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
-            <div className="flex items-center gap-2">
+        <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-2" data-no-swipe>
+          <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              {allCircadian
+                ? <CircadianStrip circadian={circadian} />
+                : <LightSliders
+                    brightness={local.brightness}
+                    colorTemp={local.colorTemp}
+                    tempLabel={tempLabel(local.colorTemp)}
+                    onBrightness={(v) => handleSlider('brightness', v)}
+                    onColorTemp={(v) => handleSlider('colorTemp', v)}
+                    brightnessMixed={brightnessMixed}
+                    colorTempMixed={colorTempMixed}
+                  />
+              }
+            </div>
+            <div className="flex flex-col items-center gap-2.5">
               <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
               <button
                 onClick={() => powerOff('all')}
-                className="p-1.5 rounded-full text-white/20 hover:text-white/50 active:text-red-400/60 touch-manipulation transition-colors"
+                className="p-2 rounded-xl text-white/40 hover:text-white/65 active:text-red-400/70 touch-manipulation transition-colors"
               >
                 <PowerIcon />
               </button>
             </div>
-          </div>
-          <div className="h-24 flex flex-col justify-center">
-            {allCircadian
-              ? <CircadianStrip circadian={circadian} />
-              : <LightSliders
-                  brightness={local.brightness}
-                  colorTemp={local.colorTemp}
-                  tempLabel={tempLabel(local.colorTemp)}
-                  onBrightness={(v) => handleSlider('brightness', v)}
-                  onColorTemp={(v) => handleSlider('colorTemp', v)}
-                  brightnessMixed={brightnessMixed}
-                  colorTempMixed={colorTempMixed}
-                />
-            }
           </div>
         </div>
 
@@ -481,30 +481,30 @@ export default function Lighting() {
                 const dev         = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
                 const isCircadian = enabledGroups.includes(name);
                 return (
-                  <div key={name} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
-                      <div className="flex items-center gap-2">
+                  <div key={name} className="flex flex-col gap-1.5">
+                    <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        {isCircadian
+                          ? <CircadianStrip circadian={circadian} />
+                          : <LightSliders
+                              brightness={dev.brightness}
+                              colorTemp={dev.colorTemp}
+                              tempLabel={tempLabel(dev.colorTemp)}
+                              onBrightness={(v) => handleDeviceSlider(name, 'brightness', v)}
+                              onColorTemp={(v) => handleDeviceSlider(name, 'colorTemp', v)}
+                            />
+                        }
+                      </div>
+                      <div className="flex flex-col items-center gap-2.5">
                         <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
                         <button
                           onClick={() => powerOff(name)}
-                          className="p-1.5 rounded-full text-white/20 hover:text-white/50 active:text-red-400/60 touch-manipulation transition-colors"
+                          className="p-2 rounded-xl text-white/40 hover:text-white/65 active:text-red-400/70 touch-manipulation transition-colors"
                         >
                           <PowerIcon />
                         </button>
                       </div>
-                    </div>
-                    <div className="h-24 flex flex-col justify-center">
-                      {isCircadian
-                        ? <CircadianStrip circadian={circadian} />
-                        : <LightSliders
-                            brightness={dev.brightness}
-                            colorTemp={dev.colorTemp}
-                            tempLabel={tempLabel(dev.colorTemp)}
-                            onBrightness={(v) => handleDeviceSlider(name, 'brightness', v)}
-                            onColorTemp={(v) => handleDeviceSlider(name, 'colorTemp', v)}
-                          />
-                      }
                     </div>
                   </div>
                 );
