@@ -42,6 +42,7 @@ router.get('/now-playing', async (req, res) => {
       shuffle:   data.shuffle_state ?? false,
       repeat:    data.repeat_state  ?? 'off',
       track: {
+        uri:      data.item?.uri ?? null,
         name:     data.item?.name,
         artist:   data.item?.artists?.map((a) => a.name).join(', '),
         album:    data.item?.album?.name,
@@ -140,17 +141,18 @@ router.post('/repeat', async (req, res) => {
 
 router.get('/playlist/:id/tracks', async (req, res) => {
   try {
-    const { data } = await spotify('GET', `/playlists/${req.params.id}/tracks?limit=100`);
+    const { data } = await spotify('GET', `/playlists/${req.params.id}/items?limit=100`);
+    console.info('[spotify] data returned:', data);
     res.json(
       data.items
-        .filter((i) => i.track?.id)
+        .filter((i) => i.item?.id && i.item?.type === 'track')
         .map((i) => ({
-          id:       i.track.id,
-          uri:      i.track.uri,
-          name:     i.track.name,
-          artist:   i.track.artists.map((a) => a.name).join(', '),
-          duration: i.track.duration_ms,
-          art:      i.track.album?.images?.[2]?.url ?? i.track.album?.images?.[0]?.url ?? null,
+          id:       i.item.id,
+          uri:      i.item.uri,
+          name:     i.item.name,
+          artist:   i.item.artists.map((a) => a.name).join(', '),
+          duration: i.item.duration_ms,
+          art:      i.item.album?.images?.[2]?.url ?? i.item.album?.images?.[0]?.url ?? null,
         }))
     );
   } catch (err) {

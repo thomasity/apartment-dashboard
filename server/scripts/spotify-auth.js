@@ -22,6 +22,7 @@ const authUrl = 'https://accounts.spotify.com/authorize?' + new URLSearchParams(
   scope:         SCOPES,
   redirect_uri:  REDIRECT_URI,
   state:         Math.random().toString(36).substring(7),
+  show_dialog:   'true',
 });
 
 console.log('\n🎵  Spotify Auth Setup');
