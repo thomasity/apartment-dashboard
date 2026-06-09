@@ -48,7 +48,6 @@ class MqttManager extends EventEmitter {
       try {
         if (topic === 'zigbee2mqtt/bridge/state') {
           const raw = payload.toString();
-          console.log('[bridge/state]', raw);
           let state;
           try { state = JSON.parse(raw).state; } catch { state = raw; }
           this.bridgeOnline = state === 'online';

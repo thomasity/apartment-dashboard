@@ -9,8 +9,7 @@ const SCAN_DURATION = 254;
 
 // ── Zigbee device manager ─────────────────────────────────────────────────────
 
-function DevicesView({ socket }) {
-  const [devState, setDevState]         = useState({ bridgeOnline: false, devices: [], pairing: false });
+function DevicesView({ socket, devState, setDevState }) {
   const [editingId, setEditingId]       = useState(null);
   const [draftName, setDraftName]       = useState('');
   const [countdown, setCountdown]       = useState(0);
@@ -19,16 +18,6 @@ function DevicesView({ socket }) {
   const scanStartIds   = useRef(null);
   const countdownTimer = useRef(null);
   const scanStartTime  = useRef(null);
-
-  useEffect(() => {
-    axios.get('/api/lighting/devices').then((r) => setDevState(r.data)).catch(console.warn);
-  }, []);
-
-  useEffect(() => {
-    if (!socket) return;
-    socket.on('lighting:devices', setDevState);
-    return () => socket.off('lighting:devices', setDevState);
-  }, [socket]);
 
   useEffect(() => {
     if (devState.pairing && !prevPairing.current) {
@@ -246,6 +235,7 @@ function tempLabel(ct) {
 export default function Lighting() {
   const [view, setView]               = useState('controls');
   const [serverState, setServerState] = useState({ connected: false, groups: {} });
+  const [devicesState, setDevicesState] = useState({ bridgeOnline: false, devices: [], pairing: false });
   const [local, setLocal]             = useState({ brightness: 70, colorTemp: 30 });
   const [localDevices, setLocalDevices] = useState({});
   const [socket, setSocket]           = useState(null);
@@ -262,6 +252,10 @@ export default function Lighting() {
 
   useEffect(() => {
     axios.get('/api/lighting/circadian').then((r) => setCircadian(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    axios.get('/api/lighting/devices').then(({ data }) => setDevicesState(data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -283,6 +277,7 @@ export default function Lighting() {
         colorTemp:  now - (lastTouch.current.colorTemp  ?? 0) > 1200 ? avg(state.groups, 'colorTemp')  : prev.colorTemp,
       }));
     });
+    s.on('lighting:devices', setDevicesState);
     s.on('lighting:circadian', (data) => setCircadian((prev) => ({ ...prev, ...data })));
     return () => s.disconnect();
   }, []);
@@ -390,7 +385,7 @@ export default function Lighting() {
         </div>
       </div>
 
-      {view === 'devices' && <DevicesView socket={socket} />}
+      {view === 'devices' && <DevicesView socket={socket} devState={devicesState} setDevState={setDevicesState} />}
 
       {view === 'presets' && (
         <div className="flex-1 min-h-0 flex items-center justify-center px-8">
