@@ -4,43 +4,18 @@ const router  = express.Router();
 
 let scanInProgress = false;
 
-// Run one or more bluetoothctl commands via stdin and return stdout
-function bt(...cmds) {
+// Run bluetoothctl as a single command invocation (blocks until done)
+function btCmd(args, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
-    let out = '';
-
-    proc.stdout.on('data', (d) => { out += d.toString(); });
-    proc.stderr.on('data', (d) => console.error('[bluetooth]', d.toString().trim()));
-
-    cmds.forEach((c) => proc.stdin.write(c + '\n'));
-    proc.stdin.write('exit\n');
-    proc.stdin.end();
-
-    const timer = setTimeout(() => { proc.kill(); resolve(out); }, 8000);
-    proc.on('close', () => { clearTimeout(timer); resolve(out); });
-    proc.on('error', (err) => { clearTimeout(timer); reject(err); });
+    execFile('bluetoothctl', args, { timeout: timeoutMs }, (err, stdout, stderr) => {
+      const out = stdout + stderr;
+      if (err && !out) reject(err);
+      else resolve(out);
+    });
   });
 }
 
-// Run bt() with a longer timeout for operations that take time (pair, connect)
-function btSlow(...cmds) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
-    let out = '';
-
-    proc.stdout.on('data', (d) => { out += d.toString(); });
-    proc.stderr.on('data', (d) => console.error('[bluetooth]', d.toString().trim()));
-
-    cmds.forEach((c) => proc.stdin.write(c + '\n'));
-    proc.stdin.write('exit\n');
-    proc.stdin.end();
-
-    const timer = setTimeout(() => { proc.kill(); resolve(out); }, 20000);
-    proc.on('close', () => { clearTimeout(timer); resolve(out); });
-    proc.on('error', (err) => { clearTimeout(timer); reject(err); });
-  });
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseDeviceLines(stdout) {
   return stdout.split('\n')
@@ -54,20 +29,16 @@ function parseDeviceLines(stdout) {
 // Paired devices with connected status
 router.get('/devices', async (_req, res) => {
   try {
-    const out = await bt('devices');
-    const allDevices = parseDeviceLines(out);
-
-    // Check connected status for each paired device
-    const connectedOut = await bt('devices Connected');
+    const [allOut, connectedOut, pairedOut] = await Promise.all([
+      btCmd(['devices']),
+      btCmd(['devices', 'Connected']),
+      btCmd(['devices', 'Paired']),
+    ]);
     const connectedMacs = new Set(parseDeviceLines(connectedOut).map((d) => d.mac));
-
-    const pairedOut = await bt('devices Paired');
-    const pairedMacs = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
-
-    const devices = allDevices
+    const pairedMacs    = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
+    const devices = parseDeviceLines(allOut)
       .filter((d) => pairedMacs.has(d.mac))
       .map((d) => ({ ...d, connected: connectedMacs.has(d.mac) }));
-
     res.json(devices);
   } catch (err) {
     console.error('[bluetooth] /devices error:', err.message);
@@ -106,8 +77,8 @@ router.get('/scan', async (_req, res) => {
     });
 
     const [allOut, pairedOut] = await Promise.all([
-      bt('devices'),
-      bt('devices Paired'),
+      btCmd(['devices']),
+      btCmd(['devices', 'Paired']),
     ]);
 
     const pairedMacs = new Set(parseDeviceLines(pairedOut).map((d) => d.mac));
@@ -129,8 +100,10 @@ router.post('/pair', async (req, res) => {
   const { mac } = req.body;
   if (!mac) return res.status(400).json({ error: 'mac required' });
   try {
-    const out = await btSlow(`pair ${mac}`, `trust ${mac}`, `connect ${mac}`);
-    console.log('[bluetooth] pair result:', out);
+    await btCmd(['pair',  mac], 20000);
+    await btCmd(['trust', mac]);
+    await sleep(2000);
+    await btCmd(['connect', mac], 20000);
     const sinkId = await findBluetoothSink(mac);
     if (sinkId) {
       await wpctlSetDefault(sinkId);
@@ -138,6 +111,7 @@ router.post('/pair', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
+    console.error('[bluetooth] pair error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -190,7 +164,7 @@ router.post('/connect', async (req, res) => {
   const { mac } = req.body;
   if (!mac) return res.status(400).json({ error: 'mac required' });
   try {
-    await btSlow(`connect ${mac}`);
+    await btCmd(['connect', mac], 20000);
     const sinkId = await findBluetoothSink(mac);
     if (sinkId) {
       await wpctlSetDefault(sinkId);
@@ -200,6 +174,7 @@ router.post('/connect', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
+    console.error('[bluetooth] connect error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -209,10 +184,11 @@ router.post('/disconnect', async (req, res) => {
   const { mac } = req.body;
   if (!mac) return res.status(400).json({ error: 'mac required' });
   try {
-    await bt(`disconnect ${mac}`);
+    await btCmd(['disconnect', mac]);
     await wpctlSetDefaultAlsa();
     res.json({ ok: true });
   } catch (err) {
+    console.error('[bluetooth] disconnect error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -220,7 +196,7 @@ router.post('/disconnect', async (req, res) => {
 // Forget (remove pairing)
 router.delete('/device/:mac', async (req, res) => {
   try {
-    await bt(`remove ${req.params.mac}`);
+    await btCmd(['remove', req.params.mac]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
