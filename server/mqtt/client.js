@@ -57,6 +57,7 @@ class MqttManager extends EventEmitter {
 
         if (topic === 'zigbee2mqtt/bridge/devices') {
           this.devices = JSON.parse(payload.toString());
+          console.log('[bridge/devices]', this.devices.map((d) => `${d.friendly_name} (${d.type}, interviewed=${d.interview_completed})`));
           this._syncDeviceSubscriptions();
           this.emit('devicesChange', this.getDevicesState());
           return;

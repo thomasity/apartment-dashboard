@@ -21,8 +21,11 @@ else
     git clone --depth 1 https://github.com/Koenkk/zigbee2mqtt.git "$Z2M_DIR"
     chown -R "$PI_USER":"$PI_USER" "$Z2M_DIR"
 
+    log "Installing pnpm..."
+    npm install -g pnpm
+
     log "Installing npm dependencies..."
-    sudo -u "$PI_USER" bash -c "cd '$Z2M_DIR' && npm ci"
+    sudo -u "$PI_USER" bash -c "cd '$Z2M_DIR' && pnpm install"
 fi
 
 # Create systemd service if not present
