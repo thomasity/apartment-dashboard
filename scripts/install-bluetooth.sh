@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs Bluetooth audio support and configures raspotify to use it.
+# Installs Bluetooth audio support for Raspberry Pi OS (PipeWire/Trixie).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,48 +11,33 @@ warn() { echo -e "${YELLOW}[bluetooth]${NC} $1"; }
 
 [[ $EUID -ne 0 ]] && { echo "Run as root: sudo bash scripts/install-bluetooth.sh"; exit 1; }
 
-PI_UID=$(id -u "$PI_USER")
-
-# ── Packages ─────────────────────────────────────────────────────────────────
+# ── Packages ──────────────────────────────────────────────────────────────────
 log "Installing Bluetooth audio packages..."
 apt-get update -qq
-apt-get install -y -qq pulseaudio pulseaudio-module-bluetooth bluez bluez-tools pi-bluetooth
+apt-get install -y -qq \
+  bluez bluez-tools \
+  pipewire pipewire-audio pipewire-pulse \
+  wireplumber \
+  libspa-0.2-bluetooth
 
-# ── Groups ───────────────────────────────────────────────────────────────────
-log "Adding $PI_USER to audio and bluetooth groups..."
-usermod -a -G audio,bluetooth "$PI_USER"
-
-# ── PulseAudio: load Bluetooth modules for the user session ──────────────────
-log "Configuring PulseAudio Bluetooth modules..."
-PULSE_CONF_DIR="/home/$PI_USER/.config/pulse"
-mkdir -p "$PULSE_CONF_DIR"
-cat > "$PULSE_CONF_DIR/default.pa" <<'EOF'
-.include /etc/pulse/default.pa
-load-module module-bluetooth-policy
-load-module module-bluetooth-discover
-EOF
-chown -R "$PI_USER":"$PI_USER" "$PULSE_CONF_DIR"
-
-# ── Linger: start PulseAudio on boot without a login session ─────────────────
-log "Enabling linger for $PI_USER so PulseAudio starts on boot..."
-loginctl enable-linger "$PI_USER"
-
-# ── Raspotify override: run as PI_USER so it can reach PulseAudio ────────────
-log "Creating raspotify systemd override to run as $PI_USER..."
-OVERRIDE_DIR="/etc/systemd/system/raspotify.service.d"
-mkdir -p "$OVERRIDE_DIR"
-cat > "$OVERRIDE_DIR/run-as-user.conf" <<EOF
-[Service]
-User=$PI_USER
-Environment=PULSE_RUNTIME_PATH=/run/user/${PI_UID}/pulse
-EOF
+# ── Groups ────────────────────────────────────────────────────────────────────
+log "Adding $PI_USER to bluetooth group..."
+usermod -a -G bluetooth "$PI_USER"
 
 # ── Bluetooth service ─────────────────────────────────────────────────────────
 log "Enabling Bluetooth service..."
 systemctl enable bluetooth
 systemctl start bluetooth || warn "Bluetooth service did not start — a reboot may be required."
 
-systemctl daemon-reload
-systemctl restart raspotify
+# ── Enable PipeWire user services on boot (linger) ───────────────────────────
+log "Enabling linger for $PI_USER so PipeWire starts on boot without login..."
+loginctl enable-linger "$PI_USER"
+
+# ── Restart user audio stack ──────────────────────────────────────────────────
+log "Restarting PipeWire audio stack for $PI_USER..."
+sudo -u "$PI_USER" XDG_RUNTIME_DIR="/run/user/$(id -u "$PI_USER")" \
+  systemctl --user restart pipewire wireplumber pipewire-pulse 2>/dev/null || \
+  warn "Could not restart PipeWire — user session may not be active yet. Reboot to apply."
 
 log "Bluetooth setup complete. Pair speakers from the Music tab in the dashboard."
+warn "If the speaker still shows no audio output, run: systemctl --user restart pipewire wireplumber pipewire-pulse"
