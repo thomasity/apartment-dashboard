@@ -15,21 +15,20 @@ function AppTile({ app, onLaunch }) {
   return (
     <button
       onClick={() => onLaunch(app.id)}
-      className="flex flex-col items-center gap-1.5 p-2 rounded-card bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors touch-manipulation"
+      className="touch-manipulation"
     >
       {imgFailed ? (
-        <div className="w-full h-10 rounded-lg bg-white/[0.08] flex items-center justify-center text-white/40 text-sm font-semibold">
+        <div className="w-full h-48 rounded-lg bg-white/[0.08] flex items-center justify-center text-white/40 text-sm font-semibold">
           {app.name[0]}
         </div>
       ) : (
         <img
           src={`/api/tv/icon/${app.id}`}
           alt={app.name}
-          className="w-full h-10 object-contain rounded-lg bg-white/[0.06]"
+          className="w-full h-48 object-contain rounded-lg bg-white/[0.06]"
           onError={() => setImgFailed(true)}
         />
       )}
-      <span className="text-[9px] text-white/30 truncate w-full text-center">{app.name}</span>
     </button>
   );
 }
