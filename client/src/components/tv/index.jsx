@@ -15,33 +15,31 @@ function AppTile({ app, onLaunch }) {
   return (
     <button
       onClick={() => onLaunch(app.id)}
-      className="flex flex-col items-center gap-1.5 shrink-0 w-[4.5rem] touch-manipulation"
+      className="flex flex-col items-center gap-1.5 p-2 rounded-card bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors touch-manipulation"
     >
       {imgFailed ? (
-        <div className="w-14 h-10 rounded-lg bg-white/[0.08] flex items-center justify-center text-white/40 text-sm font-semibold">
+        <div className="w-full h-10 rounded-lg bg-white/[0.08] flex items-center justify-center text-white/40 text-sm font-semibold">
           {app.name[0]}
         </div>
       ) : (
         <img
           src={`/api/tv/icon/${app.id}`}
           alt={app.name}
-          className="w-14 h-10 rounded-lg object-cover bg-white/[0.06]"
+          className="w-full h-10 object-contain rounded-lg bg-white/[0.06]"
           onError={() => setImgFailed(true)}
         />
       )}
-      <span className="text-[9px] text-white/25 truncate w-full text-center leading-tight">{app.name}</span>
+      <span className="text-[9px] text-white/30 truncate w-full text-center">{app.name}</span>
     </button>
   );
 }
 
-function Btn({ children, onClick, wide, danger, label }) {
+function Btn({ children, onClick, danger, label }) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-0.5">
       <button
         onClick={onClick}
-        className={`flex items-center justify-center rounded-item touch-manipulation transition-colors ${
-          wide ? 'w-20 h-14' : 'w-16 h-14'
-        } ${
+        className={`w-11 h-11 flex items-center justify-center rounded-item touch-manipulation transition-colors ${
           danger
             ? 'bg-white/[0.04] text-danger/50 hover:bg-danger/10 hover:text-danger/70'
             : 'bg-white/[0.06] text-white/60 hover:bg-white/[0.12] active:bg-white/[0.18]'
@@ -49,7 +47,7 @@ function Btn({ children, onClick, wide, danger, label }) {
       >
         {children}
       </button>
-      {label && <span className="text-[9px] text-white/25 uppercase tracking-wider">{label}</span>}
+      {label && <span className="text-[8px] text-white/20 uppercase tracking-wider">{label}</span>}
     </div>
   );
 }
@@ -96,77 +94,74 @@ export default function TV() {
   }
 
   return (
-    <div className="h-full overflow-y-auto app-scrollbar flex flex-col gap-5 px-6 py-4">
+    <div className="relative h-full flex select-none">
 
-      {/* Now Playing */}
-      <div className="shrink-0 bg-white/[0.04] rounded-card px-5 py-3.5 flex items-center gap-4">
-        {appId && (
-          <img
-            src={`/api/tv/icon/${appId}`}
-            alt={appName}
-            className="w-10 h-8 rounded-lg object-cover bg-white/[0.08] shrink-0"
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-white/80 truncate">{appName ?? '—'}</div>
+      {/* ── Left: Remote ── */}
+      <div className="w-1/2 shrink-0 flex flex-col items-center justify-center gap-3 px-4 border-r border-subtle">
+
+        {/* Now Playing — compact strip */}
+        <div className="flex items-center gap-1.5 w-full px-1">
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPlaying ? 'bg-online' : 'bg-white/20'}`} />
+          <span className="text-xs text-white/50 truncate">{appName ?? '—'}</span>
           {playerState && STATE_LABEL[playerState] && (
-            <div className="text-[10px] text-white/30 uppercase tracking-wider">{STATE_LABEL[playerState]}</div>
+            <span className="text-[9px] text-white/25 uppercase tracking-wider shrink-0">{STATE_LABEL[playerState]}</span>
           )}
         </div>
-        <span className={`w-2 h-2 rounded-full shrink-0 ${isPlaying ? 'bg-online' : 'bg-white/20'}`} />
-      </div>
 
-      {/* App Launcher */}
-      {apps.length > 0 && (
-        <div className="shrink-0 flex gap-2 overflow-x-auto pb-1" data-no-swipe style={{ scrollbarWidth: 'none' }}>
-          {apps.map((app) => <AppTile key={app.id} app={app} onLaunch={launch} />)}
+        {/* Transport */}
+        <div className="flex gap-2">
+          <Btn onClick={() => key('Rev')}><ScanBackIcon size={20} /></Btn>
+          <Btn onClick={() => key('Play')}>{isPlaying ? <PauseIcon /> : <PlayIcon size={22} />}</Btn>
+          <Btn onClick={() => key('Fwd')}><ScanFwdIcon size={20} /></Btn>
         </div>
-      )}
 
-      {/* Transport */}
-      <div className="shrink-0 flex justify-center gap-4">
-        <Btn onClick={() => key('Rev')}><ScanBackIcon /></Btn>
-        <Btn onClick={() => key('Play')} wide>{isPlaying ? <PauseIcon /> : <PlayIcon />}</Btn>
-        <Btn onClick={() => key('Fwd')}><ScanFwdIcon /></Btn>
-      </div>
-
-      {/* D-Pad */}
-      <div className="shrink-0 flex justify-center">
-        <div className="inline-grid grid-cols-3 gap-2">
-          <div className="w-16 h-14" />
-          <Btn onClick={() => key('Up')}><ChevronUpIcon /></Btn>
-          <div className="w-16 h-14" />
-          <Btn onClick={() => key('Left')}><ChevronLeftIcon /></Btn>
+        {/* D-Pad */}
+        <div className="inline-grid grid-cols-3 gap-1.5">
+          <div className="w-11 h-11" />
+          <Btn onClick={() => key('Up')}><ChevronUpIcon size={20} /></Btn>
+          <div className="w-11 h-11" />
+          <Btn onClick={() => key('Left')}><ChevronLeftIcon size={20} /></Btn>
           <Btn onClick={() => key('Select')}>
-            <span className="text-xs font-bold uppercase tracking-widest">OK</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest">OK</span>
           </Btn>
-          <Btn onClick={() => key('Right')}><ChevronRightIcon /></Btn>
-          <div className="w-16 h-14" />
-          <Btn onClick={() => key('Down')}><ChevronDownIcon /></Btn>
-          <div className="w-16 h-14" />
+          <Btn onClick={() => key('Right')}><ChevronRightIcon size={20} /></Btn>
+          <div className="w-11 h-11" />
+          <Btn onClick={() => key('Down')}><ChevronDownIcon size={20} /></Btn>
+          <div className="w-11 h-11" />
         </div>
-      </div>
 
-      {/* System */}
-      <div className="shrink-0 flex justify-center gap-4">
-        <Btn onClick={() => key('Back')}  label="Back"><BackIcon /></Btn>
-        <Btn onClick={() => key('Home')}  label="Home"><HomeIcon /></Btn>
-        <Btn onClick={() => key('Info')}  label="Options"><OptionsIcon /></Btn>
-      </div>
+        {/* System */}
+        <div className="flex gap-2">
+          <Btn onClick={() => key('Back')}  label="Back"><BackIcon /></Btn>
+          <Btn onClick={() => key('Home')}  label="Home"><HomeIcon size={20} /></Btn>
+          <Btn onClick={() => key('Info')}  label="Options"><OptionsIcon size={20} /></Btn>
+        </div>
 
-      {/* Volume */}
-      <div className="shrink-0 flex justify-center gap-4">
-        <Btn onClick={() => key('VolumeDown')} label="Vol −"><VolumeDownIcon /></Btn>
-        <Btn onClick={() => key('VolumeMute')} label="Mute"><VolumeMuteIcon /></Btn>
-        <Btn onClick={() => key('VolumeUp')}   label="Vol +"><VolumeUpIcon /></Btn>
-      </div>
+        {/* Volume */}
+        <div className="flex gap-2">
+          <Btn onClick={() => key('VolumeDown')} label="Vol −"><VolumeDownIcon size={20} /></Btn>
+          <Btn onClick={() => key('VolumeMute')} label="Mute"><VolumeMuteIcon size={20} /></Btn>
+          <Btn onClick={() => key('VolumeUp')}   label="Vol +"><VolumeUpIcon size={20} /></Btn>
+        </div>
 
-      {/* Power Off */}
-      <div className="shrink-0 flex justify-center pb-2">
-        <Btn onClick={() => key('PowerOff')} wide danger label="Power Off">
-          <PowerIcon size={18} />
+        {/* Power */}
+        <Btn onClick={() => key('PowerOff')} danger label="Power Off">
+          <PowerIcon size={16} />
         </Btn>
+
+      </div>
+
+      {/* ── Right: App Launcher ── */}
+      <div className="flex-1 overflow-y-auto app-scrollbar" data-no-swipe>
+        {apps.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-white/20 text-xs tracking-widest uppercase">Loading…</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 p-4">
+            {apps.map((app) => <AppTile key={app.id} app={app} onLaunch={launch} />)}
+          </div>
+        )}
       </div>
 
     </div>
