@@ -9,7 +9,7 @@ function DeviceRow({ name, device, isCircadian, isOff, circadian, onBrightness, 
     <div className="flex flex-col gap-1.5">
       <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
       <div className="flex items-center gap-4">
-        <div className={`flex-1 h-[6.5rem] flex flex-col justify-center transition-opacity ${isOff ? 'opacity-30 pointer-events-none' : ''}`}>
+        <div className={`flex-1 h-[6.5rem] flex flex-col justify-center transition-opacity ${isOff ? 'opacity-20 pointer-events-none' : ''}`}>
           {isCircadian
             ? <CircadianStrip circadian={circadian} />
             : <LightSliders
@@ -24,7 +24,9 @@ function DeviceRow({ name, device, isCircadian, isOff, circadian, onBrightness, 
           }
         </div>
         <div className="flex flex-row gap-4 mx-4">
-          <AutoToggle on={isCircadian} onClick={onToggleCircadian} />
+          <div className={isOff ? 'opacity-20 pointer-events-none' : ''}>
+            <AutoToggle on={isCircadian} onClick={onToggleCircadian} />
+          </div>
           <button
             onClick={onTogglePower}
             className={`w-24 h-14 flex items-center justify-center rounded-item bg-white/[0.08] touch-manipulation transition-colors ${
