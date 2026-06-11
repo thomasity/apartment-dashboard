@@ -92,7 +92,10 @@ export default function DevicesView({ socket, devState, setDevState }) {
       ) : (
         <div className="flex flex-col gap-2">
           {visible.map((d) => {
-            const isNew = newDeviceIds.has(d.ieee_address);
+            const isNew     = newDeviceIds.has(d.ieee_address);
+            const avail     = devState.availability ?? {};
+            const knowsAvail = d.friendly_name in avail;
+            const isOffline = avail[d.friendly_name] === false;
             return (
               <div
                 key={d.ieee_address}
@@ -115,8 +118,12 @@ export default function DevicesView({ socket, devState, setDevState }) {
                     />
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-white/70 truncate">{d.friendly_name}</span>
+                      {knowsAvail && (
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOffline ? 'bg-danger/60' : 'bg-online/60'}`} />
+                      )}
+                      <span className={`text-sm truncate ${isOffline ? 'text-white/30' : 'text-white/70'}`}>{d.friendly_name}</span>
                       {isNew && <span className="text-[10px] text-accent uppercase tracking-wider">New</span>}
+                      {isOffline && <span className="text-[10px] text-white/25 uppercase tracking-wider">Offline</span>}
                     </div>
                   )}
                   <span className="text-[10px] text-white/25">

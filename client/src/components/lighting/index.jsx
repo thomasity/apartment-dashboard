@@ -141,6 +141,7 @@ export default function Lighting() {
           serverState={serverState}
           localDevices={localDevices}
           circadian={circadian}
+          availability={devicesState.availability}
           onSlider={handleSlider}
           onDeviceSlider={handleDeviceSlider}
           onTogglePower={togglePower}

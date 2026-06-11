@@ -4,10 +4,13 @@ import AutoToggle from './AutoToggle';
 import CircadianStrip from './CircadianStrip';
 import { avg, spread, tempLabel } from './utils';
 
-function DeviceRow({ name, device, isCircadian, isOff, circadian, onBrightness, onColorTemp, onToggleCircadian, onTogglePower, brightnessMixed, colorTempMixed }) {
+function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onBrightness, onColorTemp, onToggleCircadian, onTogglePower, brightnessMixed, colorTempMixed }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
+    <div className={`flex flex-col gap-1.5 ${isOffline ? 'opacity-40 pointer-events-none' : ''}`}>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-white/70 select-none">{name}</span>
+        {isOffline && <span className="text-[10px] text-white/30 uppercase tracking-wider">Offline</span>}
+      </div>
       <div className="flex items-center gap-4">
         <div className={`flex-1 h-[6.5rem] flex flex-col justify-center transition-opacity ${isOff ? 'opacity-20 pointer-events-none' : ''}`}>
           {isCircadian
@@ -41,9 +44,10 @@ function DeviceRow({ name, device, isCircadian, isOff, circadian, onBrightness, 
   );
 }
 
-export default function ControlsView({ serverState, localDevices, circadian, onSlider, onDeviceSlider, onTogglePower, onToggleCircadian, onGoToDevices }) {
+export default function ControlsView({ serverState, localDevices, circadian, availability, onSlider, onDeviceSlider, onTogglePower, onToggleCircadian, onGoToDevices }) {
   const offline       = !serverState.connected;
   const deviceEntries = Object.entries(serverState.groups);
+  const avail         = availability ?? {};
   const poweredOff    = serverState.poweredOff ?? [];
   const enabledGroups = circadian.enabledGroups ?? [];
 
@@ -114,6 +118,7 @@ export default function ControlsView({ serverState, localDevices, circadian, onS
                 device={dev}
                 isCircadian={enabledGroups.includes(name)}
                 isOff={poweredOff.includes(name)}
+                isOffline={avail[name] === false}
                 circadian={circadian}
                 onBrightness={(v) => onDeviceSlider(name, 'brightness', v)}
                 onColorTemp={(v) => onDeviceSlider(name, 'colorTemp', v)}

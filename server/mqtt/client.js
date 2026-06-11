@@ -24,6 +24,7 @@ class MqttManager extends EventEmitter {
     this.devices = [];
     this.pairing = false;
     this.poweredOff = new Set();
+    this.availability = {};
   }
 
   connect() {
@@ -42,6 +43,7 @@ class MqttManager extends EventEmitter {
       this.client.subscribe('zigbee2mqtt/bridge/devices');
       this.client.subscribe('zigbee2mqtt/bridge/event');
       this.client.subscribe('zigbee2mqtt/bridge/response/permit_join');
+      this.client.subscribe('zigbee2mqtt/+/availability');
       this.emit('stateChange', this.getState());
     });
 
@@ -71,6 +73,16 @@ class MqttManager extends EventEmitter {
         if (topic === 'zigbee2mqtt/bridge/response/permit_join') {
           const resp = JSON.parse(payload.toString());
           this.pairing = resp.data?.value ?? false;
+          this.emit('devicesChange', this.getDevicesState());
+          return;
+        }
+
+        // Per-device availability (requires `availability: true` in Z2M config)
+        if (topic.endsWith('/availability')) {
+          const name = topic.slice('zigbee2mqtt/'.length, -'/availability'.length);
+          let state;
+          try { state = JSON.parse(payload.toString()).state; } catch { state = payload.toString(); }
+          this.availability[name] = state === 'online';
           this.emit('devicesChange', this.getDevicesState());
           return;
         }
@@ -211,7 +223,7 @@ class MqttManager extends EventEmitter {
   }
 
   getDevicesState() {
-    return { bridgeOnline: this.bridgeOnline, devices: this.devices, pairing: this.pairing };
+    return { bridgeOnline: this.bridgeOnline, devices: this.devices, pairing: this.pairing, availability: this.availability };
   }
 }
 

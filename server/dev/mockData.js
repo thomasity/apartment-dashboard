@@ -17,6 +17,7 @@ const devicesState = {
     { ieee_address: '0xdev001', friendly_name: 'Living Room', type: 'Router', interview_completed: true, definition: { description: 'Smart Bulb E27' } },
     { ieee_address: '0xdev002', friendly_name: 'Bedroom',     type: 'Router', interview_completed: true, definition: { description: 'Smart Bulb E27' } },
   ],
+  availability: { 'Living Room': true, 'Bedroom': false },
 };
 
 const circadianState = {
