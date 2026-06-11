@@ -202,7 +202,7 @@ class MqttManager extends EventEmitter {
     if (!this.client) return;
     this.client.publish(
       'zigbee2mqtt/bridge/request/device/remove',
-      JSON.stringify({ id, force: false }),
+      JSON.stringify({ id, force: true }),
       { qos: 1 }
     );
   }
