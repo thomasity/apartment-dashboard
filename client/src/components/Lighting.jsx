@@ -430,7 +430,7 @@ export default function Lighting() {
         <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-2" data-no-swipe>
           <h2 className="font-semibold text-white/80 select-none">All Devices</h2>
           <div className="flex items-center gap-4">
-            <div className={`flex-1 transition-opacity ${allOff ? 'opacity-30 pointer-events-none' : ''}`}>
+            <div className={`flex-1 h-[6.5rem] flex flex-col justify-center transition-opacity ${allOff ? 'opacity-30 pointer-events-none' : ''}`}>
               {allCircadian
                 ? <CircadianStrip circadian={circadian} />
                 : <LightSliders
@@ -470,7 +470,7 @@ export default function Lighting() {
                   <div key={name} className="flex flex-col gap-1.5">
                     <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
                     <div className="flex items-center gap-4">
-                      <div className={`flex-1 transition-opacity ${isOff ? 'opacity-30 pointer-events-none' : ''}`}>
+                      <div className={`flex-1 h-[6.5rem] flex flex-col justify-center transition-opacity ${isOff ? 'opacity-30 pointer-events-none' : ''}`}>
                         {isCircadian
                           ? <CircadianStrip circadian={circadian} />
                           : <LightSliders
