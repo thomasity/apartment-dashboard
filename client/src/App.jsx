@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header  from './components/Header';
-import Home    from './components/Home';
-import Weather from './components/Weather';
-import Stocks  from './components/Stocks';
-import Lighting from './components/Lighting';
-import Spotify from './components/Spotify';
+import Home    from './components/home';
+import Weather from './components/weather';
+import Stocks  from './components/stocks';
+import Lighting from './components/lighting';
+import Spotify from './components/spotify';
 
 const TABS      = [
   { id: 'home',    label: 'Home'    },
