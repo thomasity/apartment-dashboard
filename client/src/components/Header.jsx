@@ -20,7 +20,7 @@ export default function Header() {
   });
 
   return (
-    <div className="relative shrink-0 flex items-center justify-between px-6 border-b border-white/[0.05]"
+    <div className="relative shrink-0 flex items-center justify-between px-6 border-b border-subtle"
          style={{ height: '52px' }}>
       <div className="flex items-baseline gap-2 select-none">
         <span className="text-2xl font-thin text-white tracking-tight">

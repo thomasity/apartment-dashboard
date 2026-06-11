@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Global design tokens ──────────────────────────────────────────────────── */
+:root {
+  /* App shell */
+  --color-bg:             #07070f;   /* page background */
+  --color-text:           #e2e8f0;   /* primary text + slider thumb */
+
+  /* Accent — drives auto/circadian/pairing indicators */
+  --color-accent-rgb:     245 158 11;              /* amber-400 */
+  --color-accent:         rgb(var(--color-accent-rgb));
+
+  /* Semantic status */
+  --color-online-rgb:     52 211 153;              /* emerald-400 */
+  --color-online:         rgb(var(--color-online-rgb));
+  --color-danger-rgb:     248 113 113;             /* red-400 */
+  --color-danger:         rgb(var(--color-danger-rgb));
+
+  /* Slider tracks */
+  --slider-dim:           #111120;   /* brightness low end */
+  --slider-bright:        #c8c8f0;   /* brightness high end */
+  --slider-warm:          #ffb300;   /* color-temp warm */
+  --slider-neutral:       #fff4e0;   /* color-temp neutral */
+  --slider-cool:          #a8c8ff;   /* color-temp cool */
+
+  /* Borders — three opacity tiers for dividers/outlines */
+  --border-subtle:        rgb(255 255 255 / 0.05);   /* faint section separators */
+  --border-muted:         rgb(255 255 255 / 0.10);   /* nav border, interactive outlines */
+  --border-strong:        rgb(255 255 255 / 0.20);   /* prominent dividers, active rings */
+
+  /* Corner radius — two semantic sizes */
+  --radius-card:          1rem;      /* panels, cards, large tiles */
+  --radius-item:          0.75rem;   /* buttons, toggles, list rows */
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -10,8 +43,8 @@ html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: #07070f;
-  color: #e2e8f0;
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -34,7 +67,7 @@ input[type='range']::-webkit-slider-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #e2e8f0;
+  background: var(--color-text);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
   transition: transform 0.1s ease;
@@ -49,29 +82,29 @@ input[type='range']::-moz-range-thumb {
   height: 22px;
   border: none;
   border-radius: 50%;
-  background: #e2e8f0;
+  background: var(--color-text);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
 }
 
 /* Mixed state: thumb fades to indicate indeterminate value */
 input[type='range'].slider-mixed::-webkit-slider-thumb {
-  background: rgba(226, 232, 240, 0.25);
+  background: color-mix(in srgb, var(--color-text) 25%, transparent);
   box-shadow: none;
 }
 input[type='range'].slider-mixed::-moz-range-thumb {
-  background: rgba(226, 232, 240, 0.25);
+  background: color-mix(in srgb, var(--color-text) 25%, transparent);
   box-shadow: none;
 }
 
 /* Brightness: dim → bright */
 input[type='range'].slider-brightness {
-  background: linear-gradient(to right, #111120, #c8c8f0);
+  background: linear-gradient(to right, var(--slider-dim), var(--slider-bright));
 }
 
 /* Color temperature: warm amber → cool blue */
 input[type='range'].slider-colortemp {
-  background: linear-gradient(to right, #ffb300, #fff4e0 45%, #a8c8ff);
+  background: linear-gradient(to right, var(--slider-warm), var(--slider-neutral) 45%, var(--slider-cool));
 }
 
 @keyframes homeFadeIn {

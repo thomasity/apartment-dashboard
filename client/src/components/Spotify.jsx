@@ -32,7 +32,7 @@ function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, curre
   return (
     <div className="flex flex-col m-4">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3 sticky top-0 bg-[#07070f] p-2 border-b-2 border-white/20">
+      <div className="flex items-center gap-3 mb-3 sticky top-0 bg-app-bg p-2 border-b-2 border-strong">
         <button
           onClick={onBack}
           className="text-white/40 active:text-white touch-manipulation flex-shrink-0"
@@ -68,7 +68,7 @@ function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, curre
               <button
                 key={t.id}
                 onClick={() => onPlay(t.uri)}
-                className={`flex items-center gap-3 px-1 py-2.5 rounded-xl active:bg-white/5 touch-manipulation text-left ${active ? 'bg-white/[0.04]' : ''}`}
+                className={`flex items-center gap-3 px-1 py-2.5 rounded-item active:bg-white/5 touch-manipulation text-left ${active ? 'bg-white/[0.04]' : ''}`}
               >
                 <span className="w-5 flex-shrink-0 flex items-center justify-center">
                   {active && isPlaying
@@ -161,7 +161,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
       onClick={onClose}
     >
       <div
-        className="bg-[#111118] border border-white/10 rounded-2xl p-5 w-80 flex flex-col gap-2 max-h-[80vh] overflow-y-auto"
+        className="bg-[#111118] border border-muted rounded-card p-5 w-80 flex flex-col gap-2 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         data-no-swipe
       >
@@ -173,7 +173,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
             <button
               key={d.id}
               onClick={() => handleSpotifySelect(d.id)}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl touch-manipulation transition-colors ${
+              className={`flex items-center gap-3 px-3 py-3 rounded-item touch-manipulation transition-colors ${
                 d.isActive ? 'bg-white/10 text-white' : 'text-white/50 active:bg-white/5'
               }`}
             >
@@ -186,7 +186,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
           ))
         )}
 
-        <div className="mt-2 pt-3 border-t border-white/[0.07]">
+        <div className="mt-2 pt-3 border-t border-subtle">
           <div className="flex items-center justify-between mb-2">
             <p className="text-white/25 text-xs tracking-widest uppercase">Pi Speakers</p>
             <button
@@ -202,7 +202,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
             <p className="text-white/20 text-xs px-3 py-1">No speakers paired. Tap Scan to find one.</p>
           )}
           {btPaired.map((d) => (
-            <div key={d.mac} className="flex items-center gap-3 px-3 py-2 rounded-xl">
+            <div key={d.mac} className="flex items-center gap-3 px-3 py-2 rounded-item">
               <span className={d.connected ? 'text-blue-400/70' : 'text-white/20'}>
                 <BluetoothIcon />
               </span>
@@ -217,7 +217,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
               </button>
               <button
                 onClick={() => forget(d.mac)}
-                className="text-xs text-white/20 active:text-red-400/60 touch-manipulation"
+                className="text-xs text-white/20 active:text-danger/60 touch-manipulation"
               >
                 ✕
               </button>
@@ -230,7 +230,7 @@ function DevicePicker({ onClose, devices, transferTo }) {
             <>
               <p className="text-white/20 text-xs px-3 pt-2 pb-1">Nearby</p>
               {btDiscovered.map((d) => (
-                <div key={d.mac} className="flex items-center gap-3 px-3 py-2 rounded-xl">
+                <div key={d.mac} className="flex items-center gap-3 px-3 py-2 rounded-item">
                   <span className="text-white/20"><BluetoothIcon /></span>
                   <span className="text-white/40 text-sm truncate flex-1">{d.name || d.mac}</span>
                   <button
@@ -334,7 +334,7 @@ export default function Spotify() {
     <div className="relative h-full flex select-none">
 
       {/* ── Left: Now Playing ── */}
-      <div className="w-2/5 flex flex-col items-center justify-center gap-5 px-8 border-r border-white/[0.06]">
+      <div className="w-2/5 flex flex-col items-center justify-center gap-5 px-8 border-r border-subtle">
         {track ? (
           <>
             <div className="flex flex-col items-center gap-2">
@@ -427,7 +427,7 @@ export default function Spotify() {
             </div>
 
             {/* Utility strip: volume + device */}
-            <div className="w-full border-t border-white/[0.07] pt-4 flex items-center gap-3">
+            <div className="w-full border-t border-subtle pt-4 flex items-center gap-3">
               <span className="text-white/25 flex-shrink-0"><VolumeIcon /></span>
               <input
                 type="range"
@@ -441,7 +441,7 @@ export default function Spotify() {
               />
               <button
                 onClick={openPicker}
-                className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-white/10 text-white/40 active:border-white/25 active:text-white/70 touch-manipulation"
+                className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-muted text-white/40 active:border-strong active:text-white/70 touch-manipulation"
               >
                 <CastIcon />
                 <span className="text-xs truncate max-w-[80px]">{state?.device?.name ?? 'No device'}</span>
@@ -456,7 +456,7 @@ export default function Spotify() {
             </div>
             <button
               onClick={openPicker}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-white/10 text-white/30 active:border-white/25 active:text-white/60 touch-manipulation"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-muted text-white/30 active:border-strong active:text-white/60 touch-manipulation"
             >
               <CastIcon />
               <span className="text-xs truncate max-w-[100px]">{state?.device?.name ?? 'No device'}</span>
@@ -493,7 +493,7 @@ export default function Spotify() {
                 {pl.image ? (
                   <img src={pl.image} alt={pl.name} className="w-full aspect-square object-cover" />
                 ) : (
-                  <div className="w-full aspect-square rounded-xl bg-white/5 flex items-center justify-center">
+                  <div className="w-full aspect-square rounded-item bg-white/5 flex items-center justify-center">
                     <span className="text-white/20 text-3xl">♪</span>
                   </div>
                 )}

@@ -8,6 +8,8 @@ const path = require('path');
 const mqttManager = require('./mqtt/client');
 const circadian   = require('./services/circadian');
 
+const IS_DEV = process.env.PROD === 'false';
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -16,6 +18,11 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+if (IS_DEV) {
+  console.log('[dev] PROD=false — serving mock data');
+  app.use('/api', require('./dev/mockRoutes'));
+}
 
 app.use('/api/weather',  require('./routes/weather'));
 app.use('/api/stocks',   require('./routes/stocks'));
@@ -32,9 +39,16 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 io.on('connection', (socket) => {
-  socket.emit('lighting:state', mqttManager.getState());
-  socket.emit('lighting:devices', mqttManager.getDevicesState());
-  socket.emit('lighting:circadian', circadian.getState());
+  if (IS_DEV) {
+    const { lightingState, devicesState, circadianState } = require('./dev/mockData');
+    socket.emit('lighting:state', lightingState);
+    socket.emit('lighting:devices', devicesState);
+    socket.emit('lighting:circadian', circadianState);
+  } else {
+    socket.emit('lighting:state', mqttManager.getState());
+    socket.emit('lighting:devices', mqttManager.getDevicesState());
+    socket.emit('lighting:circadian', circadian.getState());
+  }
 });
 
 mqttManager.on('stateChange', (state) => {

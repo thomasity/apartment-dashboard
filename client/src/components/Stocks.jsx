@@ -173,7 +173,7 @@ export default function Stocks() {
     <div className="h-full flex overflow-hidden">
 
       {/* ── Left: account summary + chart ── */}
-      <div className="flex-1 min-w-0 flex flex-col p-6 gap-4 border-r border-white/[0.05] overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col p-6 gap-4 border-r border-subtle overflow-hidden">
 
         {/* Summary: portfolio + S&P side by side */}
         <div className="shrink-0 flex gap-6">
@@ -188,7 +188,7 @@ export default function Stocks() {
                      style={{ fontSize: 'clamp(1.6rem, 3.2vw, 2.8rem)' }}>
                   ${spyPrice.toFixed(2)}
                 </div>
-                <div className={`text-sm mt-1.5 tabular-nums ${spyUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                <div className={`text-sm mt-1.5 tabular-nums ${spyUp ? 'text-online' : 'text-danger'}`}>
                   {sign(spyChange)}{money(spyChange)} ({sign(spyPct)}{spyPct.toFixed(2)}%) today
                 </div>
               </>
@@ -211,7 +211,7 @@ export default function Stocks() {
                      style={{ fontSize: 'clamp(1.6rem, 3.2vw, 2.8rem)' }}>
                   {money(account.equity)}
                 </div>
-                <div className={`text-sm mt-1.5 tabular-nums ${isUp ? 'text-emerald-400' : 'text-red-400'}`}>
+                <div className={`text-sm mt-1.5 tabular-nums ${isUp ? 'text-online' : 'text-danger'}`}>
                   {sign(dayPnl)}{money(dayPnl)} ({sign(dayPnlPct)}{dayPnlPct.toFixed(2)}%) today
                 </div>
               </>
@@ -265,7 +265,7 @@ export default function Stocks() {
               return (
                 <div
                   key={pos.symbol}
-                  className="border-b border-white/[0.04] last:border-0 py-3"
+                  className="border-b border-subtle last:border-0 py-3"
                 >
                   <div className="flex items-baseline justify-between">
                     <span className="text-base font-medium text-white/70">
@@ -279,7 +279,7 @@ export default function Stocks() {
                     <span className="text-xs text-white/30">
                       {pos.qty} sh · {money(pos.market_value, true)}
                     </span>
-                    <span className={`text-sm font-medium tabular-nums ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <span className={`text-sm font-medium tabular-nums ${up ? 'text-online' : 'text-danger'}`}>
                       {sign(plPct)}{plPct.toFixed(2)}%
                     </span>
                   </div>

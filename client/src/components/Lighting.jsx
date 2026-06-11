@@ -67,7 +67,7 @@ function DevicesView({ socket, devState, setDevState }) {
     <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-8 py-6 gap-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${devState.bridgeOnline ? 'bg-emerald-400' : 'bg-white/20'}`} />
+          <span className={`w-2 h-2 rounded-full ${devState.bridgeOnline ? 'bg-online' : 'bg-white/20'}`} />
           <span className="text-[11px] uppercase tracking-widest text-white/40">
             {devState.bridgeOnline
               ? `${visible.length} device${visible.length !== 1 ? 's' : ''}`
@@ -79,11 +79,11 @@ function DevicesView({ socket, devState, setDevState }) {
           disabled={!devState.bridgeOnline}
           className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
             devState.pairing
-              ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
+              ? 'bg-accent/15 text-accent ring-1 ring-accent/30'
               : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10] disabled:opacity-30'
           }`}
         >
-          {devState.pairing && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+          {devState.pairing && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
           {devState.pairing ? `Stop  ${fmt(countdown)}` : 'Scan'}
         </button>
       </div>
@@ -101,8 +101,8 @@ function DevicesView({ socket, devState, setDevState }) {
             return (
               <div
                 key={d.ieee_address}
-                className={`flex items-center gap-3 px-5 py-4 rounded-2xl transition-colors ${
-                  isNew ? 'bg-amber-500/10 ring-1 ring-amber-500/20' : 'bg-white/[0.04]'
+                className={`flex items-center gap-3 px-5 py-4 rounded-card transition-colors ${
+                  isNew ? 'bg-accent/10 ring-1 ring-accent/20' : 'bg-white/[0.04]'
                 }`}
               >
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
@@ -116,12 +116,12 @@ function DevicesView({ socket, devState, setDevState }) {
                         if (e.key === 'Enter')  submitRename(d.friendly_name);
                         if (e.key === 'Escape') setEditingId(null);
                       }}
-                      className="bg-white/[0.08] text-white/80 text-sm rounded-lg px-2 py-0.5 outline-none ring-1 ring-white/20 w-full"
+                      className="bg-white/[0.08] text-white/80 text-sm rounded-lg px-2 py-0.5 outline-none ring-1 ring-strong w-full"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-white/70 truncate">{d.friendly_name}</span>
-                      {isNew && <span className="text-[10px] text-amber-400 uppercase tracking-wider">New</span>}
+                      {isNew && <span className="text-[10px] text-accent uppercase tracking-wider">New</span>}
                     </div>
                   )}
                   <span className="text-[10px] text-white/25">
@@ -131,7 +131,7 @@ function DevicesView({ socket, devState, setDevState }) {
                 <button onClick={() => startEdit(d)} className="p-2 text-white/20 hover:text-white/50 touch-manipulation transition-colors">
                   <PencilIcon />
                 </button>
-                <button onClick={() => removeDevice(d.friendly_name)} className="p-2 text-white/20 hover:text-red-400/60 touch-manipulation transition-colors">
+                <button onClick={() => removeDevice(d.friendly_name)} className="p-2 text-white/20 hover:text-danger/60 touch-manipulation transition-colors">
                   <TrashIcon />
                 </button>
               </div>
@@ -149,13 +149,13 @@ function AutoToggle({ on, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-widest transition-colors touch-manipulation ${
+      className={`w-24 h-14 flex flex-col items-center justify-center gap-1 rounded-item text-xs font-medium uppercase tracking-widest transition-colors touch-manipulation ${
         on
-          ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40'
+          ? 'bg-accent/20 text-accent ring-1 ring-accent/40'
           : 'bg-white/[0.08] text-white/40 hover:text-white/60'
       }`}
     >
-      {on && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+      {on && <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
       Auto
     </button>
   );
@@ -236,19 +236,12 @@ export default function Lighting() {
   const [view, setView]               = useState('controls');
   const [serverState, setServerState] = useState({ connected: false, groups: {} });
   const [devicesState, setDevicesState] = useState({ bridgeOnline: false, devices: [], pairing: false });
-  const [local, setLocal]             = useState({ brightness: 70, colorTemp: 30 });
   const [localDevices, setLocalDevices] = useState({});
   const [socket, setSocket]           = useState(null);
   const [circadian, setCircadian]     = useState({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
-  const timers         = useRef({});
-  const animFrames     = useRef({});
-  const lastTouch      = useRef({});
+  const timers           = useRef({});
   const lastTouchDevices = useRef({});
-  const timersDevices  = useRef({});
-  const localRef       = useRef(local);
-
-  useEffect(() => { localRef.current = local; }, [local]);
-  useEffect(() => () => Object.values(animFrames.current).forEach(cancelAnimationFrame), []);
+  const timersDevices    = useRef({});
 
   useEffect(() => {
     axios.get('/api/lighting/circadian').then((r) => setCircadian(r.data)).catch(() => {});
@@ -262,7 +255,11 @@ export default function Lighting() {
     axios.get('/api/lighting/state').then(({ data }) => {
       if (!Object.keys(data.groups).length) return;
       setServerState(data);
-      setLocal({ brightness: avg(data.groups, 'brightness'), colorTemp: avg(data.groups, 'colorTemp') });
+      const initial = {};
+      Object.entries(data.groups).forEach(([name, g]) => {
+        initial[name] = { brightness: g.brightness ?? 70, colorTemp: g.colorTemp ?? 30 };
+      });
+      setLocalDevices(initial);
     }).catch(() => {});
   }, []);
 
@@ -272,57 +269,42 @@ export default function Lighting() {
     s.on('lighting:state', (state) => {
       setServerState(state);
       const now = Date.now();
-      setLocal((prev) => ({
-        brightness: now - (lastTouch.current.brightness ?? 0) > 1200 ? avg(state.groups, 'brightness') : prev.brightness,
-        colorTemp:  now - (lastTouch.current.colorTemp  ?? 0) > 1200 ? avg(state.groups, 'colorTemp')  : prev.colorTemp,
-      }));
+      setLocalDevices((prev) => {
+        const next = {};
+        Object.entries(state.groups).forEach(([name, g]) => {
+          const dt = lastTouchDevices.current[name] ?? {};
+          next[name] = {
+            brightness: now - (dt.brightness ?? 0) > 1200 ? g.brightness : (prev[name]?.brightness ?? g.brightness),
+            colorTemp:  now - (dt.colorTemp  ?? 0) > 1200 ? g.colorTemp  : (prev[name]?.colorTemp  ?? g.colorTemp),
+          };
+        });
+        return next;
+      });
     });
     s.on('lighting:devices', setDevicesState);
     s.on('lighting:circadian', (data) => setCircadian((prev) => ({ ...prev, ...data })));
     return () => s.disconnect();
   }, []);
 
-  useEffect(() => {
-    const now = Date.now();
-    setLocalDevices((prev) => {
-      const next = {};
-      Object.entries(serverState.groups).forEach(([name, g]) => {
-        const dt = lastTouchDevices.current[name] ?? {};
-        next[name] = {
-          brightness: now - (dt.brightness ?? 0) > 1200 ? g.brightness : (prev[name]?.brightness ?? g.brightness),
-          colorTemp:  now - (dt.colorTemp  ?? 0) > 1200 ? g.colorTemp  : (prev[name]?.colorTemp  ?? g.colorTemp),
-        };
-      });
-      return next;
-    });
-  }, [serverState.groups]);
-
   const sendAll = useCallback((payload) => {
     axios.post('/api/lighting/set', { group: 'all', ...payload }).catch(console.warn);
   }, []);
 
-  const animateTo = useCallback((key, target) => {
-    const from = localRef.current[key];
-    if (from === target) return;
-    lastTouch.current[key] = Date.now();
-    cancelAnimationFrame(animFrames.current[key]);
-    const duration = 450;
-    const start    = performance.now();
-    const tick = (now) => {
-      const t     = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      lastTouch.current[key] = Date.now();
-      setLocal((prev) => ({ ...prev, [key]: Math.round(from + (target - from) * eased) }));
-      if (t < 1) animFrames.current[key] = requestAnimationFrame(tick);
-      else sendAll({ [key]: target });
-    };
-    animFrames.current[key] = requestAnimationFrame(tick);
-  }, [sendAll]);
-
   const handleSlider = (key, value) => {
-    lastTouch.current[key] = Date.now();
-    cancelAnimationFrame(animFrames.current[key]);
-    setLocal((prev) => ({ ...prev, [key]: value }));
+    const now = Date.now();
+    const off = serverState.poweredOff ?? [];
+    Object.keys(localDevices).forEach((name) => {
+      if (off.includes(name)) return;
+      if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
+      lastTouchDevices.current[name][key] = now;
+    });
+    setLocalDevices((prev) => {
+      const next = {};
+      Object.keys(prev).forEach((name) => {
+        next[name] = off.includes(name) ? prev[name] : { ...prev[name], [key]: value };
+      });
+      return next;
+    });
     clearTimeout(timers.current[key]);
     timers.current[key] = setTimeout(() => sendAll({ [key]: value }), 220);
   };
@@ -339,15 +321,19 @@ export default function Lighting() {
   }, []);
 
   const applyPreset = (preset) => {
-    animateTo('brightness', preset.brightness);
-    animateTo('colorTemp', preset.colorTemp);
+    handleSlider('brightness', preset.brightness);
+    handleSlider('colorTemp', preset.colorTemp);
   };
 
   const deviceEntries = Object.entries(serverState.groups);
 
-  const powerOff = useCallback((group) => {
-    axios.post('/api/lighting/power', { group, on: false }).catch(console.warn);
-  }, []);
+  const togglePower = useCallback((group) => {
+    const poweredOff = serverState.poweredOff ?? [];
+    const isOff = group === 'all'
+      ? deviceEntries.every(([n]) => poweredOff.includes(n))
+      : poweredOff.includes(group);
+    axios.post('/api/lighting/power', { group, on: isOff }).catch(console.warn);
+  }, [serverState.poweredOff, deviceEntries]);
 
   const toggleCircadianGroup = useCallback(async (group) => {
     const enabled = group === 'all'
@@ -356,14 +342,16 @@ export default function Lighting() {
     await axios.post('/api/lighting/circadian', { group, enabled }).catch(console.warn);
   }, [circadian.enabledGroups, deviceEntries]);
 
-  const offline       = !serverState.connected;
-  const activePreset  = PRESETS.find((p) => p.brightness === local.brightness && p.colorTemp === local.colorTemp);
-  const enabledGroups = circadian.enabledGroups ?? [];
-  const allCircadian  = deviceEntries.length > 0 && deviceEntries.every(([n]) => enabledGroups.includes(n));
-
-  const now = Date.now();
-  const brightnessMixed = deviceEntries.length > 1 && spread(localDevices, 'brightness') > 5 && now - (lastTouch.current.brightness ?? 0) > 1200;
-  const colorTempMixed  = deviceEntries.length > 1 && spread(localDevices, 'colorTemp')  > 5 && now - (lastTouch.current.colorTemp  ?? 0) > 1200;
+  const offline         = !serverState.connected;
+  const poweredOff      = serverState.poweredOff ?? [];
+  const allOff          = deviceEntries.length > 0 && deviceEntries.every(([n]) => poweredOff.includes(n));
+  const allBrightness   = avg(localDevices, 'brightness');
+  const allColorTemp    = avg(localDevices, 'colorTemp');
+  const activePreset    = PRESETS.find((p) => p.brightness === allBrightness && p.colorTemp === allColorTemp);
+  const enabledGroups   = circadian.enabledGroups ?? [];
+  const allCircadian    = deviceEntries.length > 0 && deviceEntries.every(([n]) => enabledGroups.includes(n));
+  const brightnessMixed = deviceEntries.length > 1 && spread(localDevices, 'brightness') > 5;
+  const colorTempMixed  = deviceEntries.length > 1 && spread(localDevices, 'colorTemp')  > 5;
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -396,8 +384,8 @@ export default function Lighting() {
                 <button
                   key={preset.label}
                   onClick={() => applyPreset(preset)}
-                  className={`flex flex-col items-center gap-3 py-8 rounded-2xl transition-colors touch-manipulation ${
-                    isActive ? 'bg-white/[0.12] ring-1 ring-white/20' : 'bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.15]'
+                  className={`flex flex-col items-center gap-3 py-8 rounded-card transition-colors touch-manipulation ${
+                    isActive ? 'bg-white/[0.12] ring-1 ring-strong' : 'bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.15]'
                   }`}
                 >
                   <span className="text-4xl leading-none">{preset.icon}</span>
@@ -414,7 +402,7 @@ export default function Lighting() {
 
       {view === 'controls' && (deviceEntries.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 pb-8">
-          <span className={`w-2 h-2 rounded-full ${offline ? 'bg-white/20' : 'bg-emerald-400/40'}`} />
+          <span className={`w-2 h-2 rounded-full ${offline ? 'bg-white/20' : 'bg-online/40'}`} />
           <p className="text-[11px] uppercase tracking-widest text-white/25 mt-1">
             {offline ? 'Bridge offline' : 'No devices paired'}
           </p>
@@ -432,23 +420,23 @@ export default function Lighting() {
         </div>
       ) : <>
         {offline && (
-          <div className="absolute top-5 right-8 flex items-center gap-1.5 text-[10px] text-amber-500/60 select-none z-10">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+          <div className="absolute top-5 right-8 flex items-center gap-1.5 text-[10px] text-accent/60 select-none z-10">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent/60" />
             Local mode
           </div>
         )}
 
         {/* All Devices */}
         <div className="shrink-0 px-8 pt-2 pb-5 flex flex-col gap-2" data-no-swipe>
-          <div className="text-base font-semibold text-white/80 select-none">All Devices</div>
+          <h2 className="font-semibold text-white/80 select-none">All Devices</h2>
           <div className="flex items-center gap-4">
-            <div className="flex-1">
+            <div className={`flex-1 transition-opacity ${allOff ? 'opacity-30 pointer-events-none' : ''}`}>
               {allCircadian
                 ? <CircadianStrip circadian={circadian} />
                 : <LightSliders
-                    brightness={local.brightness}
-                    colorTemp={local.colorTemp}
-                    tempLabel={tempLabel(local.colorTemp)}
+                    brightness={allBrightness}
+                    colorTemp={allColorTemp}
+                    tempLabel={tempLabel(allColorTemp)}
                     onBrightness={(v) => handleSlider('brightness', v)}
                     onColorTemp={(v) => handleSlider('colorTemp', v)}
                     brightnessMixed={brightnessMixed}
@@ -456,11 +444,13 @@ export default function Lighting() {
                   />
               }
             </div>
-            <div className="flex flex-col items-center gap-2.5">
+            <div className="flex flex-row gap-4 mx-4">
               <AutoToggle on={allCircadian} onClick={() => toggleCircadianGroup('all')} />
               <button
-                onClick={() => powerOff('all')}
-                className="p-2 rounded-xl text-white/40 hover:text-white/65 active:text-red-400/70 touch-manipulation transition-colors"
+                onClick={() => togglePower('all')}
+                className={`w-24 h-14 flex items-center justify-center rounded-item bg-white/[0.08] touch-manipulation transition-colors ${
+                  allOff ? 'text-white/60 hover:text-white/80' : 'text-white/40 hover:text-white/65 active:text-danger/70'
+                }`}
               >
                 <PowerIcon />
               </button>
@@ -470,16 +460,17 @@ export default function Lighting() {
 
         {/* Individual devices */}
         {deviceEntries.length > 0 && (
-          <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/20">
+          <div className="flex-1 min-h-0 flex flex-col border-t-2 border-strong">
             <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pt-5 pb-3 flex flex-col gap-4" data-no-swipe>
               {deviceEntries.map(([name]) => {
                 const dev         = localDevices[name] ?? { brightness: 70, colorTemp: 30 };
                 const isCircadian = enabledGroups.includes(name);
+                const isOff       = poweredOff.includes(name);
                 return (
                   <div key={name} className="flex flex-col gap-1.5">
                     <div className="text-sm font-semibold text-white/70 select-none">{name}</div>
                     <div className="flex items-center gap-4">
-                      <div className="flex-1">
+                      <div className={`flex-1 transition-opacity ${isOff ? 'opacity-30 pointer-events-none' : ''}`}>
                         {isCircadian
                           ? <CircadianStrip circadian={circadian} />
                           : <LightSliders
@@ -491,11 +482,13 @@ export default function Lighting() {
                             />
                         }
                       </div>
-                      <div className="flex flex-col items-center gap-2.5">
+                      <div className="flex flex-row gap-4 mx-4">
                         <AutoToggle on={isCircadian} onClick={() => toggleCircadianGroup(name)} />
                         <button
-                          onClick={() => powerOff(name)}
-                          className="p-2 rounded-xl text-white/40 hover:text-white/65 active:text-red-400/70 touch-manipulation transition-colors"
+                          onClick={() => togglePower(name)}
+                          className={`w-24 h-14 flex items-center justify-center rounded-item bg-white/[0.08] touch-manipulation transition-colors ${
+                            isOff ? 'text-white/60 hover:text-white/80' : 'text-white/40 hover:text-white/65 active:text-danger/70'
+                          }`}
                         >
                           <PowerIcon />
                         </button>

@@ -86,7 +86,7 @@ export default function App() {
 
   return (
     <div
-      className="relative w-screen overflow-hidden bg-[#07070f]"
+      className="relative w-screen overflow-hidden bg-app-bg"
       style={{ height: '100dvh' }}
       onTouchStart={resetInactivity}
     >
@@ -121,7 +121,7 @@ export default function App() {
 
       {/* ── Nav overlay — frosted glass, auto-hides on Home ── */}
       <nav
-        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-white/10 backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
+        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-muted backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
           navVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >

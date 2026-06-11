@@ -23,6 +23,7 @@ class MqttManager extends EventEmitter {
     this.bridgeOnline = false;
     this.devices = [];
     this.pairing = false;
+    this.poweredOff = new Set();
   }
 
   connect() {
@@ -140,6 +141,7 @@ class MqttManager extends EventEmitter {
 
   setGroup(group, { brightness, colorTemp }) {
     if (!this.groups[group]) return;
+    if (this.poweredOff.has(group)) return;
 
     if (brightness !== undefined) this.groups[group].brightness = brightness;
     if (colorTemp !== undefined) this.groups[group].colorTemp = colorTemp;
@@ -158,16 +160,21 @@ class MqttManager extends EventEmitter {
   }
 
   setPower(group, on) {
-    if (!this.connected || !this.client) return;
-    const payload = JSON.stringify({ state: on ? 'ON' : 'OFF' });
-    if (!group || group === 'all') {
-      Object.keys(this.groups).forEach((g) =>
-        this.client.publish(`zigbee2mqtt/${g}/set`, payload, { qos: 1 })
-      );
-    } else {
-      if (!this.groups[group]) return;
-      this.client.publish(`zigbee2mqtt/${group}/set`, payload, { qos: 1 });
+    const targets = (!group || group === 'all')
+      ? Object.keys(this.groups)
+      : this.groups[group] ? [group] : [];
+
+    targets.forEach((g) => {
+      if (on) this.poweredOff.delete(g);
+      else    this.poweredOff.add(g);
+    });
+
+    if (this.connected && this.client) {
+      const payload = JSON.stringify({ state: on ? 'ON' : 'OFF' });
+      targets.forEach((g) => this.client.publish(`zigbee2mqtt/${g}/set`, payload, { qos: 1 }));
     }
+
+    this.emit('stateChange', this.getState());
   }
 
   renameDevice(from, to) {
@@ -200,7 +207,7 @@ class MqttManager extends EventEmitter {
   }
 
   getState() {
-    return { connected: this.connected, groups: this.groups };
+    return { connected: this.connected, groups: this.groups, poweredOff: [...this.poweredOff] };
   }
 
   getDevicesState() {

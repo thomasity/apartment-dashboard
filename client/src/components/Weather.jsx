@@ -50,7 +50,7 @@ export default function Weather() {
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* ── Current conditions ── */}
-      <div className="shrink-0 flex items-center gap-6 px-8 py-5 border-b border-white/[0.04]">
+      <div className="shrink-0 flex items-center gap-6 px-8 py-5 border-b border-subtle">
         <span className="text-6xl leading-none">{weather.icon}</span>
         <div className="flex-1 min-w-0">
           <div
@@ -70,7 +70,7 @@ export default function Weather() {
       </div>
 
       {/* ── Hourly strip ── */}
-      <div className="shrink-0 px-6 py-4 border-b border-white/[0.04]">
+      <div className="shrink-0 px-6 py-4 border-b border-subtle">
         <div className="text-[10px] font-medium text-white/25 uppercase tracking-widest mb-3">
           Hourly
         </div>
@@ -97,7 +97,7 @@ export default function Weather() {
                   </div>
                 )}
                 <div
-                  className={`flex flex-col items-center gap-2 shrink-0 rounded-2xl px-4 py-4 min-w-[90px] ${
+                  className={`flex flex-col items-center gap-2 shrink-0 rounded-card px-4 py-4 min-w-[90px] ${
                     item.isNow ? 'bg-white/[0.09]' : 'bg-white/[0.03]'
                   }`}
                 >
