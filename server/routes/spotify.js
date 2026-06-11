@@ -74,8 +74,19 @@ router.post('/play', async (req, res) => {
 
 router.get('/playlists', async (_req, res) => {
   try {
-    const { data } = await spotify('GET', '/me/playlists?limit=50');
-    res.json(data.items.map((pl) => ({
+    const { data: me } = await spotify('GET', '/me');
+    const userId = me.id;
+
+    const items = [];
+    let url = '/me/playlists?limit=50';
+    while (url) {
+      const { data } = await spotify('GET', url);
+      items.push(...data.items);
+      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+    }
+
+    const owned = items.filter((pl) => pl.owner.id === userId || pl.collaborative);
+    res.json(owned.map((pl) => ({
       id:    pl.id,
       uri:   pl.uri,
       name:  pl.name,
