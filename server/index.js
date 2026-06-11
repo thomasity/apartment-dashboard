@@ -29,6 +29,7 @@ app.use('/api/stocks',   require('./routes/stocks'));
 app.use('/api/lighting', require('./routes/lighting')(io, mqttManager));
 app.use('/api/spotify',   require('./routes/spotify'));
 app.use('/api/bluetooth', require('./routes/bluetooth'));
+app.use('/api/tv',        require('./routes/tv'));
 
 if (process.env.NODE_ENV === 'production') {
   const clientBuild = path.join(__dirname, '../client/dist');

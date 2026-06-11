@@ -69,6 +69,18 @@ const bluetoothDevices = [
   { mac: 'AA:BB:CC:DD:EE:01', name: 'Dev Speaker', connected: false },
 ];
 
+const tvStatus = { appId: '12', appName: 'Netflix', playerState: 'play' };
+
+const tvApps = [
+  { id: '12',    name: 'Netflix' },
+  { id: '2285',  name: 'YouTube' },
+  { id: '13',    name: 'Prime Video' },
+  { id: '2553',  name: 'Roku Channel' },
+  { id: '22297', name: 'Spotify' },
+  { id: '34376', name: 'Disney+' },
+  { id: '61322', name: 'Max' },
+];
+
 module.exports = {
   lightingState,
   devicesState,
@@ -78,4 +90,6 @@ module.exports = {
   playlists,
   playlistTracks,
   bluetoothDevices,
+  tvStatus,
+  tvApps,
 };

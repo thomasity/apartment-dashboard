@@ -41,4 +41,11 @@ router.post('/bluetooth/connect',    ok);
 router.post('/bluetooth/disconnect', ok);
 router.delete('/bluetooth/device/:mac', ok);
 
+// ── TV / Roku ─────────────────────────────────────────────────────────────────
+router.get('/tv/status',       (_req, res) => res.json(mock.tvStatus));
+router.get('/tv/apps',         (_req, res) => res.json(mock.tvApps));
+router.get('/tv/icon/:appId',  (_req, res) => res.status(404).end());
+router.post('/tv/keypress/:key',  ok);
+router.post('/tv/launch/:appId',  ok);
+
 module.exports = router;
