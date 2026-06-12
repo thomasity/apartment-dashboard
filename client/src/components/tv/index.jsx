@@ -51,7 +51,7 @@ function FlatBtn({ children, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-16 h-14 rounded-item bg-white/[0.08] text-white/50 flex items-center justify-center touch-manipulation hover:bg-white/[0.14] active:bg-white/[0.20] transition-colors"
+      className="w-24 h-20 rounded-item bg-zinc-700 text-white/70 flex items-center justify-center touch-manipulation hover:bg-zinc-600 active:bg-zinc-500 transition-colors"
     >
       {children}
     </button>
@@ -62,10 +62,10 @@ function RoundBtn({ children, onClick, dim, lg }) {
   return (
     <button
       onClick={onClick}
-      className={`${lg ? 'w-20 h-20' : 'w-16 h-16'} rounded-full flex items-center justify-center touch-manipulation transition-colors ${
+      className={`${lg ? 'w-28 h-28' : 'w-24 h-24'} rounded-full flex items-center justify-center touch-manipulation transition-colors ${
         dim
-          ? 'bg-white/[0.08] text-white/40 hover:bg-white/[0.14]'
-          : 'bg-white/[0.12] text-white/70 hover:bg-white/[0.20] active:bg-white/[0.28]'
+          ? 'bg-zinc-700 text-white/50 hover:bg-zinc-600'
+          : 'bg-zinc-600 text-white/80 hover:bg-zinc-500 active:bg-zinc-400'
       }`}
     >
       {children}
@@ -151,18 +151,15 @@ export default function TV() {
 
   return (
     <div className="relative h-full flex flex-col">
-      {/* ── Top bar — z-30 keeps it above the FAB dismiss overlay ── */}
+      {/* ── Top bar ── */}
       <div className="relative z-30 shrink-0 flex items-center gap-2 px-4 py-2 border-b border-subtle">
-        {/* Now Playing + Keyboard/Remote */}
         <div className="flex items-center gap-4 flex-1 min-w-0">
           {appId && (
             <img
               src={`/api/tv/icon/${appId}`}
               alt={appName}
               className="w-8 h-6 object-contain rounded shrink-0"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
+              onError={(e) => { e.target.style.display = 'none'; }}
             />
           )}
           <span className="text-sm text-white/60 truncate">{appName ?? '—'}</span>
@@ -172,19 +169,18 @@ export default function TV() {
               {STATE_LABEL[playerState]}
             </span>
           )}
-          <div className="flex items-center gap-4 ml-auto shrink-0">
+          <div className="flex items-center gap-8 ml-auto shrink-0">
             <BarBtn onClick={() => setKeyboardOpen((v) => !v)} active={keyboardOpen}>
-              <KeyboardIcon size={24} />
+              <KeyboardIcon size={36} />
             </BarBtn>
             <BarBtn onClick={() => setRemoteOpen((v) => !v)} active={remoteOpen}>
-              <RemoteIcon size={24} />
+              <RemoteIcon size={36} />
             </BarBtn>
           </div>
         </div>
-        {/* Power — separated by divider */}
-        <div className="shrink-0 pl-3 border-l border-white/[0.08]">
+        <div className="shrink-0 pl-4 ml-4 border-l border-white/[0.08]">
           <BarBtn onClick={() => key('PowerOff')} danger>
-            <PowerIcon size={24} />
+            <PowerIcon size={36} />
           </BarBtn>
         </div>
       </div>
@@ -207,82 +203,82 @@ export default function TV() {
       {/* ── Remote FABs ── */}
       {remoteOpen && (
         <>
-          {/* Dismiss on tap outside — top bar sits above this at z-30 */}
+          {/* Dismiss overlay — top bar at z-30 stays above this */}
           <div className="absolute inset-0 z-10" onClick={() => setRemoteOpen(false)} />
 
           {/* Bottom-left: D-pad */}
           <div
-            className="absolute bottom-4 left-4 z-20 p-4 rounded-2xl bg-black/50 backdrop-blur-sm"
+            className="absolute bottom-4 left-4 z-20 p-4 rounded-2xl bg-zinc-900"
             data-no-swipe
           >
-            <div className="relative w-52 h-52">
-              <div className="absolute inset-0 rounded-full bg-white/[0.06]" />
+            <div className="relative w-[312px] h-[312px]">
+              <div className="absolute inset-0 rounded-full bg-zinc-800" />
               <button
                 onClick={() => key('Up')}
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-14 h-14 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
               >
-                <ChevronUpIcon size={28} />
+                <ChevronUpIcon size={40} />
               </button>
               <button
                 onClick={() => key('Down')}
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-14 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 h-20 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
               >
-                <ChevronDownIcon size={28} />
+                <ChevronDownIcon size={40} />
               </button>
               <button
                 onClick={() => key('Left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-20 h-20 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
               >
-                <ChevronLeftIcon size={28} />
+                <ChevronLeftIcon size={40} />
               </button>
               <button
                 onClick={() => key('Right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
+                className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 flex items-center justify-center text-white/60 hover:text-white/90 touch-manipulation transition-colors"
               >
-                <ChevronRightIcon size={28} />
+                <ChevronRightIcon size={40} />
               </button>
               <button
                 onClick={() => key('Select')}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/[0.14] text-white/70 hover:bg-white/[0.22] active:bg-white/[0.30] flex items-center justify-center touch-manipulation transition-colors"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full bg-zinc-600 text-white/80 hover:bg-zinc-500 active:bg-zinc-400 flex items-center justify-center touch-manipulation transition-colors"
               >
-                <span className="text-xs font-bold uppercase tracking-widest">OK</span>
+                <span className="text-base font-bold uppercase tracking-widest">OK</span>
               </button>
             </div>
           </div>
 
           {/* Bottom-right: Nav + Transport + Volume */}
           <div
-            className="absolute bottom-4 right-4 z-20 p-4 rounded-2xl bg-black/50 backdrop-blur-sm flex flex-col gap-3"
+            className="absolute bottom-4 right-4 z-20 p-4 rounded-2xl bg-zinc-900 flex flex-col gap-3"
             data-no-swipe
           >
             <div className="flex justify-around gap-3">
               <FlatBtn onClick={() => key('Back')}>
-                <BackIcon />
+                <BackIcon size={30} />
               </FlatBtn>
               <FlatBtn onClick={() => key('Home')}>
-                <HomeIcon size={22} />
+                <HomeIcon size={32} />
               </FlatBtn>
             </div>
             <div className="flex items-center gap-3">
               <FlatBtn onClick={() => key('Rev')}>
-                <ScanBackIcon size={22} />
+                <ScanBackIcon size={32} />
               </FlatBtn>
               <RoundBtn lg onClick={() => key('Play')}>
-                {isPlaying ? <PauseIcon /> : <PlayIcon size={28} />}
+                {isPlaying ? <PauseIcon size={40} /> : <PlayIcon size={40} />}
               </RoundBtn>
               <FlatBtn onClick={() => key('Fwd')}>
-                <ScanFwdIcon size={22} />
+                <ScanFwdIcon size={32} />
               </FlatBtn>
             </div>
             <div className="flex items-center gap-3">
               <FlatBtn onClick={() => key('VolumeDown')}>
-                <VolumeDownIcon size={22} />
+                <VolumeDownIcon size={32} />
               </FlatBtn>
               <RoundBtn onClick={() => key('VolumeMute')} dim>
-                <VolumeMuteIcon size={24} />
+                <VolumeMuteIcon size={36} />
               </RoundBtn>
               <FlatBtn onClick={() => key('VolumeUp')}>
-                <VolumeUpIcon size={22} />
+                <VolumeUpIcon size={32} />
               </FlatBtn>
             </div>
           </div>
