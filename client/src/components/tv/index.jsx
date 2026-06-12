@@ -270,7 +270,7 @@ export default function TV() {
                 <ScanFwdIcon size={32} />
               </FlatBtn>
             </div>
-            <div className="flex items-center gap-3">
+            {/* <div className="flex items-center gap-3">
               <FlatBtn onClick={() => key('VolumeDown')}>
                 <VolumeDownIcon size={32} />
               </FlatBtn>
@@ -280,7 +280,7 @@ export default function TV() {
               <FlatBtn onClick={() => key('VolumeUp')}>
                 <VolumeUpIcon size={32} />
               </FlatBtn>
-            </div>
+            </div> */}
           </div>
         </>
       )}

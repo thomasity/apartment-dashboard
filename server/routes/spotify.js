@@ -62,12 +62,28 @@ router.get('/now-playing', async (req, res) => {
   }
 });
 
+async function getRaspotifyDeviceId() {
+  const targetName = process.env.SPOTIFY_DEVICE_NAME ?? 'raspotify';
+  try {
+    const { data } = await spotify('GET', '/me/player/devices');
+    const device = data.devices.find((d) =>
+      d.name.toLowerCase().includes(targetName.toLowerCase())
+    );
+    return device?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 router.post('/play', async (req, res) => {
   try {
     const body = {};
     if (req.body?.context_uri) body.context_uri = req.body.context_uri;
     if (req.body?.offset_uri)  body.offset = { uri: req.body.offset_uri };
-    await spotify('PUT', '/me/player/play', Object.keys(body).length ? body : undefined);
+
+    const deviceId = await getRaspotifyDeviceId();
+    const params = deviceId ? `?device_id=${deviceId}` : '';
+    await spotify('PUT', `/me/player/play${params}`, Object.keys(body).length ? body : undefined);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
