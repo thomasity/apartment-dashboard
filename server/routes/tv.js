@@ -68,7 +68,12 @@ router.get('/icon/:appId', async (req, res) => {
 
 router.post('/keypress/:key', async (req, res) => {
   try {
-    await axios.post(`${rokuBase()}/keypress/${req.params.key}`, null, { timeout: 3000 });
+    let rokuKey = req.params.key;
+    // Express decodes URL params — re-encode the literal char so Roku gets e.g. Lit_%20 not Lit_
+    if (rokuKey.startsWith('Lit_')) {
+      rokuKey = 'Lit_' + encodeURIComponent(rokuKey.slice(4));
+    }
+    await axios.post(`${rokuBase()}/keypress/${rokuKey}`, null, { timeout: 3000 });
     res.json({ ok: true });
   } catch (err) {
     res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
