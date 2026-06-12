@@ -75,6 +75,19 @@ router.post('/keypress/:key', async (req, res) => {
   }
 });
 
+router.post('/type', async (req, res) => {
+  try {
+    const text = String(req.body.text ?? '');
+    const base = rokuBase();
+    for (const char of text) {
+      await axios.post(`${base}/keypress/Lit_${encodeURIComponent(char)}`, null, { timeout: 2000 });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+  }
+});
+
 router.post('/launch/:appId', async (req, res) => {
   try {
     await axios.post(`${rokuBase()}/launch/${req.params.appId}`, null, { timeout: 3000 });
