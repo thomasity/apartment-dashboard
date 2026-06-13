@@ -1,9 +1,21 @@
 const express = require('express');
 const axios   = require('axios');
+const dgram   = require('dgram');
 const router  = express.Router();
+const config  = require('../config');
+
+const SSDP_ADDR = '239.255.255.250';
+const SSDP_PORT = 1900;
+const SSDP_MSG  = Buffer.from(
+  'M-SEARCH * HTTP/1.1\r\n' +
+  `HOST: ${SSDP_ADDR}:${SSDP_PORT}\r\n` +
+  'MAN: "ssdp:discover"\r\n' +
+  'ST: roku:ecp\r\n' +
+  'MX: 3\r\n\r\n'
+);
 
 function rokuBase() {
-  const ip = process.env.ROKU_IP;
+  const ip = config.get('rokuIp') ?? process.env.ROKU_IP;
   if (!ip) throw Object.assign(new Error('ROKU_IP not configured'), { code: 'NO_IP' });
   return `http://${ip}:8060`;
 }
@@ -13,6 +25,70 @@ function xmlAttr(xml, tag, attr) {
   const m  = xml.match(re);
   return m ? m[1] : null;
 }
+
+function xmlTag(xml, tag) {
+  const m = xml.match(new RegExp(`<${tag}>([^<]*)<\\/${tag}>`));
+  return m ? m[1].trim() : null;
+}
+
+function discoverRoku(timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    const socket   = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    const foundIps = new Set();
+
+    socket.on('message', (buf) => {
+      const m = buf.toString().match(/LOCATION:\s*http:\/\/([^:/]+)/i);
+      if (m) foundIps.add(m[1]);
+    });
+
+    socket.on('error', () => {});
+
+    socket.bind(0, () => {
+      socket.send(SSDP_MSG, SSDP_PORT, SSDP_ADDR);
+    });
+
+    setTimeout(async () => {
+      try { socket.close(); } catch {}
+      const devices = await Promise.all(
+        [...foundIps].map(async (ip) => {
+          try {
+            const { data } = await axios.get(`http://${ip}:8060/query/device-info`, { timeout: 2000 });
+            return {
+              ip,
+              name:  xmlTag(data, 'friendly-device-name') ?? ip,
+              model: xmlTag(data, 'model-name') ?? null,
+            };
+          } catch {
+            return { ip, name: ip, model: null };
+          }
+        })
+      );
+      resolve(devices);
+    }, timeoutMs);
+  });
+}
+
+router.get('/discover', async (_req, res) => {
+  try {
+    res.json(await discoverRoku());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/device', (_req, res) => {
+  const ip   = config.get('rokuIp') ?? process.env.ROKU_IP ?? null;
+  const name = config.get('rokuName') ?? ip;
+  res.json(ip ? { ip, name } : null);
+});
+
+router.post('/select', (req, res) => {
+  const { ip, name } = req.body ?? {};
+  if (!ip) return res.status(400).json({ error: 'ip required' });
+  config.set('rokuIp', ip);
+  config.set('rokuName', name ?? ip);
+  res.json({ ok: true });
+});
 
 router.get('/status', async (_req, res) => {
   try {

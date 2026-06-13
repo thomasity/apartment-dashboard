@@ -45,6 +45,12 @@ router.delete('/bluetooth/device/:mac', ok);
 router.get('/tv/status',       (_req, res) => res.json(mock.tvStatus));
 router.get('/tv/apps',         (_req, res) => res.json(mock.tvApps));
 router.get('/tv/icon/:appId',  (_req, res) => res.status(404).end());
+router.get('/tv/discover',     (_req, res) => res.json([
+  { ip: '192.168.1.50', name: 'Living Room Roku', model: 'Roku Streaming Stick 4K' },
+  { ip: '192.168.1.51', name: 'Bedroom Roku',     model: 'Roku Express' },
+]));
+router.get('/tv/device',       (_req, res) => res.json({ ip: '192.168.1.50', name: 'Living Room Roku' }));
+router.post('/tv/select',         ok);
 router.post('/tv/keypress/:key',  ok);
 router.post('/tv/launch/:appId',  ok);
 router.post('/tv/type',           ok);
