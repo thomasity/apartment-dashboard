@@ -1,5 +1,6 @@
 const mqtt = require('mqtt');
 const EventEmitter = require('events');
+const config = require('../config');
 
 // Zigbee2MQTT uses mireds: lower = cooler (higher Kelvin)
 const MIRED_COOL = 153; // ~6500K
@@ -17,14 +18,39 @@ function percentToMireds(percent) {
 class MqttManager extends EventEmitter {
   constructor() {
     super();
-    this.connected = false;
-    this.client = null;
-    this.groups = {};
+    this.connected   = false;
+    this.client      = null;
+    this.groups      = {};
     this.bridgeOnline = false;
-    this.devices = [];
-    this.pairing = false;
-    this.poweredOff = new Set();
+    this.devices     = [];
+    this.pairing     = false;
+    this.poweredOff  = new Set();
     this.availability = {};
+    // Last state the app intentionally set for each bulb — persisted to config.json
+    this.desiredStates = config.get('bulbDesiredStates') ?? {};
+    this._saveTimer  = null;
+  }
+
+  // Debounced write so circadian updates (every ~60s) don't thrash the file
+  _saveDesiredStates() {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => config.set('bulbDesiredStates', this.desiredStates), 1000);
+  }
+
+  // Push the last-known desired state to a bulb that just came online
+  _applyDesiredState(name) {
+    const ds = this.desiredStates[name];
+    if (!ds || !this.connected || !this.client) return;
+
+    const payload = ds.power === false
+      ? { state: 'OFF' }
+      : {
+          state: 'ON',
+          ...(ds.brightness !== undefined && { brightness: Math.round((ds.brightness / 100) * 254) }),
+          ...(ds.colorTemp  !== undefined && { color_temp: percentToMireds(ds.colorTemp) }),
+        };
+
+    this.client.publish(`zigbee2mqtt/${name}/set`, JSON.stringify(payload), { qos: 1 });
   }
 
   connect() {
@@ -82,7 +108,15 @@ class MqttManager extends EventEmitter {
           const name = topic.slice('zigbee2mqtt/'.length, -'/availability'.length);
           let state;
           try { state = JSON.parse(payload.toString()).state; } catch { state = payload.toString(); }
+
+          const wasOnline = this.availability[name];
           this.availability[name] = state === 'online';
+
+          // Bulb just came online (either after outage or server restart) — sync desired state
+          if (!wasOnline && this.availability[name]) {
+            this._applyDesiredState(name);
+          }
+
           this.emit('devicesChange', this.getDevicesState());
           return;
         }
@@ -92,6 +126,12 @@ class MqttManager extends EventEmitter {
         if (!this.groups[friendlyName]) return;
 
         const data = JSON.parse(payload.toString());
+
+        // Sync power state from bulb report (covers server-restart state recovery)
+        if (data.state !== undefined) {
+          if (data.state === 'OFF') this.poweredOff.add(friendlyName);
+          else this.poweredOff.delete(friendlyName);
+        }
         if (data.brightness !== undefined) {
           this.groups[friendlyName].brightness = Math.round((data.brightness / 254) * 100);
         }
@@ -131,7 +171,7 @@ class MqttManager extends EventEmitter {
         this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
           if (err) return;
           console.log(`  subscribed: zigbee2mqtt/${d.friendly_name}`);
-          // Ask the bulb for its current state so we don't show stale defaults
+          // Request current state so the dashboard reflects reality on startup
           this.client.publish(
             `zigbee2mqtt/${d.friendly_name}/get`,
             JSON.stringify({ state: '', brightness: '', color_temp: '' }),
@@ -156,7 +196,14 @@ class MqttManager extends EventEmitter {
     if (this.poweredOff.has(group)) return;
 
     if (brightness !== undefined) this.groups[group].brightness = brightness;
-    if (colorTemp !== undefined) this.groups[group].colorTemp = colorTemp;
+    if (colorTemp  !== undefined) this.groups[group].colorTemp  = colorTemp;
+
+    // Track desired state for re-apply on bulb reconnect
+    if (!this.desiredStates[group]) this.desiredStates[group] = { power: true };
+    if (brightness !== undefined) this.desiredStates[group].brightness = brightness;
+    if (colorTemp  !== undefined) this.desiredStates[group].colorTemp  = colorTemp;
+    if (this.desiredStates[group].power === undefined) this.desiredStates[group].power = true;
+    this._saveDesiredStates();
 
     if (this.connected && this.client) {
       const payload = {};
@@ -179,7 +226,12 @@ class MqttManager extends EventEmitter {
     targets.forEach((g) => {
       if (on) this.poweredOff.delete(g);
       else    this.poweredOff.add(g);
+
+      // Track desired power state
+      if (!this.desiredStates[g]) this.desiredStates[g] = {};
+      this.desiredStates[g].power = on;
     });
+    this._saveDesiredStates();
 
     if (this.connected && this.client) {
       const payload = JSON.stringify({ state: on ? 'ON' : 'OFF' });
