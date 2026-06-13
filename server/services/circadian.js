@@ -1,4 +1,5 @@
 const suncalc = require('suncalc');
+const config  = require('../config');
 
 const LAT = parseFloat(process.env.LAT || '40.7128');
 const LON = parseFloat(process.env.LON || '-74.0060');
@@ -10,6 +11,10 @@ let _mqttMgr       = null;
 let _io            = null;
 let _lastApplied   = null;
 let _current       = { brightness: 50, colorTemp: 50 };
+
+function saveEnabledGroups() {
+  config.set('circadianGroups', [..._enabledGroups]);
+}
 
 function computeValues(date = new Date()) {
   const { altitude } = suncalc.getPosition(date, LAT, LON);
@@ -53,6 +58,14 @@ module.exports = {
   init(mqttMgr, io) {
     _mqttMgr = mqttMgr;
     _io      = io;
+
+    // Restore persisted auto groups
+    const saved = config.get('circadianGroups') ?? [];
+    saved.forEach((g) => _enabledGroups.add(g));
+    if (_enabledGroups.size > 0) {
+      apply();
+      _intervalId = setInterval(apply, INTERVAL_MS);
+    }
   },
 
   enable(group) {
@@ -61,6 +74,7 @@ module.exports = {
     } else {
       _enabledGroups.add(group);
     }
+    saveEnabledGroups();
     apply();
     if (!_intervalId && _enabledGroups.size > 0) {
       _intervalId = setInterval(apply, INTERVAL_MS);
@@ -73,6 +87,7 @@ module.exports = {
     } else {
       _enabledGroups.delete(group);
     }
+    saveEnabledGroups();
     if (_enabledGroups.size === 0) {
       clearInterval(_intervalId);
       _intervalId = null;
