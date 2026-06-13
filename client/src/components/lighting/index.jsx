@@ -112,9 +112,13 @@ export default function Lighting() {
   }, [serverState.groups, circadian.enabledGroups]);
 
   const applyPreset = useCallback((preset) => {
+    if ((circadian.enabledGroups ?? []).length > 0) {
+      axios.post('/api/lighting/circadian', { group: 'all', enabled: false }).catch(console.warn);
+      setCircadian((prev) => ({ ...prev, enabledGroups: [] }));
+    }
     handleSlider('brightness', preset.brightness);
     handleSlider('colorTemp',  preset.colorTemp);
-  }, [handleSlider]);
+  }, [handleSlider, circadian.enabledGroups]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">

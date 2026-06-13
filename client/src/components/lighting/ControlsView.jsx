@@ -51,12 +51,15 @@ export default function ControlsView({ serverState, localDevices, circadian, ava
   const poweredOff    = serverState.poweredOff ?? [];
   const enabledGroups = circadian.enabledGroups ?? [];
 
-  const allOff          = deviceEntries.length > 0 && deviceEntries.every(([n]) => poweredOff.includes(n));
-  const allCircadian    = deviceEntries.length > 0 && deviceEntries.every(([n]) => enabledGroups.includes(n));
-  const allBrightness   = avg(localDevices, 'brightness');
-  const allColorTemp    = avg(localDevices, 'colorTemp');
-  const brightnessMixed = deviceEntries.length > 1 && spread(localDevices, 'brightness') > 5;
-  const colorTempMixed  = deviceEntries.length > 1 && spread(localDevices, 'colorTemp')  > 5;
+  const allOff       = deviceEntries.length > 0 && deviceEntries.every(([n]) => poweredOff.includes(n));
+  const allCircadian = deviceEntries.length > 0 && deviceEntries.every(([n]) => enabledGroups.includes(n));
+
+  // Exclude powered-off devices — the All Devices slider can't change them, so they shouldn't skew the average
+  const onDevices       = Object.fromEntries(Object.entries(localDevices).filter(([n]) => !poweredOff.includes(n)));
+  const allBrightness   = avg(onDevices, 'brightness');
+  const allColorTemp    = avg(onDevices, 'colorTemp');
+  const brightnessMixed = Object.keys(onDevices).length > 1 && spread(onDevices, 'brightness') > 5;
+  const colorTempMixed  = Object.keys(onDevices).length > 1 && spread(onDevices, 'colorTemp')  > 5;
 
   if (deviceEntries.length === 0) {
     return (
