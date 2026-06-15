@@ -62,14 +62,16 @@ router.get('/now-playing', async (req, res) => {
   }
 });
 
-async function getRaspotifyDeviceId() {
+async function getPlayDeviceId() {
   const targetName = process.env.SPOTIFY_DEVICE_NAME ?? 'raspotify';
   try {
     const { data } = await spotify('GET', '/me/player/devices');
-    const device = data.devices.find((d) =>
+    const active = data.devices.find((d) => d.is_active);
+    if (active) return null; // let Spotify keep using the active device
+    const fallback = data.devices.find((d) =>
       d.name.toLowerCase().includes(targetName.toLowerCase())
     );
-    return device?.id ?? null;
+    return fallback?.id ?? null;
   } catch {
     return null;
   }
@@ -81,7 +83,7 @@ router.post('/play', async (req, res) => {
     if (req.body?.context_uri) body.context_uri = req.body.context_uri;
     if (req.body?.offset_uri)  body.offset = { uri: req.body.offset_uri };
 
-    const deviceId = await getRaspotifyDeviceId();
+    const deviceId = await getPlayDeviceId();
     const params = deviceId ? `?device_id=${deviceId}` : '';
     await spotify('PUT', `/me/player/play${params}`, Object.keys(body).length ? body : undefined);
     res.json({ ok: true });
