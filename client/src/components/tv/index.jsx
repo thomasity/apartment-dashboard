@@ -206,11 +206,11 @@ export default function TV() {
             </BarBtn>
           </div>
         </div>
-        <div className="shrink-0 pl-4 ml-4 border-l border-white/[0.08]">
+        {/* <div className="shrink-0 pl-4 ml-4 border-l border-white/[0.08]">
           <BarBtn onClick={() => key('PowerOff')} danger>
             <PowerIcon size={36} />
           </BarBtn>
-        </div>
+        </div> */}
       </div>
 
       {/* ── App Grid ── */}

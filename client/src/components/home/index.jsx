@@ -38,8 +38,12 @@ export default function Home() {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 
-  const current = weather?.current ?? null;
-  const cond    = current ? wmo(current.weather_code) : null;
+  const current   = weather?.current ?? null;
+  const cond      = current ? wmo(current.weather_code) : null;
+  const daily     = weather?.daily ?? null;
+  const todayHigh = daily ? Math.round(daily.temperature_2m_max[0]) : null;
+  const todayLow  = daily ? Math.round(daily.temperature_2m_min[0]) : null;
+  const precip    = weather?.hourly?.precipitation_probability?.[h] ?? null;
 
   return (
     <div className="relative h-full w-full overflow-hidden select-none">
@@ -65,11 +69,16 @@ export default function Home() {
         track={spotify?.track ?? null}
         isPlaying={spotify?.isPlaying ?? false}
         onControl={() => control(spotify?.isPlaying ? 'pause' : 'play')}
+        onPrevious={() => control('previous')}
+        onNext={() => control('next')}
       />
 
       <WeatherStrip
         icon={cond?.icon ?? null}
         temperature={current ? Math.round(current.temperature_2m) : null}
+        high={todayHigh}
+        low={todayLow}
+        precip={precip}
       />
 
     </div>

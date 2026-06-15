@@ -1,8 +1,10 @@
-export default function SpotifyStrip({ track, isPlaying, onControl }) {
+import { PrevIcon, PlayIcon, PauseIcon, NextIcon } from '../icons';
+
+export default function SpotifyStrip({ track, isPlaying, onControl, onPrevious, onNext }) {
   if (!track) return null;
 
   return (
-    <div className="absolute top-10 left-5 flex items-center gap-3" style={{ textShadow: '0 1px 12px rgba(0,0,0,0.7)' }}>
+    <div className="absolute top-10 left-5 flex items-center gap-3 rounded-2xl backdrop-blur-xl bg-black/30 border border-white/10 px-3 py-2">
       {track.art && (
         <img src={track.art} alt="" className="w-10 h-10 shadow-lg flex-shrink-0" />
       )}
@@ -20,21 +22,17 @@ export default function SpotifyStrip({ track, isPlaying, onControl }) {
           {track.artist}
         </div>
       </div>
-      <button
-        data-no-swipe
-        onClick={onControl}
-        className="text-white/60 active:text-white touch-manipulation flex-shrink-0"
-      >
-        {isPlaying ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        )}
-      </button>
+      <div className="flex items-center gap-2" data-no-swipe>
+        <button onClick={onPrevious} className="text-white/45 active:text-white touch-manipulation flex-shrink-0">
+          <PrevIcon />
+        </button>
+        <button onClick={onControl} className="text-white/70 active:text-white touch-manipulation flex-shrink-0">
+          {isPlaying ? <PauseIcon /> : <PlayIcon />}
+        </button>
+        <button onClick={onNext} className="text-white/45 active:text-white touch-manipulation flex-shrink-0">
+          <NextIcon />
+        </button>
+      </div>
     </div>
   );
 }
