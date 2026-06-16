@@ -1,8 +1,11 @@
-export default function WeatherStrip({ icon, temperature, high, low, precip }) {
+export default function WeatherStrip({ icon, temperature, high, low, precip, onNavigate }) {
   if (!icon) return null;
 
   return (
-    <div className="absolute top-10 right-5 text-right rounded-2xl backdrop-blur-xl bg-black/30 border border-white/10 px-3 py-2">
+    <button
+      onClick={onNavigate}
+      className="absolute top-10 right-5 text-right rounded-2xl backdrop-blur-xl bg-black/30 border border-white/10 px-3 py-2 w-[140px] touch-manipulation"
+    >
       <div className="flex items-center justify-end gap-2 leading-none">
         <span style={{ fontSize: 'clamp(1.2rem, 2.2vw, 1.8rem)' }}>{icon}</span>
         <span
@@ -12,16 +15,11 @@ export default function WeatherStrip({ icon, temperature, high, low, precip }) {
           {temperature}°
         </span>
       </div>
-      {(high != null || precip != null) && (
-        <div
-          className="font-light text-white/35 mt-0.5 tracking-wide"
-          style={{ fontSize: 'clamp(0.6rem, 1.1vw, 0.8rem)' }}
-        >
-          {high != null && low != null && `${high}° / ${low}°`}
-          {high != null && precip != null && ' · '}
-          {precip != null && `💧${precip}%`}
-        </div>
-      )}
-    </div>
+      <div className="font-light text-white/35 mt-0.5 tracking-wide" style={{ fontSize: 'clamp(0.6rem, 1.1vw, 0.8rem)' }}>
+        {high != null && low != null ? `${high}° / ${low}°` : ' '}
+        {high != null && precip != null && ' · '}
+        {precip != null ? `💧${precip}%` : ''}
+      </div>
+    </button>
   );
 }

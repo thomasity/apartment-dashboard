@@ -80,8 +80,10 @@ async function getPlayDeviceId() {
 router.post('/play', async (req, res) => {
   try {
     const body = {};
-    if (req.body?.context_uri) body.context_uri = req.body.context_uri;
-    if (req.body?.offset_uri)  body.offset = { uri: req.body.offset_uri };
+    if (req.body?.context_uri)              body.context_uri = req.body.context_uri;
+    if (req.body?.uris)                     body.uris        = req.body.uris;
+    if (req.body?.offset_uri)               body.offset      = { uri: req.body.offset_uri };
+    if (req.body?.offset_position != null)  body.offset      = { position: req.body.offset_position };
 
     const deviceId = await getPlayDeviceId();
     const params = deviceId ? `?device_id=${deviceId}` : '';
@@ -174,6 +176,108 @@ router.post('/repeat', async (req, res) => {
     console.error('[spotify] repeat error:', err.response?.status, err.response?.data ?? err.message);
     res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
   }
+});
+
+router.get('/liked-songs', async (req, res) => {
+  try {
+    const countOnly = req.query.count_only === 'true';
+    const [{ data: me }, { data: first }] = await Promise.all([
+      spotify('GET', '/me'),
+      spotify('GET', '/me/tracks?limit=1'),
+    ]);
+    const collectionUri = `spotify:user:${me.id}:collection`;
+    if (countOnly) return res.json({ total: first.total, collectionUri });
+
+    const allItems = [];
+    let url = '/me/tracks?limit=50';
+    while (url) {
+      const { data } = await spotify('GET', url);
+      allItems.push(...data.items);
+      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+    }
+    res.json({
+      total: first.total,
+      collectionUri,
+      tracks: allItems
+        .filter((i) => i.track?.id)
+        .map((i) => ({
+          id:       i.track.id,
+          uri:      i.track.uri,
+          name:     i.track.name,
+          artist:   i.track.artists.map((a) => a.name).join(', '),
+          duration: i.track.duration_ms,
+          art:      i.track.album?.images?.[2]?.url ?? i.track.album?.images?.[0]?.url ?? null,
+        })),
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/albums', async (req, res) => {
+  try {
+    const items = [];
+    let url = '/me/albums?limit=50';
+    while (url) {
+      const { data } = await spotify('GET', url);
+      items.push(...data.items);
+      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+    }
+    res.json(items.map((i) => ({
+      id:     i.album.id,
+      uri:    i.album.uri,
+      name:   i.album.name,
+      artist: i.album.artists.map((a) => a.name).join(', '),
+      image:  i.album.images?.[0]?.url ?? null,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/album/:id/tracks', async (req, res) => {
+  try {
+    const [{ data: tracksData }, { data: albumData }] = await Promise.all([
+      spotify('GET', `/albums/${req.params.id}/tracks?limit=50`),
+      spotify('GET', `/albums/${req.params.id}`),
+    ]);
+    const art = albumData.images?.[1]?.url ?? albumData.images?.[0]?.url ?? null;
+    res.json(tracksData.items.map((t) => ({
+      id:       t.id,
+      uri:      t.uri,
+      name:     t.name,
+      artist:   t.artists.map((a) => a.name).join(', '),
+      duration: t.duration_ms,
+      art,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ tracks: [], albums: [], playlists: [] });
+    const { data } = await spotify('GET', `/search?q=${encodeURIComponent(q)}&type=track,album,playlist&limit=8`);
+    res.json({
+      tracks: (data.tracks?.items ?? []).map((t) => ({
+        id:       t.id,
+        uri:      t.uri,
+        name:     t.name,
+        artist:   t.artists.map((a) => a.name).join(', '),
+        duration: t.duration_ms,
+        art:      t.album?.images?.[2]?.url ?? null,
+      })),
+      albums: (data.albums?.items ?? []).map((a) => ({
+        id:     a.id,
+        uri:    a.uri,
+        name:   a.name,
+        artist: a.artists.map((x) => x.name).join(', '),
+        image:  a.images?.[1]?.url ?? a.images?.[0]?.url ?? null,
+      })),
+      playlists: (data.playlists?.items ?? []).filter(Boolean).map((p) => ({
+        id:    p.id,
+        uri:   p.uri,
+        name:  p.name,
+        image: p.images?.[0]?.url ?? null,
+      })),
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/playlist/:id/tracks', async (req, res) => {

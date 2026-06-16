@@ -4,6 +4,7 @@ import axios from 'axios';
 export function useSpotify() {
   const [state,     setState]     = useState(null);
   const [playlists, setPlaylists] = useState([]);
+  const [albums,    setAlbums]    = useState([]);
   const [devices,   setDevices]   = useState([]);
   const [tick,      setTick]      = useState(0);
   const polledAt                  = useRef(0);
@@ -25,6 +26,7 @@ export function useSpotify() {
 
   useEffect(() => {
     axios.get('/api/spotify/playlists').then((r) => setPlaylists(r.data)).catch(() => {});
+    axios.get('/api/spotify/albums').then((r) => setAlbums(r.data)).catch(() => {});
   }, []);
 
   // Tick every second while playing so the progress bar moves smoothly
@@ -46,6 +48,13 @@ export function useSpotify() {
       const body = { context_uri };
       if (offset_uri) body.offset_uri = offset_uri;
       await axios.post('/api/spotify/play', body);
+      setTimeout(poll, 400);
+    } catch {}
+  }, [poll]);
+
+  const playUri = useCallback(async (uri) => {
+    try {
+      await axios.post('/api/spotify/play', { uris: [uri] });
       setTimeout(poll, 400);
     } catch {}
   }, [poll]);
@@ -110,7 +119,9 @@ export function useSpotify() {
     state: liveState,
     control,
     playContext,
+    playUri,
     playlists,
+    albums,
     devices,
     fetchDevices,
     transferTo,

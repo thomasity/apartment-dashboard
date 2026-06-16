@@ -3,37 +3,69 @@ import axios from 'axios';
 import { useSpotify } from '../../hooks/useSpotify';
 import NowPlaying from './NowPlaying';
 import TrackList from './TrackList';
+import Explorer from './Explorer';
 import DevicePicker from './DevicePicker';
 
 export default function Spotify() {
   const {
-    state, control, playContext, playlists,
+    state, control, playContext, playUri, playlists, albums,
     devices, fetchDevices, transferTo,
     toggleShuffle, cycleRepeat, seek, setVolume,
   } = useSpotify();
 
-  const [pickerOpen,       setPickerOpen]       = useState(false);
-  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
-  const [tracks,           setTracks]           = useState([]);
-  const [tracksLoading,    setTracksLoading]    = useState(false);
+  const [pickerOpen,      setPickerOpen]      = useState(false);
+  const [selectedSource,  setSelectedSource]  = useState(null);
+  const [tracks,          setTracks]          = useState([]);
+  const [tracksLoading,   setTracksLoading]   = useState(false);
 
-  const handleSelectPlaylist = useCallback(async (pl) => {
-    setSelectedPlaylist(pl);
+  const handleSelect = useCallback(async (selection) => {
+    if (selection.type === 'track') {
+      playUri(selection.data.uri);
+      return;
+    }
+
     setTracks([]);
     setTracksLoading(true);
     try {
-      const { data } = await axios.get(`/api/spotify/playlist/${pl.id}/tracks`);
-      setTracks(data);
+      if (selection.type === 'playlist') {
+        const { data } = await axios.get(`/api/spotify/playlist/${selection.data.id}/tracks`);
+        setTracks(data);
+        setSelectedSource(selection);
+      } else if (selection.type === 'album') {
+        const { data } = await axios.get(`/api/spotify/album/${selection.data.id}/tracks`);
+        setTracks(data);
+        setSelectedSource(selection);
+      } else if (selection.type === 'liked') {
+        const { data } = await axios.get('/api/spotify/liked-songs');
+        setTracks(data.tracks);
+        setSelectedSource({ type: 'liked', data: { name: 'Liked Songs', image: null, collectionUri: data.collectionUri } });
+      }
     } catch (err) {
       console.error('[spotify] tracks fetch failed:', err.message);
+      setTracksLoading(false);
+      return;
     }
     setTracksLoading(false);
-  }, []);
+  }, [playUri]);
 
   const handleBack = useCallback(() => {
-    setSelectedPlaylist(null);
+    setSelectedSource(null);
     setTracks([]);
   }, []);
+
+  const handlePlay = useCallback((trackUri) => {
+    if (!selectedSource) return;
+    if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri, trackUri);
+    if (selectedSource.type === 'album')    return playContext(selectedSource.data.uri, trackUri);
+    if (selectedSource.type === 'liked')    return playUri(trackUri);
+  }, [selectedSource, playContext, playUri]);
+
+  const handlePlayAll = useCallback(() => {
+    if (!selectedSource) return;
+    if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri);
+    if (selectedSource.type === 'album')    return playContext(selectedSource.data.uri);
+    if (selectedSource.type === 'liked')    return playContext(selectedSource.data.collectionUri);
+  }, [selectedSource, playContext]);
 
   const openPicker = useCallback(async () => {
     await fetchDevices();
@@ -77,46 +109,33 @@ export default function Spotify() {
           seek={seek}
           setVolume={setVolume}
           onOpenPicker={openPicker}
-          onSelectPlaylist={handleSelectPlaylist}
+          onSelectPlaylist={handleSelect}
         />
       </div>
 
-      {/* ── Right: Playlists or Track List ── */}
-      <div className="flex-1 overflow-y-auto" data-no-swipe>
-        {selectedPlaylist ? (
-          <TrackList
-            playlist={selectedPlaylist}
-            tracks={tracks}
-            loading={tracksLoading}
-            onBack={handleBack}
-            onPlay={(trackUri) => playContext(selectedPlaylist.uri, trackUri)}
-            onPlayAll={() => playContext(selectedPlaylist.uri)}
+      {/* ── Right: Explorer or Track List ── */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {selectedSource ? (
+          <div className="flex-1 overflow-y-auto" data-no-swipe>
+            <TrackList
+              playlist={selectedSource.data}
+              tracks={tracks}
+              loading={tracksLoading}
+              onBack={handleBack}
+              onPlay={handlePlay}
+              onPlayAll={handlePlayAll}
+              currentUri={track?.uri}
+              isPlaying={isPlaying}
+            />
+          </div>
+        ) : (
+          <Explorer
+            playlists={playlists}
+            albums={albums}
+            onSelect={handleSelect}
             currentUri={track?.uri}
             isPlaying={isPlaying}
           />
-        ) : playlists.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <p className="text-white/20 text-sm tracking-widest uppercase">Loading playlists…</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-y-8 gap-x-16 p-16">
-            {playlists.map((pl) => (
-              <button
-                key={pl.id}
-                onClick={() => handleSelectPlaylist(pl)}
-                className="text-left active:scale-95 transition-transform touch-manipulation"
-              >
-                {pl.image ? (
-                  <img src={pl.image} alt={pl.name} className="w-full aspect-square object-cover" />
-                ) : (
-                  <div className="w-full aspect-square rounded-item bg-white/5 flex items-center justify-center">
-                    <span className="text-white/20 text-3xl">♪</span>
-                  </div>
-                )}
-                <p className="text-xs text-white/50 mt-2 px-0.5 truncate">{pl.name}</p>
-              </button>
-            ))}
-          </div>
         )}
       </div>
 

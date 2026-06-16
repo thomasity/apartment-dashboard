@@ -11,7 +11,7 @@ const ROTATION_MS  = 30 * 60 * 1000;
 const currentEpoch = () => Math.floor(Date.now() / ROTATION_MS);
 const picUrl       = (n) => `https://picsum.photos/seed/${n}/1920/1080`;
 
-export default function Home() {
+export default function Home({ onNavigate }) {
   const [epochs, setEpochs] = useState({ back: currentEpoch() - 1, front: currentEpoch() });
   const now                 = useClock();
   const { data: weather }   = useWeather();
@@ -71,6 +71,7 @@ export default function Home() {
         onControl={() => control(spotify?.isPlaying ? 'pause' : 'play')}
         onPrevious={() => control('previous')}
         onNext={() => control('next')}
+        onNavigate={() => onNavigate?.('spotify')}
       />
 
       <WeatherStrip
@@ -79,6 +80,7 @@ export default function Home() {
         high={todayHigh}
         low={todayLow}
         precip={precip}
+        onNavigate={() => onNavigate?.('weather')}
       />
 
     </div>

@@ -105,7 +105,7 @@ export default function App() {
               tab === id ? 'opacity-100' : 'opacity-0 pointer-events-none'
             } ${id !== 'home' ? 'pt-[52px] pb-14' : ''}`}
           >
-            {id === 'home'    && <Home />}
+            {id === 'home'    && <Home onNavigate={setTab} />}
             {id === 'weather' && <Weather />}
             {/* {id === 'stocks'  && <Stocks />} */}
             {id === 'lights'  && <Lighting />}
