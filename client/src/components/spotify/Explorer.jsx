@@ -141,7 +141,7 @@ function SearchResults({ results, onSelect, currentUri, isPlaying }) {
   );
 }
 
-export default function Explorer({ playlists, albums, onSelect, currentUri, isPlaying }) {
+export default function Explorer({ playlists, albums, albumsError, onSelect, currentUri, isPlaying }) {
   const [view,          setView]          = useState('home');
   const [query,         setQuery]         = useState('');
   const [searchResults, setSearchResults] = useState(null);
@@ -233,14 +233,25 @@ export default function Explorer({ playlists, albums, onSelect, currentUri, isPl
               />
             )}
 
-            {albums.length > 0 && (
+            {albumsError ? (
+              <div className="px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white/40 text-xs font-medium tracking-widest uppercase">Albums</span>
+                </div>
+                <p className="text-white/25 text-xs px-0.5">
+                  {albumsError === 'scope'
+                    ? 'Re-authorize Spotify with the user-library-read scope to enable albums.'
+                    : 'Could not load albums.'}
+                </p>
+              </div>
+            ) : albums.length > 0 ? (
               <HorizontalRow
                 title="Albums"
                 items={albums}
                 onSeeAll={() => setView('albums')}
                 onSelect={(al) => onSelect({ type: 'album', data: al })}
               />
-            )}
+            ) : null}
           </div>
         )}
       </div>

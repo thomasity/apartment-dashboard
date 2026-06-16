@@ -8,7 +8,7 @@ import DevicePicker from './DevicePicker';
 
 export default function Spotify() {
   const {
-    state, control, playContext, playUri, playlists, albums,
+    state, control, playContext, playUri, playlists, albums, albumsError,
     devices, fetchDevices, transferTo,
     toggleShuffle, cycleRepeat, seek, setVolume,
   } = useSpotify();
@@ -24,26 +24,30 @@ export default function Spotify() {
       return;
     }
 
+    // Switch to TrackList immediately so user sees the loading state right away
+    const prelimSource = selection.type === 'liked'
+      ? { type: 'liked', data: { name: 'Liked Songs', image: null } }
+      : selection;
+    setSelectedSource(prelimSource);
     setTracks([]);
     setTracksLoading(true);
+
     try {
       if (selection.type === 'playlist') {
         const { data } = await axios.get(`/api/spotify/playlist/${selection.data.id}/tracks`);
         setTracks(data);
-        setSelectedSource(selection);
       } else if (selection.type === 'album') {
         const { data } = await axios.get(`/api/spotify/album/${selection.data.id}/tracks`);
         setTracks(data);
-        setSelectedSource(selection);
       } else if (selection.type === 'liked') {
         const { data } = await axios.get('/api/spotify/liked-songs');
         setTracks(data.tracks);
+        // Update source with collectionUri now that we have it
         setSelectedSource({ type: 'liked', data: { name: 'Liked Songs', image: null, collectionUri: data.collectionUri } });
       }
     } catch (err) {
       console.error('[spotify] tracks fetch failed:', err.message);
-      setTracksLoading(false);
-      return;
+      setSelectedSource(null);
     }
     setTracksLoading(false);
   }, [playUri]);
@@ -132,6 +136,7 @@ export default function Spotify() {
           <Explorer
             playlists={playlists}
             albums={albums}
+            albumsError={albumsError}
             onSelect={handleSelect}
             currentUri={track?.uri}
             isPlaying={isPlaying}

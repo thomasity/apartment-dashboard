@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
 export function useSpotify() {
-  const [state,     setState]     = useState(null);
-  const [playlists, setPlaylists] = useState([]);
-  const [albums,    setAlbums]    = useState([]);
-  const [devices,   setDevices]   = useState([]);
+  const [state,       setState]       = useState(null);
+  const [playlists,   setPlaylists]   = useState([]);
+  const [albums,      setAlbums]      = useState([]);
+  const [albumsError, setAlbumsError] = useState(null);
+  const [devices,     setDevices]     = useState([]);
   const [tick,      setTick]      = useState(0);
   const polledAt                  = useRef(0);
   const volumeDebounce            = useRef(null);
@@ -26,7 +27,13 @@ export function useSpotify() {
 
   useEffect(() => {
     axios.get('/api/spotify/playlists').then((r) => setPlaylists(r.data)).catch(() => {});
-    axios.get('/api/spotify/albums').then((r) => setAlbums(r.data)).catch(() => {});
+    axios.get('/api/spotify/albums')
+      .then((r) => setAlbums(r.data))
+      .catch((err) => {
+        const status = err.response?.status;
+        setAlbumsError(status === 403 || status === 401 ? 'scope' : 'error');
+        console.error('[spotify] albums fetch failed:', err.response?.data ?? err.message);
+      });
   }, []);
 
   // Tick every second while playing so the progress bar moves smoothly
@@ -122,6 +129,7 @@ export function useSpotify() {
     playUri,
     playlists,
     albums,
+    albumsError,
     devices,
     fetchDevices,
     transferTo,
