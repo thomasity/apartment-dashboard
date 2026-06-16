@@ -67,10 +67,10 @@ export default function NowPlaying({
   return (
     <>
       <div className="flex flex-col items-center gap-2">
-        {contextLabel && contextPlaylist && (
+        {contextLabel && (
           <div
-            className="text-center mb-4 cursor-pointer"
-            onClick={() => onSelectPlaylist(contextPlaylist)}
+            className={`text-center mb-4 ${contextPlaylist ? 'cursor-pointer' : ''}`}
+            onClick={contextPlaylist ? () => onSelectPlaylist(contextPlaylist) : undefined}
           >
             <p className="text-white/20 text-[9px] tracking-widest uppercase">Playing from {contextTypeLabel}</p>
             <p className="text-white/50 text-xs mt-0.5 truncate max-w-[160px] touch-manipulation">

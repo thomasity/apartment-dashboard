@@ -61,7 +61,7 @@ export default function Spotify() {
     if (!selectedSource) return;
     if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri, trackUri);
     if (selectedSource.type === 'album')    return playContext(selectedSource.data.uri, trackUri);
-    if (selectedSource.type === 'liked')    return playUri(trackUri);
+    if (selectedSource.type === 'liked')    return playContext(selectedSource.data.collectionUri, trackUri);
   }, [selectedSource, playContext, playUri]);
 
   const handlePlayAll = useCallback(() => {
