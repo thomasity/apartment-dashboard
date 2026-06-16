@@ -209,7 +209,10 @@ router.get('/liked-songs', async (req, res) => {
           art:      i.track.album?.images?.[2]?.url ?? i.track.album?.images?.[0]?.url ?? null,
         })),
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[spotify] liked-songs error:', err.response?.status, err.response?.data ?? err.message);
+    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
+  }
 });
 
 router.get('/albums', async (req, res) => {
@@ -228,7 +231,10 @@ router.get('/albums', async (req, res) => {
       artist: i.album.artists.map((a) => a.name).join(', '),
       image:  i.album.images?.[0]?.url ?? null,
     })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[spotify] albums error:', err.response?.status, err.response?.data ?? err.message);
+    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
+  }
 });
 
 router.get('/album/:id/tracks', async (req, res) => {
