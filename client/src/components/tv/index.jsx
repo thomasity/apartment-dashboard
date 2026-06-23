@@ -104,6 +104,7 @@ export default function TV() {
   const [discovered, setDiscovered]       = useState([]);
   const [discovering, setDiscovering]     = useState(false);
   const [typeText, setTypeText]           = useState('');
+  const [waking, setWaking]               = useState(false);
   const prevTextRef                       = useRef('');
   const statusAt                          = useRef(0);
   const [_tick, setTick]                  = useState(0);
@@ -111,8 +112,15 @@ export default function TV() {
   const fetchStatus = useCallback(() => {
     axios
       .get('/api/tv/status')
-      .then((r) => { setStatus(r.data); statusAt.current = Date.now(); setError(null); })
+      .then((r) => { setStatus(r.data); statusAt.current = Date.now(); setError(null); setWaking(false); })
       .catch((e) => setError(e.response?.data?.error ?? 'Unreachable'));
+  }, []);
+
+  const wakeTV = useCallback(() => {
+    setWaking(true);
+    axios.post('/api/tv/power-on').catch(() => {});
+    // Auto-clear waking state after 60s so UI doesn't get stuck
+    setTimeout(() => setWaking(false), 60000);
   }, []);
 
   useEffect(() => {
@@ -198,18 +206,30 @@ export default function TV() {
   const progress = duration > 0 ? (livePos / duration) * 100 : 0;
 
   if (error) {
+    const notConfigured = error.includes('ROKU_IP');
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 pb-8">
-        <span className="w-2 h-2 rounded-full bg-white/20" />
+        <span className={`w-2 h-2 rounded-full transition-colors ${waking ? 'bg-amber-400/60 animate-pulse' : 'bg-white/20'}`} />
         <p className="text-[11px] uppercase tracking-widest text-white/25 mt-1">
-          {error.includes('ROKU_IP') ? 'ROKU_IP not configured' : 'TV Offline'}
+          {notConfigured ? 'No device configured' : waking ? 'Waking TV…' : 'TV Offline'}
         </p>
-        {error.includes('ROKU_IP') && (
+        {waking && (
+          <p className="text-[10px] text-white/15">This may take a few seconds</p>
+        )}
+        {notConfigured && (
           <button
             onClick={openPicker}
             className="mt-2 px-4 py-2 bg-white/[0.08] text-white/40 rounded-lg text-xs touch-manipulation hover:bg-white/[0.14] transition-colors"
           >
             Select Device
+          </button>
+        )}
+        {!notConfigured && !waking && (
+          <button
+            onClick={wakeTV}
+            className="mt-2 px-4 py-2 bg-white/[0.08] text-white/40 rounded-lg text-xs touch-manipulation hover:bg-white/[0.14] transition-colors"
+          >
+            Wake TV
           </button>
         )}
       </div>

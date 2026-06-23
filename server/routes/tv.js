@@ -38,6 +38,38 @@ function xmlTag(xml, tag) {
   return m ? m[1].trim() : null;
 }
 
+function buildMagicPacket(mac) {
+  const bytes = mac.replace(/[:\-]/g, '').match(/.{2}/g).map((h) => parseInt(h, 16));
+  if (bytes.length !== 6) throw new Error('Invalid MAC: ' + mac);
+  const buf = Buffer.alloc(102);
+  buf.fill(0xff, 0, 6);
+  for (let i = 0; i < 16; i++) bytes.forEach((b, j) => { buf[6 + i * 6 + j] = b; });
+  return buf;
+}
+
+function sendWoL(mac, tvIp) {
+  const packet    = buildMagicPacket(mac);
+  const targets   = ['255.255.255.255'];
+  if (tvIp) {
+    const parts = tvIp.split('.');
+    parts[3]    = '255';
+    targets.push(parts.join('.'));
+  }
+  return Promise.all(targets.map((addr) => new Promise((resolve) => {
+    try {
+      const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+      sock.once('error', () => { try { sock.close(); } catch {} resolve(); });
+      sock.bind(0, () => {
+        sock.setBroadcast(true);
+        sock.send(packet, 0, packet.length, 9, addr, () => {
+          try { sock.close(); } catch {}
+          resolve();
+        });
+      });
+    } catch { resolve(); }
+  })));
+}
+
 function discoverRoku(timeoutMs = 3000) {
   return new Promise((resolve) => {
     const socket   = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -89,11 +121,17 @@ router.get('/device', (_req, res) => {
   res.json(ip ? { ip, name } : null);
 });
 
-router.post('/select', (req, res) => {
+router.post('/select', async (req, res) => {
   const { ip, name } = req.body ?? {};
   if (!ip) return res.status(400).json({ error: 'ip required' });
   config.set('rokuIp', ip);
   config.set('rokuName', name ?? ip);
+  // Fetch and cache MAC address so we can WoL later when TV is asleep
+  try {
+    const { data } = await axios.get(`http://${ip}:8060/query/device-info`, { timeout: 3000 });
+    const mac = xmlTag(data, 'wifi-mac') ?? xmlTag(data, 'ethernet-mac');
+    if (mac) { config.set('rokuMac', mac); console.log(`[tv] cached MAC for WoL: ${mac}`); }
+  } catch {}
   res.json({ ok: true });
 });
 
@@ -150,6 +188,33 @@ router.get('/icon/:appId', async (req, res) => {
     response.data.pipe(res);
   } catch {
     res.status(404).end();
+  }
+});
+
+router.post('/power-on', async (req, res) => {
+  const ip  = config.get('rokuIp') ?? process.env.ROKU_IP;
+  let   mac = config.get('rokuMac');
+
+  // If MAC not yet cached, try fetching device-info now (TV may be on ARP cache / just woke)
+  if (!mac && ip) {
+    try {
+      const { data } = await axios.get(`http://${ip}:8060/query/device-info`, { timeout: 1500 });
+      mac = xmlTag(data, 'wifi-mac') ?? xmlTag(data, 'ethernet-mac');
+      if (mac) config.set('rokuMac', mac);
+    } catch {}
+  }
+
+  if (mac) {
+    await sendWoL(mac, ip);
+    console.log(`[tv] WoL sent to ${mac}`);
+  }
+
+  try {
+    await axios.post(`${rokuBase()}/keypress/PowerOn`, null, { timeout: 4000 });
+    res.json({ ok: true, waking: false });
+  } catch {
+    // ECP failed — TV is still waking from WoL (or WoL not supported)
+    res.json({ ok: true, waking: !!mac });
   }
 });
 
