@@ -76,6 +76,10 @@ function RoomSection({
   const isRoomOff       = paired.every((n) => poweredOff.includes(n));
   const isRoomCircadian = paired.every((n) => enabledGroups.includes(n));
 
+  const offlineCount   = paired.filter((n) => avail[n] === false).length;
+  const isRoomOffline  = offlineCount > 0 && offlineCount === paired.length;
+  const someOffline    = offlineCount > 0 && offlineCount < paired.length;
+
   const roomOnDevices  = Object.fromEntries(
     paired.filter((n) => !poweredOff.includes(n))
           .map((n) => [n, localDevices[n] ?? { brightness: 70, colorTemp: 30 }])
@@ -92,7 +96,7 @@ function RoomSection({
   const remainingMs = hasOverride ? Math.max(0, roomOverrideExpiry - Date.now()) : 0;
 
   return (
-    <div className="flex flex-col pt-5 border-t border-white/[0.08]">
+    <div className={`flex flex-col pt-5 border-t border-white/[0.08] ${isRoomOffline ? 'opacity-40' : ''}`}>
       {/* Room header row */}
       <div className="flex items-center gap-4 mb-3">
         <button
@@ -105,6 +109,13 @@ function RoomSection({
           <span className="text-sm font-semibold text-white/65 truncate">{name}</span>
           <span className="text-[10px] text-white/20 shrink-0">{paired.length}</span>
         </button>
+
+        {isRoomOffline && (
+          <span className="text-[10px] text-white/30 uppercase tracking-wider shrink-0">Offline</span>
+        )}
+        {someOffline && !isRoomOffline && (
+          <span className="text-[10px] text-white/25 shrink-0">{offlineCount} offline</span>
+        )}
 
         {hasOverride && (
           <span className="flex items-center gap-1.5 text-[10px] text-amber-400/70 bg-amber-400/[0.08] border border-amber-400/20 px-2 py-0.5 rounded-full shrink-0">
@@ -119,14 +130,14 @@ function RoomSection({
           </span>
         )}
 
-        <div className={isRoomOff ? 'opacity-20 pointer-events-none' : ''}>
+        <div className={isRoomOff || isRoomOffline ? 'opacity-20 pointer-events-none' : ''}>
           <AutoToggle on={isRoomCircadian} onClick={() => onRoomToggleCircadian(name)} />
         </div>
         <PowerBtn isOff={isRoomOff} onClick={() => onRoomTogglePower(name)} />
       </div>
 
       {/* Room-level sliders — always visible */}
-      <div className={`transition-opacity ${isRoomOff ? 'opacity-20 pointer-events-none' : ''}`}>
+      <div className={`transition-opacity ${isRoomOff || isRoomOffline ? 'opacity-20 pointer-events-none' : ''}`}>
         {isRoomCircadian
           ? <CircadianStrip circadian={circadian} />
           : <LightSliders
