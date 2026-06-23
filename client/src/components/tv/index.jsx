@@ -275,31 +275,28 @@ export default function TV() {
         )}
       </div>
 
-      {/* ── Search bar ── */}
-      {apps.length > 0 && (
-        <div className="shrink-0 px-4 pt-3 pb-1 flex gap-2" data-no-swipe>
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
-              <SearchIcon size={15} />
-            </span>
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') sendSearch(); }}
-              placeholder="Search apps or Roku…"
-              className="w-full bg-white/[0.06] text-white/70 placeholder-white/20 rounded-lg pl-9 pr-3 py-2 text-sm outline-none"
-            />
-          </div>
-          {searchQuery.trim() && (
-            <button
-              onClick={sendSearch}
-              className="px-3 py-2 bg-white/[0.08] text-white/50 rounded-lg text-xs hover:bg-white/[0.14] touch-manipulation transition-colors whitespace-nowrap"
-            >
-              Search TV
-            </button>
-          )}
+      {/* ── Content search bar ── */}
+      <div className="shrink-0 px-4 pt-3 pb-1 flex gap-2" data-no-swipe>
+        <div className="relative flex-1">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+            <SearchIcon size={15} />
+          </span>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendSearch(); }}
+            placeholder="Search movies, shows, apps…"
+            className="w-full bg-white/[0.06] text-white/70 placeholder-white/20 rounded-lg pl-9 pr-3 py-2 text-sm outline-none"
+          />
         </div>
-      )}
+        <button
+          onClick={sendSearch}
+          disabled={!searchQuery.trim()}
+          className="px-3 py-2 bg-white/[0.08] text-white/50 rounded-lg text-xs touch-manipulation transition-colors whitespace-nowrap disabled:opacity-30 enabled:hover:bg-white/[0.14]"
+        >
+          Search
+        </button>
+      </div>
 
       {/* ── App Grid ── */}
       <div className="flex-1 overflow-y-auto app-scrollbar" data-no-swipe>
@@ -318,21 +315,13 @@ export default function TV() {
           <div className="h-full flex items-center justify-center">
             <p className="text-white/20 text-xs tracking-widest uppercase">Loading…</p>
           </div>
-        ) : (() => {
-          const q = searchQuery.trim().toLowerCase();
-          const visible = q ? apps.filter((a) => a.name.toLowerCase().includes(q)) : apps;
-          return visible.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <p className="text-white/20 text-xs tracking-widest uppercase">No apps match</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 p-4">
-              {visible.map((app) => (
-                <AppTile key={app.id} app={app} onLaunch={launch} />
-              ))}
-            </div>
-          );
-        })()}
+        ) : (
+          <div className="grid grid-cols-2 gap-3 p-4">
+            {apps.map((app) => (
+              <AppTile key={app.id} app={app} onLaunch={launch} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Remote FABs ── */}

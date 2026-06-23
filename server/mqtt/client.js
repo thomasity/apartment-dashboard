@@ -193,17 +193,19 @@ class MqttManager extends EventEmitter {
 
   setGroup(group, { brightness, colorTemp }) {
     if (!this.groups[group]) return;
-    if (this.poweredOff.has(group)) return;
 
-    if (brightness !== undefined) this.groups[group].brightness = brightness;
-    if (colorTemp  !== undefined) this.groups[group].colorTemp  = colorTemp;
-
-    // Track desired state for re-apply on bulb reconnect
+    // Always track desired state so circadian keeps it current even while a light is off.
+    // This ensures _applyDesiredState (on power-on or reconnect) has the right values.
     if (!this.desiredStates[group]) this.desiredStates[group] = { power: true };
     if (brightness !== undefined) this.desiredStates[group].brightness = brightness;
     if (colorTemp  !== undefined) this.desiredStates[group].colorTemp  = colorTemp;
     if (this.desiredStates[group].power === undefined) this.desiredStates[group].power = true;
     this._saveDesiredStates();
+
+    if (this.poweredOff.has(group)) return;
+
+    if (brightness !== undefined) this.groups[group].brightness = brightness;
+    if (colorTemp  !== undefined) this.groups[group].colorTemp  = colorTemp;
 
     if (this.connected && this.client) {
       const payload = {};
@@ -234,8 +236,14 @@ class MqttManager extends EventEmitter {
     this._saveDesiredStates();
 
     if (this.connected && this.client) {
-      const payload = JSON.stringify({ state: on ? 'ON' : 'OFF' });
-      targets.forEach((g) => this.client.publish(`zigbee2mqtt/${g}/set`, payload, { qos: 1 }));
+      if (on) {
+        // Push full desired state (brightness + colorTemp) so the bulb comes on
+        // with the correct values, not whatever it last remembered.
+        targets.forEach((g) => this._applyDesiredState(g));
+      } else {
+        const payload = JSON.stringify({ state: 'OFF' });
+        targets.forEach((g) => this.client.publish(`zigbee2mqtt/${g}/set`, payload, { qos: 1 }));
+      }
     }
 
     this.emit('stateChange', this.getState());

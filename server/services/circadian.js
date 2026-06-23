@@ -5,12 +5,13 @@ const LAT = parseFloat(process.env.LAT || '40.7128');
 const LON = parseFloat(process.env.LON || '-74.0060');
 const INTERVAL_MS = 15 * 60 * 1000;
 
-let _enabledGroups = new Set();
-let _intervalId    = null;
-let _mqttMgr       = null;
-let _io            = null;
-let _lastApplied   = null;
-let _current       = { brightness: 50, colorTemp: 50 };
+let _enabledGroups  = new Set();
+let _intervalId     = null;
+let _mqttMgr        = null;
+let _io             = null;
+let _lastApplied    = null;
+let _current        = { brightness: 50, colorTemp: 50 };
+let _isOverridden   = () => false;
 
 function saveEnabledGroups() {
   config.set('circadianGroups', [..._enabledGroups]);
@@ -30,7 +31,7 @@ function apply() {
   if (!_mqttMgr || _enabledGroups.size === 0) return;
   _current     = computeValues();
   _lastApplied = Date.now();
-  _enabledGroups.forEach((g) => _mqttMgr.setGroup(g, _current));
+  _enabledGroups.forEach((g) => { if (!_isOverridden(g)) _mqttMgr.setGroup(g, _current); });
   if (_io) _io.emit('lighting:circadian', getState());
 }
 
@@ -55,9 +56,10 @@ function getTimeline() {
 }
 
 module.exports = {
-  init(mqttMgr, io) {
-    _mqttMgr = mqttMgr;
-    _io      = io;
+  init(mqttMgr, io, isOverridden) {
+    _mqttMgr      = mqttMgr;
+    _io           = io;
+    _isOverridden = isOverridden ?? (() => false);
 
     // Restore persisted auto groups
     const saved = config.get('circadianGroups') ?? [];
@@ -93,6 +95,12 @@ module.exports = {
       _intervalId = null;
     }
     if (_io) _io.emit('lighting:circadian', getState());
+  },
+
+  // Re-apply current circadian values to one group immediately (used when override expires)
+  applyToGroup(group) {
+    if (!_mqttMgr || !_enabledGroups.has(group)) return;
+    _mqttMgr.setGroup(group, computeValues());
   },
 
   getState,

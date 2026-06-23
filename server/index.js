@@ -7,6 +7,9 @@ const cors = require('cors');
 const path = require('path');
 const mqttManager = require('./mqtt/client');
 const circadian   = require('./services/circadian');
+const roomsSvc    = require('./services/rooms');
+const overrideSvc = require('./services/override');
+const rulesSvc    = require('./services/rules');
 
 const IS_DEV = process.env.PROD === 'false';
 
@@ -49,6 +52,8 @@ io.on('connection', (socket) => {
     socket.emit('lighting:state', mqttManager.getState());
     socket.emit('lighting:devices', mqttManager.getDevicesState());
     socket.emit('lighting:circadian', circadian.getState());
+    socket.emit('lighting:rooms', roomsSvc.get());
+    socket.emit('lighting:override', overrideSvc.getState());
   }
 });
 
@@ -64,7 +69,34 @@ mqttManager.on('bridgeEvent', (event) => {
   io.emit('lighting:bridge_event', event);
 });
 
-circadian.init(mqttManager, io);
+overrideSvc.on('change', (state) => {
+  io.emit('lighting:override', state);
+});
+
+overrideSvc.on('resume', (groupName) => {
+  circadian.applyToGroup(groupName);
+});
+
+circadian.init(mqttManager, io, (g) => overrideSvc.isOverridden(g));
+
+rulesSvc.init((rule) => {
+  const { action } = rule;
+  const groups = action.group === 'all'
+    ? Object.keys(mqttManager.groups)
+    : roomsSvc.getDevices(action.group).length > 0
+      ? roomsSvc.getDevices(action.group)
+      : mqttManager.groups[action.group] ? [action.group] : [];
+
+  if (action.type === 'power') {
+    groups.forEach((g) => mqttManager.setPower(g, action.on));
+  } else if (action.type === 'scene') {
+    groups.forEach((g) => mqttManager.setGroup(g, { brightness: action.brightness, colorTemp: action.colorTemp }));
+  } else if (action.type === 'circadian') {
+    if (action.enabled) circadian.enable(action.group);
+    else circadian.disable(action.group);
+  }
+  console.log(`[rules] fired: "${rule.name}"`);
+});
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

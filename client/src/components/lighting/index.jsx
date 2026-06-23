@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
-import ControlsView from './ControlsView';
-import PresetsView  from './PresetsView';
-import DevicesView  from './DevicesView';
+import ControlsView  from './ControlsView';
+import PresetsView   from './PresetsView';
+import ScheduleView  from './ScheduleView';
+import DevicesView   from './DevicesView';
 
 export default function Lighting() {
   const [view,         setView]         = useState('controls');
@@ -12,13 +13,18 @@ export default function Lighting() {
   const [localDevices, setLocalDevices] = useState({});
   const [socket,       setSocket]       = useState(null);
   const [circadian,    setCircadian]    = useState({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
+  const [rooms,        setRooms]        = useState({});
+  const [overrides,    setOverrides]    = useState({});
 
   const timers           = useRef({});
+  const roomTimers       = useRef({});
   const lastTouchDevices = useRef({});
   const timersDevices    = useRef({});
 
   useEffect(() => {
     axios.get('/api/lighting/circadian').then((r) => setCircadian(r.data)).catch(() => {});
+    axios.get('/api/lighting/rooms').then((r) => setRooms(r.data)).catch(() => {});
+    axios.get('/api/lighting/override').then((r) => setOverrides(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -57,8 +63,12 @@ export default function Lighting() {
     });
     s.on('lighting:devices',  setDevicesState);
     s.on('lighting:circadian', (data) => setCircadian((prev) => ({ ...prev, ...data })));
+    s.on('lighting:rooms',     setRooms);
+    s.on('lighting:override',  setOverrides);
     return () => s.disconnect();
   }, []);
+
+  // ── Global (all devices) ─────────────────────────────────────────────────
 
   const sendAll = useCallback((payload) => {
     axios.post('/api/lighting/set', { group: 'all', ...payload }).catch(console.warn);
@@ -83,17 +93,6 @@ export default function Lighting() {
     timers.current[key] = setTimeout(() => sendAll({ [key]: value }), 220);
   }, [serverState.poweredOff, localDevices, sendAll]);
 
-  const handleDeviceSlider = useCallback((name, key, value) => {
-    if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
-    lastTouchDevices.current[name][key] = Date.now();
-    setLocalDevices((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), [key]: value } }));
-    const timerKey = `${name}-${key}`;
-    clearTimeout(timersDevices.current[timerKey]);
-    timersDevices.current[timerKey] = setTimeout(() => {
-      axios.post('/api/lighting/set', { group: name, [key]: value }).catch(console.warn);
-    }, 220);
-  }, []);
-
   const togglePower = useCallback((group) => {
     const poweredOff    = serverState.poweredOff ?? [];
     const deviceEntries = Object.entries(serverState.groups);
@@ -111,6 +110,87 @@ export default function Lighting() {
     await axios.post('/api/lighting/circadian', { group, enabled }).catch(console.warn);
   }, [serverState.groups, circadian.enabledGroups]);
 
+  // ── Per-device ───────────────────────────────────────────────────────────
+
+  const handleDeviceSlider = useCallback((name, key, value) => {
+    if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
+    lastTouchDevices.current[name][key] = Date.now();
+    setLocalDevices((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), [key]: value } }));
+    const timerKey = `${name}-${key}`;
+    clearTimeout(timersDevices.current[timerKey]);
+    timersDevices.current[timerKey] = setTimeout(() => {
+      axios.post('/api/lighting/set', { group: name, [key]: value }).catch(console.warn);
+    }, 220);
+  }, []);
+
+  // ── Room-level ───────────────────────────────────────────────────────────
+
+  const handleRoomSlider = useCallback((roomName, key, value) => {
+    const now = Date.now();
+    const off = serverState.poweredOff ?? [];
+    const devicesInRoom = rooms[roomName] ?? [];
+    devicesInRoom.forEach((name) => {
+      if (off.includes(name)) return;
+      if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
+      lastTouchDevices.current[name][key] = now;
+    });
+    setLocalDevices((prev) => {
+      const next = { ...prev };
+      devicesInRoom.forEach((name) => {
+        if (!off.includes(name)) next[name] = { ...(prev[name] ?? {}), [key]: value };
+      });
+      return next;
+    });
+    const timerKey = `room|${roomName}|${key}`;
+    clearTimeout(roomTimers.current[timerKey]);
+    roomTimers.current[timerKey] = setTimeout(() => {
+      axios.post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/set`, { [key]: value }).catch(console.warn);
+    }, 220);
+  }, [serverState.poweredOff, rooms]);
+
+  const toggleRoomPower = useCallback((roomName) => {
+    const devicesInRoom = rooms[roomName] ?? [];
+    const poweredOff = serverState.poweredOff ?? [];
+    const isOff = devicesInRoom.length > 0 && devicesInRoom.every((n) => poweredOff.includes(n));
+    axios.post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/power`, { on: isOff }).catch(console.warn);
+  }, [serverState.poweredOff, rooms]);
+
+  const toggleRoomCircadian = useCallback(async (roomName) => {
+    const devicesInRoom = rooms[roomName] ?? [];
+    const isEnabled = devicesInRoom.length > 0 && devicesInRoom.every((n) => (circadian.enabledGroups ?? []).includes(n));
+    await axios.post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/circadian`, { enabled: !isEnabled }).catch(console.warn);
+  }, [rooms, circadian.enabledGroups]);
+
+  // ── Room CRUD ────────────────────────────────────────────────────────────
+
+  const refetchRooms = useCallback(() => {
+    axios.get('/api/lighting/rooms').then((r) => setRooms(r.data)).catch(() => {});
+  }, []);
+
+  const createRoom = useCallback((name) => {
+    axios.post('/api/lighting/rooms', { name }).then(refetchRooms).catch(console.warn);
+  }, [refetchRooms]);
+
+  const renameRoom = useCallback((oldName, newName) => {
+    axios.patch(`/api/lighting/rooms/${encodeURIComponent(oldName)}`, { newName }).then(refetchRooms).catch(console.warn);
+  }, [refetchRooms]);
+
+  const deleteRoom = useCallback((name) => {
+    axios.delete(`/api/lighting/rooms/${encodeURIComponent(name)}`).then(refetchRooms).catch(console.warn);
+  }, [refetchRooms]);
+
+  const assignDevice = useCallback((deviceName, roomName) => {
+    axios.post('/api/lighting/rooms/assign', { device: deviceName, room: roomName ?? null }).then(refetchRooms).catch(console.warn);
+  }, [refetchRooms]);
+
+  // ── Override ─────────────────────────────────────────────────────────────
+
+  const clearRoomOverride = useCallback((roomName) => {
+    axios.delete(`/api/lighting/rooms/${encodeURIComponent(roomName)}/override`).catch(console.warn);
+  }, []);
+
+  // ── Presets ──────────────────────────────────────────────────────────────
+
   const applyPreset = useCallback((preset) => {
     if ((circadian.enabledGroups ?? []).length > 0) {
       axios.post('/api/lighting/circadian', { group: 'all', enabled: false }).catch(console.warn);
@@ -126,7 +206,7 @@ export default function Lighting() {
       {/* Nav pill */}
       <div className="shrink-0 flex justify-center pt-5 pb-2">
         <div className="flex bg-white/[0.06] rounded-full p-1 gap-1">
-          {['controls', 'presets', 'devices'].map((v) => (
+          {['controls', 'presets', 'rules', 'devices'].map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -146,10 +226,16 @@ export default function Lighting() {
           localDevices={localDevices}
           circadian={circadian}
           availability={devicesState.availability}
+          rooms={rooms}
+          overrides={overrides}
           onSlider={handleSlider}
           onDeviceSlider={handleDeviceSlider}
+          onRoomSlider={handleRoomSlider}
           onTogglePower={togglePower}
           onToggleCircadian={toggleCircadianGroup}
+          onRoomTogglePower={toggleRoomPower}
+          onRoomToggleCircadian={toggleRoomCircadian}
+          onClearRoomOverride={clearRoomOverride}
           onGoToDevices={() => setView('devices')}
         />
       )}
@@ -161,11 +247,20 @@ export default function Lighting() {
         />
       )}
 
+      {view === 'rules' && (
+        <ScheduleView rooms={rooms} />
+      )}
+
       {view === 'devices' && (
         <DevicesView
           socket={socket}
           devState={devicesState}
           setDevState={setDevicesState}
+          rooms={rooms}
+          onCreateRoom={createRoom}
+          onRenameRoom={renameRoom}
+          onDeleteRoom={deleteRoom}
+          onAssignDevice={assignDevice}
         />
       )}
 
