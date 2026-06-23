@@ -94,8 +94,8 @@ router.get('/status', async (_req, res) => {
   try {
     const base = rokuBase();
     const [appRes, mediaRes] = await Promise.allSettled([
-      axios.get(`${base}/query/active-app`,   { timeout: 3000 }),
-      axios.get(`${base}/query/media-player`, { timeout: 3000 }),
+      axios.get(`${base}/query/active-app`,   { timeout: 6000 }),
+      axios.get(`${base}/query/media-player`, { timeout: 6000 }),
     ]);
 
     let appId = null, appName = null;
@@ -117,13 +117,14 @@ router.get('/status', async (_req, res) => {
 
 router.get('/apps', async (_req, res) => {
   try {
-    const { data } = await axios.get(`${rokuBase()}/query/apps`, { timeout: 5000 });
+    const { data } = await axios.get(`${rokuBase()}/query/apps`, { timeout: 10000 });
     const apps = [];
     const re = /<app\b[^>]*id="([^"]*)"[^>]*>([^<]*)<\/app>/g;
     let m;
     while ((m = re.exec(data)) !== null) apps.push({ id: m[1], name: m[2].trim() });
     res.json(apps);
   } catch (err) {
+    console.error('[tv] apps query failed:', err.code ?? err.message);
     res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
   }
 });
@@ -149,9 +150,10 @@ router.post('/keypress/:key', async (req, res) => {
     if (rokuKey.startsWith('Lit_')) {
       rokuKey = 'Lit_' + encodeURIComponent(rokuKey.slice(4));
     }
-    await axios.post(`${rokuBase()}/keypress/${rokuKey}`, null, { timeout: 3000 });
+    await axios.post(`${rokuBase()}/keypress/${rokuKey}`, null, { timeout: 6000 });
     res.json({ ok: true });
   } catch (err) {
+    console.error('[tv] keypress failed:', req.params.key, err.code ?? err.response?.status ?? err.message);
     res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
   }
 });

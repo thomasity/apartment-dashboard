@@ -77,6 +77,7 @@ export default function TV() {
   const [status, setStatus]               = useState(null);
   const [apps, setApps]                   = useState([]);
   const [error, setError]                 = useState(null);
+  const [appsError, setAppsError]         = useState(null);
   const [remoteOpen, setRemoteOpen]       = useState(false);
   const [keyboardOpen, setKeyboardOpen]   = useState(false);
   const [pickerOpen, setPickerOpen]       = useState(false);
@@ -99,10 +100,17 @@ export default function TV() {
     return () => clearInterval(id);
   }, [fetchStatus]);
 
-  useEffect(() => {
-    axios.get('/api/tv/apps').then((r) => setApps(r.data)).catch(() => {});
-    axios.get('/api/tv/device').then((r) => setDevice(r.data)).catch(() => {});
+  const fetchApps = useCallback(() => {
+    setAppsError(null);
+    axios.get('/api/tv/apps')
+      .then((r) => setApps(r.data))
+      .catch((e) => setAppsError(e.response?.data?.error ?? 'Could not reach TV'));
   }, []);
+
+  useEffect(() => {
+    fetchApps();
+    axios.get('/api/tv/device').then((r) => setDevice(r.data)).catch(() => {});
+  }, [fetchApps]);
 
   const discover = useCallback(() => {
     setDiscovering(true);
@@ -206,16 +214,27 @@ export default function TV() {
             </BarBtn>
           </div>
         </div>
-        {/* <div className="shrink-0 pl-4 ml-4 border-l border-white/[0.08]">
-          <BarBtn onClick={() => key('PowerOff')} danger>
+        <div className="shrink-0 pl-4 ml-4 border-l border-white/[0.08]">
+          <BarBtn onClick={() => key('Power')} danger>
             <PowerIcon size={36} />
           </BarBtn>
-        </div> */}
+        </div>
       </div>
 
       {/* ── App Grid ── */}
       <div className="flex-1 overflow-y-auto app-scrollbar" data-no-swipe>
-        {apps.length === 0 ? (
+        {appsError ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3">
+            <p className="text-white/20 text-xs tracking-widest uppercase">Failed to load apps</p>
+            <p className="text-white/15 text-xs">{appsError}</p>
+            <button
+              onClick={fetchApps}
+              className="mt-1 px-4 py-2 bg-white/[0.08] text-white/40 rounded-lg text-xs touch-manipulation hover:bg-white/[0.14] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : apps.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-white/20 text-xs tracking-widest uppercase">Loading…</p>
           </div>
