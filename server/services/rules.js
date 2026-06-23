@@ -37,17 +37,43 @@ function remove(id) {
   saveRules(getRules().filter((r) => r.id !== id));
 }
 
+function currentMinute() {
+  const now = new Date();
+  return {
+    minute:   `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    day:      now.getDay(),
+    iso:      now.toISOString(),
+    tz:       Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+}
+
 function tick() {
-  const now    = new Date();
-  const minute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const { minute, day } = currentMinute();
   if (minute === _lastMinute) return;
   _lastMinute = minute;
-  const day   = now.getDay();
   for (const rule of getRules()) {
     if (!rule.enabled || rule.time !== minute) continue;
     if (!rule.days.includes(day)) continue;
+    console.log(`[rules] firing "${rule.name}" (${minute} day=${day})`);
     try { if (_executor) _executor(rule); } catch (e) { console.warn('[rules] execute error:', e.message); }
   }
+}
+
+function debugInfo() {
+  const { minute, day, iso, tz } = currentMinute();
+  return {
+    serverIso:  iso,
+    serverTime: minute,
+    serverDay:  day,
+    timezone:   tz,
+    rules:      getRules().map((r) => ({
+      name:    r.name,
+      time:    r.time,
+      days:    r.days,
+      enabled: r.enabled,
+      willFireToday: r.enabled && r.days.includes(day),
+    })),
+  };
 }
 
 function init(executor) {
@@ -58,4 +84,4 @@ function init(executor) {
   if (_intervalId.unref) _intervalId.unref();
 }
 
-module.exports = { getRules, create, update, remove, init };
+module.exports = { getRules, create, update, remove, init, debugInfo };

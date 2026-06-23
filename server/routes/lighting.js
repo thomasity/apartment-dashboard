@@ -27,6 +27,8 @@ module.exports = (io, mqttManager) => {
 
   // ── Rules ─────────────────────────────────────────────────────────────────
 
+  router.get('/rules/debug', (_req, res) => res.json(rulesSvc.debugInfo()));
+
   router.get('/rules', (_req, res) => res.json(rulesSvc.getRules()));
 
   router.post('/rules', (req, res) => {
@@ -116,10 +118,11 @@ module.exports = (io, mqttManager) => {
   router.post('/rooms/:name/circadian', (req, res) => {
     const { enabled } = req.body;
     const groups = roomsSvc.getDevices(req.params.name);
+    // Clear overrides BEFORE enabling so apply() inside enable() sees no active overrides
+    groups.forEach((g) => overrideSvc.clear(g));
     groups.forEach((g) => {
       if (enabled) circadian.enable(g);
       else circadian.disable(g);
-      overrideSvc.clear(g); // enabling circadian cancels any active override
     });
     res.json({ ok: true });
   });
@@ -192,13 +195,13 @@ module.exports = (io, mqttManager) => {
 
   router.post('/circadian', (req, res) => {
     const { group = 'all', enabled } = req.body;
-    if (enabled) circadian.enable(group);
-    else circadian.disable(group);
-    // Enabling circadian cancels override for the affected groups
+    // Clear overrides BEFORE enabling so apply() sees no active overrides
     if (enabled) {
       const groups = group === 'all' ? Object.keys(mqttManager.groups) : [group];
       groups.forEach((g) => overrideSvc.clear(g));
     }
+    if (enabled) circadian.enable(group);
+    else circadian.disable(group);
     res.json({ ok: true });
   });
 
