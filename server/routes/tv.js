@@ -26,6 +26,13 @@ function xmlAttr(xml, tag, attr) {
   return m ? m[1] : null;
 }
 
+function parseRokuTime(str) {
+  if (!str) return 0;
+  const m = str.match(/^(\d+):(\d+):(\d+)/);
+  if (!m) return 0;
+  return parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseInt(m[3]);
+}
+
 function xmlTag(xml, tag) {
   const m = xml.match(new RegExp(`<${tag}>([^<]*)<\\/${tag}>`));
   return m ? m[1].trim() : null;
@@ -104,12 +111,15 @@ router.get('/status', async (_req, res) => {
       if (m) { appId = m[1]; appName = m[2].trim(); }
     }
 
-    let playerState = 'none';
+    let playerState = 'none', position = 0, duration = 0;
     if (mediaRes.status === 'fulfilled') {
-      playerState = xmlAttr(mediaRes.value.data, 'player', 'state') ?? 'none';
+      const xml = mediaRes.value.data;
+      playerState = xmlAttr(xml, 'player', 'state') ?? 'none';
+      position    = parseRokuTime(xmlTag(xml, 'position'));
+      duration    = parseRokuTime(xmlTag(xml, 'duration'));
     }
 
-    res.json({ appId, appName, playerState });
+    res.json({ appId, appName, playerState, position, duration });
   } catch (err) {
     res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
   }
@@ -167,6 +177,18 @@ router.post('/type', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
+    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+  }
+});
+
+router.post('/search', async (req, res) => {
+  try {
+    const keyword = (req.body.keyword ?? '').trim();
+    if (!keyword) return res.status(400).json({ error: 'keyword required' });
+    await axios.post(`${rokuBase()}/search/browse`, null, { params: { keyword }, timeout: 5000 });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[tv] search failed:', err.code ?? err.message);
     res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
   }
 });

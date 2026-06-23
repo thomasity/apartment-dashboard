@@ -5,27 +5,45 @@ import {
   ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon,
   HomeIcon, BackIcon,
   VolumeUpIcon, VolumeDownIcon, VolumeMuteIcon,
-  PowerIcon, RemoteIcon, KeyboardIcon, CastIcon, CheckIcon,
+  PowerIcon, RemoteIcon, KeyboardIcon, CastIcon, CheckIcon, SearchIcon,
 } from '../icons';
 
 const STATE_LABEL = { play: 'Playing', pause: 'Paused', stop: 'Stopped' };
 
+function fmtSec(s) {
+  if (!s || s <= 0) return '0:00';
+  const h   = Math.floor(s / 3600);
+  const m   = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+    : `${m}:${String(sec).padStart(2, '0')}`;
+}
+
 function AppTile({ app, onLaunch }) {
   const [imgFailed, setImgFailed] = useState(false);
   return (
-    <button onClick={() => onLaunch(app.id)} className="touch-manipulation">
-      {imgFailed ? (
-        <div className="w-full h-48 rounded-lg bg-white/[0.08] flex items-center justify-center text-white/40 text-sm font-semibold">
-          {app.name[0]}
+    <button
+      onClick={() => onLaunch(app.id)}
+      className="touch-manipulation active:scale-95 transition-transform"
+    >
+      <div className="relative w-full overflow-hidden rounded-lg">
+        {imgFailed ? (
+          <div className="w-full h-48 bg-white/[0.08] flex items-center justify-center text-white/40 text-xl font-bold">
+            {app.name[0]}
+          </div>
+        ) : (
+          <img
+            src={`/api/tv/icon/${app.id}`}
+            alt={app.name}
+            className="w-full h-48 object-contain bg-white/[0.06]"
+            onError={() => setImgFailed(true)}
+          />
+        )}
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/75 to-transparent pt-8 pb-2 px-2">
+          <p className="text-white/80 text-xs text-center truncate font-medium">{app.name}</p>
         </div>
-      ) : (
-        <img
-          src={`/api/tv/icon/${app.id}`}
-          alt={app.name}
-          className="w-full h-48 object-contain rounded-lg bg-white/[0.06]"
-          onError={() => setImgFailed(true)}
-        />
-      )}
+      </div>
     </button>
   );
 }
@@ -80,17 +98,20 @@ export default function TV() {
   const [appsError, setAppsError]         = useState(null);
   const [remoteOpen, setRemoteOpen]       = useState(false);
   const [keyboardOpen, setKeyboardOpen]   = useState(false);
+  const [searchQuery, setSearchQuery]     = useState('');
   const [pickerOpen, setPickerOpen]       = useState(false);
   const [device, setDevice]               = useState(null);
   const [discovered, setDiscovered]       = useState([]);
   const [discovering, setDiscovering]     = useState(false);
   const [typeText, setTypeText]           = useState('');
   const prevTextRef                       = useRef('');
+  const statusAt                          = useRef(0);
+  const [_tick, setTick]                  = useState(0);
 
   const fetchStatus = useCallback(() => {
     axios
       .get('/api/tv/status')
-      .then((r) => { setStatus(r.data); setError(null); })
+      .then((r) => { setStatus(r.data); statusAt.current = Date.now(); setError(null); })
       .catch((e) => setError(e.response?.data?.error ?? 'Unreachable'));
   }, []);
 
@@ -99,6 +120,13 @@ export default function TV() {
     const id = setInterval(fetchStatus, 5000);
     return () => clearInterval(id);
   }, [fetchStatus]);
+
+  // Tick every second while playing to keep progress bar smooth
+  useEffect(() => {
+    if (status?.playerState !== 'play') return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [status?.playerState]);
 
   const fetchApps = useCallback(() => {
     setAppsError(null);
@@ -114,24 +142,19 @@ export default function TV() {
 
   const discover = useCallback(() => {
     setDiscovering(true);
-    axios
-      .get('/api/tv/discover')
+    axios.get('/api/tv/discover')
       .then((r) => setDiscovered(r.data))
       .catch(() => {})
       .finally(() => setDiscovering(false));
   }, []);
 
   const selectDevice = useCallback((d) => {
-    axios
-      .post('/api/tv/select', { ip: d.ip, name: d.name })
+    axios.post('/api/tv/select', { ip: d.ip, name: d.name })
       .then(() => { setDevice(d); setPickerOpen(false); })
       .catch(() => {});
   }, []);
 
-  const openPicker = useCallback(() => {
-    setPickerOpen(true);
-    discover();
-  }, [discover]);
+  const openPicker = useCallback(() => { setPickerOpen(true); discover(); }, [discover]);
 
   const key = (k) => axios.post(`/api/tv/keypress/${k}`).catch(console.warn);
 
@@ -144,9 +167,8 @@ export default function TV() {
     const newText = e.target.value;
     const prev    = prevTextRef.current;
     if (newText.length > prev.length) {
-      for (const char of newText.slice(prev.length)) {
+      for (const char of newText.slice(prev.length))
         axios.post(`/api/tv/keypress/Lit_${encodeURIComponent(char)}`).catch(console.warn);
-      }
     } else if (newText.length < prev.length) {
       for (let i = 0; i < prev.length - newText.length; i++) key('Backspace');
     }
@@ -160,8 +182,20 @@ export default function TV() {
     prevTextRef.current = '';
   }, []);
 
-  const { appId, appName, playerState } = status ?? {};
+  const sendSearch = useCallback(() => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    axios.post('/api/tv/search', { keyword: q }).catch(console.warn);
+  }, [searchQuery]);
+
+  const { appId, appName, playerState, position = 0, duration = 0 } = status ?? {};
   const isPlaying = playerState === 'play';
+
+  // Interpolated position — re-computed each tick so the bar moves smoothly
+  const livePos  = isPlaying && duration > 0
+    ? Math.min(position + (Date.now() - statusAt.current) / 1000, duration)
+    : position;
+  const progress = duration > 0 ? (livePos / duration) * 100 : 0;
 
   if (error) {
     return (
@@ -184,42 +218,88 @@ export default function TV() {
 
   return (
     <div className="relative h-full flex flex-col">
+
       {/* ── Top bar ── */}
-      <div className="relative z-30 shrink-0 flex items-center gap-2 px-4 py-2 border-b border-subtle">
-        <div className="flex items-center gap-4 flex-1 min-w-0">
-          {appId && (
-            <img
-              src={`/api/tv/icon/${appId}`}
-              alt={appName}
-              className="w-8 h-6 object-contain rounded shrink-0"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
-          )}
-          <span className="text-sm text-white/60 truncate">{appName ?? '—'}</span>
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPlaying ? 'bg-online' : 'bg-white/20'}`} />
-          {playerState && STATE_LABEL[playerState] && (
-            <span className="text-[9px] text-white/25 uppercase tracking-wider shrink-0">
-              {STATE_LABEL[playerState]}
-            </span>
-          )}
-          <div className="flex items-center gap-8 ml-auto shrink-0">
-            <BarBtn onClick={openPicker} active={pickerOpen}>
-              <CastIcon size={36} />
-            </BarBtn>
+      <div className="relative z-30 shrink-0 overflow-hidden border-b border-subtle">
+        <div className="flex items-center gap-2 px-4 py-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {appId && (
+              <img
+                src={`/api/tv/icon/${appId}`}
+                alt={appName}
+                className="w-8 h-6 object-contain rounded shrink-0"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            )}
+            <span className="text-sm text-white/60 truncate">{appName ?? '—'}</span>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPlaying ? 'bg-online' : 'bg-white/20'}`} />
+            {playerState && STATE_LABEL[playerState] && (
+              <span className="text-[9px] text-white/25 uppercase tracking-wider shrink-0">
+                {STATE_LABEL[playerState]}
+              </span>
+            )}
+            {duration > 0 && (
+              <span className="text-[9px] text-white/20 tabular-nums shrink-0">
+                {fmtSec(Math.round(livePos))} / {fmtSec(duration)}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-6 shrink-0">
             <BarBtn onClick={() => setKeyboardOpen((v) => !v)} active={keyboardOpen}>
-              <KeyboardIcon size={36} />
+              <KeyboardIcon size={20} />
+            </BarBtn>
+            <BarBtn onClick={openPicker} active={pickerOpen}>
+              <CastIcon size={20} />
             </BarBtn>
             <BarBtn onClick={() => setRemoteOpen((v) => !v)} active={remoteOpen}>
-              <RemoteIcon size={36} />
+              <RemoteIcon size={20} />
+            </BarBtn>
+          </div>
+
+          <div className="shrink-0 pl-4 ml-2 border-l border-white/[0.08]">
+            <BarBtn onClick={() => key('Power')} danger>
+              <PowerIcon size={20} />
             </BarBtn>
           </div>
         </div>
-        <div className="shrink-0 pl-4 ml-4 border-l border-white/[0.08]">
-          <BarBtn onClick={() => key('Power')} danger>
-            <PowerIcon size={36} />
-          </BarBtn>
-        </div>
+
+        {/* Progress bar — only when duration is known */}
+        {duration > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/[0.06]">
+            <div
+              className="h-full bg-white/30"
+              style={{ width: `${progress}%`, transition: 'width 1s linear' }}
+            />
+          </div>
+        )}
       </div>
+
+      {/* ── Search bar ── */}
+      {apps.length > 0 && (
+        <div className="shrink-0 px-4 pt-3 pb-1 flex gap-2" data-no-swipe>
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none">
+              <SearchIcon size={15} />
+            </span>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendSearch(); }}
+              placeholder="Search apps or Roku…"
+              className="w-full bg-white/[0.06] text-white/70 placeholder-white/20 rounded-lg pl-9 pr-3 py-2 text-sm outline-none"
+            />
+          </div>
+          {searchQuery.trim() && (
+            <button
+              onClick={sendSearch}
+              className="px-3 py-2 bg-white/[0.08] text-white/50 rounded-lg text-xs hover:bg-white/[0.14] touch-manipulation transition-colors whitespace-nowrap"
+            >
+              Search TV
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── App Grid ── */}
       <div className="flex-1 overflow-y-auto app-scrollbar" data-no-swipe>
@@ -238,13 +318,21 @@ export default function TV() {
           <div className="h-full flex items-center justify-center">
             <p className="text-white/20 text-xs tracking-widest uppercase">Loading…</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 p-4">
-            {apps.map((app) => (
-              <AppTile key={app.id} app={app} onLaunch={launch} />
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          const q = searchQuery.trim().toLowerCase();
+          const visible = q ? apps.filter((a) => a.name.toLowerCase().includes(q)) : apps;
+          return visible.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <p className="text-white/20 text-xs tracking-widest uppercase">No apps match</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 p-4">
+              {visible.map((app) => (
+                <AppTile key={app.id} app={app} onLaunch={launch} />
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Remote FABs ── */}
@@ -329,7 +417,6 @@ export default function TV() {
                 {discovering ? 'Searching…' : 'Refresh'}
               </button>
             </div>
-
             {discovering && discovered.length === 0 ? (
               <p className="text-center text-white/20 text-xs py-6 tracking-widest uppercase">Searching…</p>
             ) : discovered.length === 0 ? (
