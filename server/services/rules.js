@@ -51,10 +51,13 @@ function tick() {
   const { minute, day } = currentMinute();
   if (minute === _lastMinute) return;
   _lastMinute = minute;
-  for (const rule of getRules()) {
+  const rules = getRules();
+  console.log(`[rules:tick] ${minute} day=${day} rules=${rules.length}`);
+  for (const rule of rules) {
+    console.log(`[rules:tick]   "${rule.name}" time=${rule.time} days=${JSON.stringify(rule.days)} enabled=${rule.enabled}`);
     if (!rule.enabled || rule.time !== minute) continue;
     if (!rule.days.includes(day)) continue;
-    console.log(`[rules] firing "${rule.name}" (${minute} day=${day})`);
+    console.log(`[rules] firing "${rule.name}"`);
     try { if (_executor) _executor(rule); } catch (e) { console.warn('[rules] execute error:', e.message); }
   }
 }
@@ -80,8 +83,8 @@ function init(executor) {
   _executor   = executor;
   _lastMinute = null;
   clearInterval(_intervalId);
-  _intervalId = setInterval(tick, 10000); // checks every 10s, fires at most once per minute
-  if (_intervalId.unref) _intervalId.unref();
+  _intervalId = setInterval(tick, 10000);
+  console.log('[rules] scheduler started');
 }
 
 module.exports = { getRules, create, update, remove, init, debugInfo };
