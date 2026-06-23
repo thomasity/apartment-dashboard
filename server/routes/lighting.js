@@ -110,7 +110,6 @@ module.exports = (io, mqttManager) => {
     const { on } = req.body;
     const groups = roomsSvc.getDevices(req.params.name);
     groups.forEach((g) => mqttManager.setPower(g, on));
-    setOverride(groups);
     res.json({ ok: true });
   });
 
@@ -182,10 +181,6 @@ module.exports = (io, mqttManager) => {
   router.post('/power', (req, res) => {
     const { group = 'all', on } = req.body;
     mqttManager.setPower(group, on);
-    const groups = (!group || group === 'all')
-      ? Object.keys(mqttManager.groups)
-      : [group];
-    setOverride(groups);
     res.json({ ok: true });
   });
 
