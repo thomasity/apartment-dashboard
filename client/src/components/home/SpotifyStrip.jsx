@@ -1,7 +1,7 @@
 import { PrevIcon, PlayIcon, PauseIcon, NextIcon } from '../icons';
 
-export default function SpotifyStrip({ track, isPlaying, onControl, onPrevious, onNext, onNavigate }) {
-  if (!track) return null;
+export default function SpotifyStrip({ item, isPlaying, onControl, onPrevious, onNext, onNavigate }) {
+  if (!item) return null;
 
   return (
     <div className="absolute top-10 left-5 flex items-center rounded-2xl backdrop-blur-xl bg-black/30 border border-white/10 overflow-hidden">
@@ -11,17 +11,17 @@ export default function SpotifyStrip({ track, isPlaying, onControl, onPrevious, 
         className="flex items-center gap-3 pl-3 py-2 pr-2 touch-manipulation text-left"
       >
         <div className="w-10 h-10 flex-shrink-0">
-          {track.art
-            ? <img src={track.art} alt="" className="w-10 h-10 object-cover shadow-lg" />
+          {item.art
+            ? <img src={item.art} alt="" className="w-10 h-10 object-cover shadow-lg" />
             : <div className="w-10 h-10 bg-white/10 flex items-center justify-center"><span className="text-white/30 text-lg">♪</span></div>
           }
         </div>
         <div className="w-[120px]">
           <div className="font-light text-white/80 leading-tight truncate" style={{ fontSize: 'clamp(0.7rem, 1.3vw, 0.9rem)' }}>
-            {track.name}
+            {item.name}
           </div>
           <div className="font-light text-white/40 leading-tight truncate" style={{ fontSize: 'clamp(0.55rem, 0.9vw, 0.75rem)' }}>
-            {track.artist}
+            {item.artist}
           </div>
         </div>
       </button>

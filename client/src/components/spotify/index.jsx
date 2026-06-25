@@ -76,7 +76,7 @@ export default function Spotify() {
     setPickerOpen(true);
   }, [fetchDevices]);
 
-  const track     = state?.track ?? null;
+  const item      = state?.item ?? null;
   const isPlaying = state?.isPlaying ?? false;
   const shuffle   = state?.shuffle   ?? false;
   const repeat    = state?.repeat    ?? 'off';
@@ -86,8 +86,8 @@ export default function Spotify() {
     : null;
   const contextLabel =
     state?.context?.type === 'collection' ? 'Liked Songs' :
-    state?.context?.type === 'album'      ? track?.album  :
-    state?.context?.type === 'artist'     ? track?.artist :
+    state?.context?.type === 'album'      ? item?.album   :
+    state?.context?.type === 'artist'     ? item?.artist  :
     contextPlaylist?.name ?? null;
   const contextTypeLabel =
     state?.context?.type === 'collection' ? 'library' : state?.context?.type ?? '';
@@ -98,7 +98,7 @@ export default function Spotify() {
       {/* ── Left: Now Playing ── */}
       <div className="w-2/5 flex flex-col items-center justify-center gap-5 px-8 border-r border-subtle">
         <NowPlaying
-          track={track}
+          item={item}
           isPlaying={isPlaying}
           shuffle={shuffle}
           repeat={repeat}
@@ -128,7 +128,7 @@ export default function Spotify() {
               onBack={handleBack}
               onPlay={handlePlay}
               onPlayAll={handlePlayAll}
-              currentUri={track?.uri}
+              currentUri={item?.uri}
               isPlaying={isPlaying}
             />
           </div>
@@ -138,7 +138,7 @@ export default function Spotify() {
             albums={albums}
             albumsError={albumsError}
             onSelect={handleSelect}
-            currentUri={track?.uri}
+            currentUri={item?.uri}
             isPlaying={isPlaying}
           />
         )}

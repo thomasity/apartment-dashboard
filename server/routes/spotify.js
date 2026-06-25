@@ -44,7 +44,7 @@ router.get('/now-playing', async (req, res) => {
       shuffle:   data.shuffle_state ?? false,
       repeat:    data.repeat_state  ?? 'off',
       context: data.context ? { type: data.context.type, uri: data.context.uri } : null,
-      track: {
+      item: {
         uri:      item?.uri ?? null,
         name:     item?.name,
         artist:   isEpisode ? (item?.show?.name ?? null)          : (item?.artists?.map((a) => a.name).join(', ') ?? null),

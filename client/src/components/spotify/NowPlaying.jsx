@@ -6,7 +6,7 @@ import {
 import { fmtMs } from './utils';
 
 export default function NowPlaying({
-  track,
+  item,
   isPlaying,
   shuffle,
   repeat,
@@ -46,7 +46,7 @@ export default function NowPlaying({
     setVolume(val);
   }, [setVolume]);
 
-  if (!track) {
+  if (!item) {
     return (
       <>
         <div className="text-center">
@@ -78,10 +78,10 @@ export default function NowPlaying({
             </p>
           </div>
         )}
-        {track.art ? (
+        {item.art ? (
           <img
-            src={track.art}
-            alt={track.album}
+            src={item.art}
+            alt={item.album}
             className="w-40 h-40 object-cover"
             style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
           />
@@ -93,23 +93,23 @@ export default function NowPlaying({
       </div>
 
       <div className="w-full text-center">
-        <div className="text-white font-medium text-lg leading-tight truncate">{track.name}</div>
-        <div className="text-white/50 text-sm mt-1 truncate">{track.artist}</div>
-        <div className="text-white/25 text-xs mt-0.5 truncate">{track.album}</div>
+        <div className="text-white font-medium text-lg leading-tight truncate">{item.name}</div>
+        <div className="text-white/50 text-sm mt-1 truncate">{item.artist}</div>
+        <div className="text-white/25 text-xs mt-0.5 truncate">{item.album}</div>
 
         <div className="mt-4">
           <div className="relative h-4 flex items-center" data-no-swipe>
             <div className="absolute w-full h-0.5 bg-white/10 rounded-full overflow-hidden pointer-events-none">
               <div
                 className="h-full bg-white/50 rounded-full"
-                style={{ width: `${(seekValue != null ? seekValue : track.progress) / track.duration * 100}%` }}
+                style={{ width: `${(seekValue != null ? seekValue : item.progress) / item.duration * 100}%` }}
               />
             </div>
             <input
               type="range"
               min="0"
-              max={track.duration || 1}
-              value={seekValue ?? track.progress}
+              max={item.duration || 1}
+              value={seekValue ?? item.progress}
               onChange={(e) => setSeekValue(Number(e.target.value))}
               onMouseUp={handleSeekEnd}
               onTouchEnd={handleSeekEnd}
@@ -117,8 +117,8 @@ export default function NowPlaying({
             />
           </div>
           <div className="flex justify-between mt-1.5">
-            <span className="text-white/25 text-xs tabular-nums">{fmtMs(seekValue ?? track.progress)}</span>
-            <span className="text-white/25 text-xs tabular-nums">{fmtMs(track.duration)}</span>
+            <span className="text-white/25 text-xs tabular-nums">{fmtMs(seekValue ?? item.progress)}</span>
+            <span className="text-white/25 text-xs tabular-nums">{fmtMs(item.duration)}</span>
           </div>
         </div>
       </div>

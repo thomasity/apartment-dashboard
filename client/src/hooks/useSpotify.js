@@ -101,7 +101,7 @@ export function useSpotify() {
     try {
       await axios.post('/api/spotify/seek', { position });
       polledAt.current = Date.now();
-      setState((prev) => prev?.track ? { ...prev, track: { ...prev.track, progress: position } } : prev);
+      setState((prev) => prev?.item ? { ...prev, item: { ...prev.item, progress: position } } : prev);
     } catch {}
   }, []);
 
@@ -112,13 +112,13 @@ export function useSpotify() {
     }, 300);
   }, []);
 
-  const liveState = state?.track ? {
+  const liveState = state?.item ? {
     ...state,
-    track: {
-      ...state.track,
+    item: {
+      ...state.item,
       progress: state.isPlaying
-        ? Math.min(state.track.progress + (Date.now() - polledAt.current), state.track.duration)
-        : state.track.progress,
+        ? Math.min(state.item.progress + (Date.now() - polledAt.current), state.item.duration)
+        : state.item.progress,
     },
   } : state;
 

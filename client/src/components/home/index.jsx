@@ -66,7 +66,7 @@ export default function Home({ onNavigate }) {
       <ClockDisplay hour={hour} m={m} s={s} ampm={ampm} dateStr={dateStr} />
 
       <SpotifyStrip
-        track={spotify?.track ?? null}
+        item={spotify?.item ?? null}
         isPlaying={spotify?.isPlaying ?? false}
         onControl={() => control(spotify?.isPlaying ? 'pause' : 'play')}
         onPrevious={() => control('previous')}
