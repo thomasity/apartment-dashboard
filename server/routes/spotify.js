@@ -35,7 +35,7 @@ async function spotify(method, path, data) {
 
 router.get('/now-playing', async (req, res) => {
   try {
-    const { data } = await spotify('GET', '/me/player');
+    const { data } = await spotify('GET', '/me/player?additional_types=track,episode');
     if (!data) return res.json(null);
     const item      = data.item;
     const isEpisode = item?.type === 'episode';
