@@ -19,7 +19,7 @@ export default function Spotify() {
   const [tracksLoading,   setTracksLoading]   = useState(false);
 
   const handleSelect = useCallback(async (selection) => {
-    if (selection.type === 'track') {
+    if (selection.type === 'track' || selection.type === 'episode') {
       playUri(selection.data.uri);
       return;
     }
@@ -42,8 +42,10 @@ export default function Spotify() {
       } else if (selection.type === 'liked') {
         const { data } = await axios.get('/api/spotify/liked-songs');
         setTracks(data.tracks);
-        // Update source with collectionUri now that we have it
         setSelectedSource({ type: 'liked', data: { name: 'Liked Songs', image: null, collectionUri: data.collectionUri } });
+      } else if (selection.type === 'show') {
+        const { data } = await axios.get(`/api/spotify/shows/${selection.data.id}/episodes`);
+        setTracks(data);
       }
     } catch (err) {
       console.error('[spotify] tracks fetch failed:', err.message);
@@ -59,6 +61,7 @@ export default function Spotify() {
 
   const handlePlay = useCallback((trackUri) => {
     if (!selectedSource) return;
+    if (selectedSource.type === 'show')     return playUri(trackUri);
     if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri, trackUri);
     if (selectedSource.type === 'album')    return playContext(selectedSource.data.uri, trackUri);
     if (selectedSource.type === 'liked')    return playContext(selectedSource.data.collectionUri, trackUri);

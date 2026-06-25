@@ -218,6 +218,45 @@ router.get('/liked-songs', async (req, res) => {
   }
 });
 
+router.get('/shows', async (_req, res) => {
+  try {
+    const items = [];
+    let url = '/me/shows?limit=50';
+    while (url) {
+      const { data } = await spotify('GET', url);
+      items.push(...data.items);
+      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+    }
+    res.json(items.map((i) => ({
+      id:        i.show.id,
+      uri:       i.show.uri,
+      name:      i.show.name,
+      publisher: i.show.publisher,
+      image:     i.show.images?.[0]?.url ?? null,
+      total:     i.show.total_episodes,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/shows/:id/episodes', async (req, res) => {
+  try {
+    const items = [];
+    let url = `/shows/${req.params.id}/episodes?limit=50&market=from_token`;
+    while (url) {
+      const { data } = await spotify('GET', url);
+      items.push(...data.items);
+      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+    }
+    res.json(items.map((ep) => ({
+      id:       ep.id,
+      uri:      ep.uri,
+      name:     ep.name,
+      duration: ep.duration_ms,
+      art:      ep.images?.[0]?.url ?? null,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/albums', async (req, res) => {
   try {
     const items = [];
@@ -261,8 +300,8 @@ router.get('/album/:id/tracks', async (req, res) => {
 router.get('/search', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
-    if (!q) return res.json({ tracks: [], albums: [], playlists: [] });
-    const { data } = await spotify('GET', `/search?q=${encodeURIComponent(q)}&type=track,album,playlist&limit=8`);
+    if (!q) return res.json({ tracks: [], albums: [], playlists: [], shows: [], episodes: [] });
+    const { data } = await spotify('GET', `/search?q=${encodeURIComponent(q)}&type=track,album,playlist,show,episode&limit=8`);
     res.json({
       tracks: (data.tracks?.items ?? []).map((t) => ({
         id:       t.id,
@@ -284,6 +323,21 @@ router.get('/search', async (req, res) => {
         uri:   p.uri,
         name:  p.name,
         image: p.images?.[0]?.url ?? null,
+      })),
+      shows: (data.shows?.items ?? []).filter(Boolean).map((s) => ({
+        id:        s.id,
+        uri:       s.uri,
+        name:      s.name,
+        publisher: s.publisher,
+        image:     s.images?.[0]?.url ?? null,
+      })),
+      episodes: (data.episodes?.items ?? []).filter(Boolean).map((ep) => ({
+        id:       ep.id,
+        uri:      ep.uri,
+        name:     ep.name,
+        artist:   ep.show?.name ?? null,
+        duration: ep.duration_ms,
+        art:      ep.images?.[0]?.url ?? null,
       })),
     });
   } catch (err) { res.status(500).json({ error: err.message }); }

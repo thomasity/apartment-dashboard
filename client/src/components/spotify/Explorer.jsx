@@ -72,6 +72,25 @@ function GridView({ title, items, onBack, onSelect }) {
   );
 }
 
+function RowItem({ item, active, isPlaying, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-3 px-4 py-2 w-full active:bg-white/5 touch-manipulation text-left ${active ? 'bg-white/[0.04]' : ''}`}
+    >
+      {item.art
+        ? <img src={item.art} alt="" className="w-8 h-8 object-cover flex-shrink-0" />
+        : <div className="w-8 h-8 bg-white/5 flex-shrink-0" />
+      }
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm truncate leading-tight ${active ? 'text-green-400' : 'text-white/80'}`}>{item.name}</div>
+        {item.artist && <div className="text-white/35 text-xs truncate">{item.artist}</div>}
+      </div>
+      {active && isPlaying && <PlayingBars />}
+    </button>
+  );
+}
+
 function SearchResults({ results, onSelect, currentUri, isPlaying }) {
   if (!results) {
     return (
@@ -81,8 +100,8 @@ function SearchResults({ results, onSelect, currentUri, isPlaying }) {
     );
   }
 
-  const { tracks = [], albums = [], playlists = [] } = results;
-  if (!tracks.length && !albums.length && !playlists.length) {
+  const { tracks = [], albums = [], playlists = [], shows = [], episodes = [] } = results;
+  if (!tracks.length && !albums.length && !playlists.length && !shows.length && !episodes.length) {
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-white/20 text-sm tracking-widest uppercase">No results</p>
@@ -97,27 +116,42 @@ function SearchResults({ results, onSelect, currentUri, isPlaying }) {
           <div className="px-4 mb-1">
             <span className="text-white/40 text-xs font-medium tracking-widest uppercase">Tracks</span>
           </div>
-          {tracks.map((t) => {
-            const active = t.uri === currentUri;
-            return (
-              <button
-                key={t.id}
-                onClick={() => onSelect({ type: 'track', data: t })}
-                className={`flex items-center gap-3 px-4 py-2 w-full active:bg-white/5 touch-manipulation text-left ${active ? 'bg-white/[0.04]' : ''}`}
-              >
-                {t.art
-                  ? <img src={t.art} alt="" className="w-8 h-8 object-cover flex-shrink-0" />
-                  : <div className="w-8 h-8 bg-white/5 flex-shrink-0" />
-                }
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm truncate leading-tight ${active ? 'text-green-400' : 'text-white/80'}`}>{t.name}</div>
-                  <div className="text-white/35 text-xs truncate">{t.artist}</div>
-                </div>
-                {active && isPlaying && <PlayingBars />}
-              </button>
-            );
-          })}
+          {tracks.map((t) => (
+            <RowItem
+              key={t.id}
+              item={t}
+              active={t.uri === currentUri}
+              isPlaying={isPlaying}
+              onClick={() => onSelect({ type: 'track', data: t })}
+            />
+          ))}
         </div>
+      )}
+
+      {episodes.length > 0 && (
+        <div>
+          <div className="px-4 mb-1">
+            <span className="text-white/40 text-xs font-medium tracking-widest uppercase">Episodes</span>
+          </div>
+          {episodes.map((ep) => (
+            <RowItem
+              key={ep.id}
+              item={ep}
+              active={ep.uri === currentUri}
+              isPlaying={isPlaying}
+              onClick={() => onSelect({ type: 'episode', data: ep })}
+            />
+          ))}
+        </div>
+      )}
+
+      {shows.length > 0 && (
+        <HorizontalRow
+          title="Podcasts"
+          items={shows.map((s) => ({ ...s, artist: s.publisher }))}
+          onSeeAll={() => {}}
+          onSelect={(s) => onSelect({ type: 'show', data: s })}
+        />
       )}
 
       {albums.length > 0 && (
@@ -146,11 +180,15 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
   const [query,         setQuery]         = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [likedCount,    setLikedCount]    = useState(null);
+  const [podcasts,      setPodcasts]      = useState([]);
   const searchTimer = useRef(null);
 
   useEffect(() => {
     axios.get('/api/spotify/liked-songs?count_only=true')
       .then((r) => setLikedCount(r.data.total))
+      .catch(() => {});
+    axios.get('/api/spotify/shows')
+      .then((r) => setPodcasts(r.data))
       .catch(() => {});
   }, []);
 
@@ -204,6 +242,13 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
             onBack={() => setView('home')}
             onSelect={(al) => onSelect({ type: 'album', data: al })}
           />
+        ) : view === 'podcasts' ? (
+          <GridView
+            title="Podcasts"
+            items={podcasts.map((s) => ({ ...s, artist: s.publisher }))}
+            onBack={() => setView('home')}
+            onSelect={(s) => onSelect({ type: 'show', data: s })}
+          />
         ) : (
           <div className="flex flex-col gap-5 py-2">
             <div className="px-4">
@@ -230,6 +275,15 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
                 items={playlists}
                 onSeeAll={() => setView('playlists')}
                 onSelect={(pl) => onSelect({ type: 'playlist', data: pl })}
+              />
+            )}
+
+            {podcasts.length > 0 && (
+              <HorizontalRow
+                title="Podcasts"
+                items={podcasts.map((s) => ({ ...s, artist: s.publisher }))}
+                onSeeAll={() => setView('podcasts')}
+                onSelect={(s) => onSelect({ type: 'show', data: s })}
               />
             )}
 
