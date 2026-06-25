@@ -51,10 +51,7 @@ function tick() {
   const { minute, day } = currentMinute();
   if (minute === _lastMinute) return;
   _lastMinute = minute;
-  const rules = getRules();
-  console.log(`[rules:tick] ${minute} day=${day} rules=${rules.length}`);
-  for (const rule of rules) {
-    console.log(`[rules:tick]   "${rule.name}" time=${rule.time} days=${JSON.stringify(rule.days)} enabled=${rule.enabled}`);
+  for (const rule of getRules()) {
     if (!rule.enabled || rule.time !== minute) continue;
     if (!rule.days.includes(day)) continue;
     console.log(`[rules] firing "${rule.name}"`);
