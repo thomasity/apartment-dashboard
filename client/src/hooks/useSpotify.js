@@ -3,8 +3,8 @@ import axios from 'axios';
 
 export function useSpotify() {
   const [state,       setState]       = useState(null);
-  const [playlists,   setPlaylists]   = useState([]);
-  const [albums,      setAlbums]      = useState([]);
+  const [playlists,   setPlaylists]   = useState(null);
+  const [albums,      setAlbums]      = useState(null);
   const [albumsError, setAlbumsError] = useState(null);
   const [devices,     setDevices]     = useState([]);
   const [tick,      setTick]      = useState(0);

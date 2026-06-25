@@ -22,19 +22,32 @@ function SquareItem({ item, onClick }) {
   );
 }
 
-function HorizontalRow({ title, items, onSeeAll, onSelect }) {
+function SkeletonSquare() {
+  return (
+    <div className="flex-shrink-0 w-28 animate-pulse">
+      <div className="w-28 h-28 bg-white/[0.06]" />
+      <div className="h-2.5 bg-white/[0.06] rounded-full mt-2 w-20" />
+      <div className="h-2 bg-white/[0.04] rounded-full mt-1.5 w-14" />
+    </div>
+  );
+}
+
+function HorizontalRow({ title, items, loading, onSeeAll, onSelect }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2 px-4">
         <span className="text-white/40 text-xs font-medium tracking-widest uppercase">{title}</span>
-        <button onClick={onSeeAll} className="text-white/30 text-xs active:text-white/60 touch-manipulation">
-          See all
-        </button>
+        {!loading && (
+          <button onClick={onSeeAll} className="text-white/30 text-xs active:text-white/60 touch-manipulation">
+            See all
+          </button>
+        )}
       </div>
-      <div className="flex gap-3 px-4 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-        {items.map((item) => (
-          <SquareItem key={item.id} item={item} onClick={onSelect} />
-        ))}
+      <div className="flex gap-3 px-4 overflow-x-auto pb-1 h-[154px]" style={{ scrollbarWidth: 'none' }}>
+        {loading
+          ? Array.from({ length: 5 }).map((_, i) => <SkeletonSquare key={i} />)
+          : items.map((item) => <SquareItem key={item.id} item={item} onClick={onSelect} />)
+        }
       </div>
     </div>
   );
@@ -180,7 +193,7 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
   const [query,         setQuery]         = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [likedCount,    setLikedCount]    = useState(null);
-  const [podcasts,      setPodcasts]      = useState([]);
+  const [podcasts,      setPodcasts]      = useState(null);
   const searchTimer = useRef(null);
 
   useEffect(() => {
@@ -231,14 +244,14 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
         ) : view === 'playlists' ? (
           <GridView
             title="Playlists"
-            items={playlists}
+            items={playlists ?? []}
             onBack={() => setView('home')}
             onSelect={(pl) => onSelect({ type: 'playlist', data: pl })}
           />
         ) : view === 'albums' ? (
           <GridView
             title="Albums"
-            items={albums}
+            items={albums ?? []}
             onBack={() => setView('home')}
             onSelect={(al) => onSelect({ type: 'album', data: al })}
           />
@@ -262,26 +275,28 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
                 </div>
                 <div>
                   <div className="text-white font-semibold text-sm">Liked Songs</div>
-                  {likedCount != null && (
-                    <div className="text-white/50 text-xs mt-0.5">{likedCount.toLocaleString()} songs</div>
-                  )}
+                  <div className="text-white/50 text-xs mt-0.5">
+                    {likedCount != null ? `${likedCount.toLocaleString()} songs` : ' '}
+                  </div>
                 </div>
               </button>
             </div>
 
-            {playlists.length > 0 && (
+            {(playlists === null || playlists.length > 0) && (
               <HorizontalRow
                 title="Playlists"
-                items={playlists}
+                loading={playlists === null}
+                items={playlists ?? []}
                 onSeeAll={() => setView('playlists')}
                 onSelect={(pl) => onSelect({ type: 'playlist', data: pl })}
               />
             )}
 
-            {podcasts.length > 0 && (
+            {(podcasts === null || podcasts.length > 0) && (
               <HorizontalRow
                 title="Podcasts"
-                items={podcasts.map((s) => ({ ...s, artist: s.publisher }))}
+                loading={podcasts === null}
+                items={(podcasts ?? []).map((s) => ({ ...s, artist: s.publisher }))}
                 onSeeAll={() => setView('podcasts')}
                 onSelect={(s) => onSelect({ type: 'show', data: s })}
               />
@@ -298,10 +313,11 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
                     : 'Could not load albums.'}
                 </p>
               </div>
-            ) : albums.length > 0 ? (
+            ) : (albums === null || albums.length > 0) ? (
               <HorizontalRow
                 title="Albums"
-                items={albums}
+                loading={albums === null}
+                items={albums ?? []}
                 onSeeAll={() => setView('albums')}
                 onSelect={(al) => onSelect({ type: 'album', data: al })}
               />

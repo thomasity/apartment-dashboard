@@ -85,7 +85,7 @@ export default function Spotify() {
   const repeat    = state?.repeat    ?? 'off';
 
   const contextPlaylist = state?.context?.type === 'playlist'
-    ? (playlists.find((pl) => pl.uri === state.context.uri) ?? null)
+    ? ((playlists ?? []).find((pl) => pl.uri === state.context.uri) ?? null)
     : null;
   const contextLabel =
     state?.context?.type === 'collection' ? 'Liked Songs' :
