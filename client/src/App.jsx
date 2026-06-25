@@ -139,7 +139,7 @@ export default function App() {
             )}
             <span
               className={`text-[11px] font-medium tracking-widest uppercase transition-colors ${
-                tab === id ? 'text-white' : 'text-white/30'
+                tab === id ? 'text-[--color-text]' : 'text-[--color-subtle-text]'
               }`}
             >
               {label}

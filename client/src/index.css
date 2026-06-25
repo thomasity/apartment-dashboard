@@ -7,6 +7,7 @@
   /* App shell */
   --color-bg:             #07070f;   /* page background */
   --color-text:           #e2e8f0;   /* primary text + slider thumb */
+  --color-subtle-text:    rgb(255 255 255 / 0.30);
 
   /* Accent — drives auto/circadian/pairing indicators */
   --color-accent-rgb:     245 158 11;              /* amber-400 */

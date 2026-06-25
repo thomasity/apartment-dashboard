@@ -37,19 +37,22 @@ router.get('/now-playing', async (req, res) => {
   try {
     const { data } = await spotify('GET', '/me/player');
     if (!data) return res.json(null);
+    const item      = data.item;
+    const isEpisode = item?.type === 'episode';
     res.json({
       isPlaying: data.is_playing,
       shuffle:   data.shuffle_state ?? false,
       repeat:    data.repeat_state  ?? 'off',
       context: data.context ? { type: data.context.type, uri: data.context.uri } : null,
       track: {
-        uri:      data.item?.uri ?? null,
-        name:     data.item?.name,
-        artist:   data.item?.artists?.map((a) => a.name).join(', '),
-        album:    data.item?.album?.name,
-        art:      data.item?.album?.images?.[0]?.url ?? null,
-        duration: data.item?.duration_ms ?? 0,
+        uri:      item?.uri ?? null,
+        name:     item?.name,
+        artist:   isEpisode ? (item?.show?.name ?? null)          : (item?.artists?.map((a) => a.name).join(', ') ?? null),
+        album:    isEpisode ? (item?.show?.publisher ?? null)     : (item?.album?.name ?? null),
+        art:      isEpisode ? (item?.images?.[0]?.url ?? null)    : (item?.album?.images?.[0]?.url ?? null),
+        duration: item?.duration_ms ?? 0,
         progress: data.progress_ms ?? 0,
+        type:     item?.type ?? 'track',
       },
       device: {
         name:   data.device?.name,
