@@ -121,7 +121,7 @@ export interface RuleAction {
 export interface Rule {
   id: string;
   name: string;
-  /** "HH:MM" 24-hour format */
+  /** "HH:MM" 24-hour format, or "sunrise" / "sunset" */
   time: string;
   /** 0 = Sunday … 6 = Saturday */
   days: number[];

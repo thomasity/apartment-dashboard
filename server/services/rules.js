@@ -1,9 +1,30 @@
-const config = require('../config');
+const config   = require('../config');
+const suncalc  = require('suncalc');
 
-// Rule shape:
-// { id, name, time: "HH:MM", days: [0..6], enabled: bool,
-//   action: { type: 'power'|'scene'|'circadian', group: 'all'|roomName,
-//             on?: bool, brightness?: num, colorTemp?: num, enabled?: bool } }
+const LAT = parseFloat(process.env.LAT);
+const LON = parseFloat(process.env.LON);
+
+let _sunCache = { date: null, sunrise: null, sunset: null };
+
+function toHHMM(d) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function getSunTimes() {
+  const today = new Date().toDateString();
+  if (_sunCache.date !== today) {
+    const times  = suncalc.getTimes(new Date(), LAT, LON);
+    _sunCache = { date: today, sunrise: toHHMM(times.sunrise), sunset: toHHMM(times.sunset) };
+    console.log(`[rules] sun times: sunrise=${_sunCache.sunrise} sunset=${_sunCache.sunset}`);
+  }
+  return _sunCache;
+}
+
+function resolveTime(ruleTime) {
+  if (ruleTime === 'sunrise') return getSunTimes().sunrise;
+  if (ruleTime === 'sunset')  return getSunTimes().sunset;
+  return ruleTime;
+}
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -52,7 +73,7 @@ function tick() {
   if (minute === _lastMinute) return;
   _lastMinute = minute;
   for (const rule of getRules()) {
-    if (!rule.enabled || rule.time !== minute) continue;
+    if (!rule.enabled || resolveTime(rule.time) !== minute) continue;
     if (!rule.days.includes(day)) continue;
     console.log(`[rules] firing "${rule.name}"`);
     try { if (_executor) _executor(rule); } catch (e) { console.warn('[rules] execute error:', e.message); }
@@ -61,16 +82,20 @@ function tick() {
 
 function debugInfo() {
   const { minute, day, iso, tz } = currentMinute();
+  const sun = getSunTimes();
   return {
     serverIso:  iso,
     serverTime: minute,
     serverDay:  day,
     timezone:   tz,
+    sunrise:    sun.sunrise,
+    sunset:     sun.sunset,
     rules:      getRules().map((r) => ({
-      name:    r.name,
-      time:    r.time,
-      days:    r.days,
-      enabled: r.enabled,
+      name:         r.name,
+      time:         r.time,
+      resolvedTime: resolveTime(r.time),
+      days:         r.days,
+      enabled:      r.enabled,
       willFireToday: r.enabled && r.days.includes(day),
     })),
   };

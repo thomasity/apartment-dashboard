@@ -7,6 +7,8 @@ const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function fmt12(timeStr: string): string {
+  if (timeStr === 'sunrise') return 'Sunrise';
+  if (timeStr === 'sunset')  return 'Sunset';
   if (!timeStr) return '';
   const [h, m] = timeStr.split(':').map(Number);
   const period = h < 12 ? 'AM' : 'PM';
@@ -205,14 +207,39 @@ export default function ScheduleView({ rooms }: Props) {
             </div>
 
             {/* Time */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <label className="text-[10px] uppercase tracking-widest text-white/30">Time</label>
-              <input
-                type="time"
-                value={form.time}
-                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
-                className="bg-white/[0.06] text-white/80 text-sm rounded-lg px-3 py-2.5 outline-none ring-1 ring-white/[0.08] focus:ring-white/20 w-36"
-              />
+              <div className="flex gap-2">
+                {(['sunrise', 'sunset', 'fixed'] as const).map((opt) => {
+                  const active = opt === 'fixed' ? (form.time !== 'sunrise' && form.time !== 'sunset') : form.time === opt;
+                  return (
+                    <button
+                      key={opt}
+                      onClick={() => setForm((f) => ({
+                        ...f,
+                        time: opt === 'fixed'
+                          ? (f.time === 'sunrise' || f.time === 'sunset' ? '07:00' : f.time)
+                          : opt,
+                      }))}
+                      className={`px-4 py-2 rounded-lg text-xs font-medium capitalize touch-manipulation transition-colors ${
+                        active
+                          ? 'bg-accent/25 text-accent ring-1 ring-accent/40'
+                          : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10]'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {form.time !== 'sunrise' && form.time !== 'sunset' && (
+                <input
+                  type="time"
+                  value={form.time}
+                  onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                  className="bg-white/[0.06] text-white/80 text-sm rounded-lg px-3 py-2.5 outline-none ring-1 ring-white/[0.08] focus:ring-white/20 w-36"
+                />
+              )}
             </div>
 
             {/* Days */}
