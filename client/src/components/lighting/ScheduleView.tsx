@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { TrashIcon } from '../icons';
-import type { Rule, RuleAction, RuleActionType, RoomsMap } from '../../types';
+import type { Rule, RuleAction, RuleActionType, RuleConfig, RoomsMap } from '../../types';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -23,12 +23,19 @@ function fmtDays(days: number[]): string {
   return sorted.map((d) => DAY_NAMES[d]).join(', ');
 }
 
-function fmtAction(action: RuleAction, rooms: RoomsMap): string {
+function fmtAction(action: RuleAction): string {
   if (!action) return '';
   const target = action.group === 'all' ? 'All lights' : action.group;
-  if (action.type === 'power')    return `Turn ${action.on ? 'on' : 'off'} · ${target}`;
-  if (action.type === 'scene')    return `Scene ${action.brightness}% · ${target}`;
-  if (action.type === 'circadian') return `${action.enabled ? 'Enable' : 'Disable'} auto · ${target}`;
+  if (action.type === 'power') {
+    if (!action.on) return `Turn off · ${target}`;
+    if (action.config === 'scene')  return `Turn on · Scene ${action.brightness}% · ${target}`;
+    if (action.config === 'auto')   return `Turn on · Auto · ${target}`;
+    return `Turn on · ${target}`;
+  }
+  if (action.type === 'reconfigure') {
+    if (action.config === 'scene') return `Scene ${action.brightness}% · ${target}`;
+    if (action.config === 'auto')  return `Enable auto · ${target}`;
+  }
   return '';
 }
 
@@ -43,7 +50,7 @@ const BLANK_FORM: FormState = {
   name:   '',
   time:   '22:00',
   days:   [1, 2, 3, 4, 5],
-  action: { type: 'power', group: 'all', on: false, brightness: 50, colorTemp: 30, enabled: true },
+  action: { type: 'power', group: 'all', on: true, config: 'none', brightness: 70, colorTemp: 20 },
 };
 
 interface Props {
@@ -145,7 +152,7 @@ export default function ScheduleView({ rooms }: Props) {
                 <div className="text-[10px] text-white/30 mt-0.5">
                   {fmt12(rule.time)} · {fmtDays(rule.days)}
                 </div>
-                <div className="text-[10px] text-white/20 mt-0.5">{fmtAction(rule.action, rooms)}</div>
+                <div className="text-[10px] text-white/20 mt-0.5">{fmtAction(rule.action)}</div>
               </button>
 
               {/* Enabled toggle */}
@@ -228,18 +235,17 @@ export default function ScheduleView({ rooms }: Props) {
               </div>
             </div>
 
-            {/* Action type */}
+            {/* Rule type */}
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] uppercase tracking-widest text-white/30">Action</label>
+              <label className="text-[10px] uppercase tracking-widest text-white/30">Rule Type</label>
               <div className="flex gap-2">
                 {([
-                  { key: 'power' as RuleActionType,    label: 'Power' },
-                  { key: 'scene' as RuleActionType,    label: 'Scene' },
-                  { key: 'circadian' as RuleActionType, label: 'Auto' },
+                  { key: 'power' as RuleActionType, label: 'Power' },
+                  { key: 'reconfigure' as RuleActionType, label: 'Reconfigure' },
                 ] as { key: RuleActionType; label: string }[]).map(({ key, label }) => (
                   <button
                     key={key}
-                    onClick={() => setAction({ type: key })}
+                    onClick={() => setAction({ type: key, on: key === 'power' ? (form.action.on ?? true) : undefined, config: key === 'power' ? (form.action.config ?? 'none') : (form.action.config === 'none' ? 'scene' : form.action.config) })}
                     className={`px-4 py-2 rounded-lg text-xs font-medium touch-manipulation transition-colors ${
                       form.action.type === key
                         ? 'bg-accent/25 text-accent ring-1 ring-accent/40'
@@ -282,13 +288,13 @@ export default function ScheduleView({ rooms }: Props) {
               </div>
             </div>
 
-            {/* Action-specific controls */}
+            {/* Power: on/off */}
             {form.action.type === 'power' && (
               <div className="flex gap-3">
                 {[{ label: 'Turn On', on: true }, { label: 'Turn Off', on: false }].map(({ label, on }) => (
                   <button
                     key={label}
-                    onClick={() => setAction({ on })}
+                    onClick={() => setAction({ on, config: on ? (form.action.config ?? 'none') : undefined })}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium touch-manipulation transition-colors ${
                       form.action.on === on
                         ? 'bg-accent/25 text-accent ring-1 ring-accent/40'
@@ -301,16 +307,44 @@ export default function ScheduleView({ rooms }: Props) {
               </div>
             )}
 
-            {form.action.type === 'scene' && (
+            {/* Power on config / Reconfigure mode */}
+            {(form.action.type === 'reconfigure' || (form.action.type === 'power' && form.action.on)) && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase tracking-widest text-white/30">
+                  {form.action.type === 'power' ? 'On Config' : 'Mode'}
+                </label>
+                <div className="flex gap-2">
+                  {(form.action.type === 'power'
+                    ? [{ key: 'none' as RuleConfig, label: 'Resume' }, { key: 'scene' as RuleConfig, label: 'Scene' }, { key: 'auto' as RuleConfig, label: 'Auto' }]
+                    : [{ key: 'scene' as RuleConfig, label: 'Scene' }, { key: 'auto' as RuleConfig, label: 'Auto' }]
+                  ).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setAction({ config: key })}
+                      className={`px-4 py-2 rounded-lg text-xs font-medium touch-manipulation transition-colors ${
+                        form.action.config === key
+                          ? 'bg-accent/25 text-accent ring-1 ring-accent/40'
+                          : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Scene sliders */}
+            {form.action.config === 'scene' && (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] uppercase tracking-widest text-white/30">Brightness</label>
-                    <span className="text-[10px] text-white/40">{form.action.brightness}%</span>
+                    <span className="text-[10px] text-white/40">{form.action.brightness ?? 70}%</span>
                   </div>
                   <input
                     type="range" min="1" max="100"
-                    value={form.action.brightness}
+                    value={form.action.brightness ?? 70}
                     onChange={(e) => setAction({ brightness: Number(e.target.value) })}
                     className="w-full accent-white/60"
                   />
@@ -330,24 +364,6 @@ export default function ScheduleView({ rooms }: Props) {
                     style={{ accentColor: '#a8c8ff' }}
                   />
                 </div>
-              </div>
-            )}
-
-            {form.action.type === 'circadian' && (
-              <div className="flex gap-3">
-                {[{ label: 'Enable Auto', enabled: true }, { label: 'Disable Auto', enabled: false }].map(({ label, enabled }) => (
-                  <button
-                    key={label}
-                    onClick={() => setAction({ enabled })}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium touch-manipulation transition-colors ${
-                      form.action.enabled === enabled
-                        ? 'bg-accent/25 text-accent ring-1 ring-accent/40'
-                        : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10]'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
               </div>
             )}
 

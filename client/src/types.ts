@@ -104,15 +104,18 @@ export type OverridesMap = Record<string, number>;
 
 // ── Rules ─────────────────────────────────────────────────────────────────────
 
-export type RuleActionType = 'power' | 'scene' | 'circadian';
+export type RuleActionType = 'power' | 'reconfigure';
+export type RuleConfig = 'none' | 'scene' | 'auto';
 
 export interface RuleAction {
   type: RuleActionType;
   group: string;
+  /** power only */
   on?: boolean;
+  /** 'none' = resume previous; 'scene' = apply brightness+colorTemp; 'auto' = circadian */
+  config?: RuleConfig;
   brightness?: number;
   colorTemp?: number;
-  enabled?: boolean;
 }
 
 export interface Rule {

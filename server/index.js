@@ -88,12 +88,28 @@ rulesSvc.init((rule) => {
       : mqttManager.groups[action.group] ? [action.group] : [];
 
   if (action.type === 'power') {
-    groups.forEach((g) => mqttManager.setPower(g, action.on));
-  } else if (action.type === 'scene') {
-    groups.forEach((g) => mqttManager.setGroup(g, { brightness: action.brightness, colorTemp: action.colorTemp }));
-  } else if (action.type === 'circadian') {
-    if (action.enabled) circadian.enable(action.group);
-    else circadian.disable(action.group);
+    if (!action.on) {
+      groups.forEach((g) => mqttManager.setPower(g, false));
+    } else {
+      groups.forEach((g) => mqttManager.setPower(g, true));
+      if (action.config === 'scene') {
+        groups.forEach((g) => {
+          circadian.disable(g);
+          mqttManager.setGroup(g, { brightness: action.brightness, colorTemp: action.colorTemp });
+        });
+      } else if (action.config === 'auto') {
+        circadian.enable(action.group);
+      }
+    }
+  } else if (action.type === 'reconfigure') {
+    if (action.config === 'scene') {
+      groups.forEach((g) => {
+        circadian.disable(g);
+        mqttManager.setGroup(g, { brightness: action.brightness, colorTemp: action.colorTemp });
+      });
+    } else if (action.config === 'auto') {
+      circadian.enable(action.group);
+    }
   }
   console.log(`[rules] fired: "${rule.name}"`);
 });
