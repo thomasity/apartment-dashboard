@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Header  from './components/Header';
 import Home    from './components/home';
 import Weather from './components/weather';
-import Stocks  from './components/stocks';
 import Lighting from './components/lighting';
 import Spotify from './components/spotify';
 import TV from './components/tv';
@@ -10,7 +9,6 @@ import TV from './components/tv';
 const TABS      = [
   { id: 'home',    label: 'Home'    },
   { id: 'weather', label: 'Weather' },
-  // { id: 'stocks',  label: 'Markets' },
   { id: 'lights',  label: 'Lights'  },
   { id: 'spotify', label: 'Music'   },
   { id: 'tv',      label: 'TV'      },
