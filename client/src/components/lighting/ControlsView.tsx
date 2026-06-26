@@ -4,15 +4,16 @@ import { LightSliders } from '../LightSliders';
 import AutoToggle from './AutoToggle';
 import CircadianStrip from './CircadianStrip';
 import { avg, spread, tempLabel } from './utils';
+import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap } from '../../types';
 
-function fmtRemaining(ms) {
+function fmtRemaining(ms: number): string {
   if (ms <= 0) return '0m';
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function PowerBtn({ isOff, onClick }) {
+function PowerBtn({ isOff, onClick }: { isOff: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -27,7 +28,22 @@ function PowerBtn({ isOff, onClick }) {
   );
 }
 
-function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onBrightness, onColorTemp, onToggleCircadian, onTogglePower, brightnessMixed, colorTempMixed }) {
+interface DeviceRowProps {
+  name: string;
+  device: LightingValues;
+  isCircadian: boolean;
+  isOff: boolean;
+  isOffline?: boolean;
+  circadian: CircadianState;
+  onBrightness: (v: number) => void;
+  onColorTemp: (v: number) => void;
+  onToggleCircadian: () => void;
+  onTogglePower: () => void;
+  brightnessMixed?: boolean;
+  colorTempMixed?: boolean;
+}
+
+function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onBrightness, onColorTemp, onToggleCircadian, onTogglePower, brightnessMixed, colorTempMixed }: DeviceRowProps) {
   return (
     <div className={`flex flex-col gap-1.5 ${isOffline ? 'opacity-40 pointer-events-none' : ''}`}>
       <div className="flex items-center gap-2">
@@ -60,11 +76,28 @@ function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onB
   );
 }
 
+interface RoomSectionProps {
+  name: string;
+  deviceNames: string[];
+  serverState: LightingServerState;
+  localDevices: Record<string, LightingValues>;
+  circadian: CircadianState;
+  avail: Record<string, boolean>;
+  overrides: OverridesMap;
+  onRoomSlider: (roomName: string, key: keyof LightingValues, value: number) => void;
+  onRoomTogglePower: (roomName: string) => void;
+  onRoomToggleCircadian: (roomName: string) => void;
+  onClearRoomOverride: (roomName: string) => void;
+  onDeviceSlider: (name: string, key: keyof LightingValues, value: number) => void;
+  onTogglePower: (name: string) => void;
+  onToggleCircadian: (name: string) => void;
+}
+
 function RoomSection({
   name, deviceNames, serverState, localDevices, circadian, avail, overrides,
   onRoomSlider, onRoomTogglePower, onRoomToggleCircadian, onClearRoomOverride,
   onDeviceSlider, onTogglePower, onToggleCircadian,
-}) {
+}: RoomSectionProps) {
   const [expanded, setExpanded] = useState(false);
 
   const poweredOff    = serverState.poweredOff ?? [];
@@ -176,13 +209,31 @@ function RoomSection({
   );
 }
 
+interface ControlsViewProps {
+  serverState: LightingServerState;
+  localDevices: Record<string, LightingValues>;
+  circadian: CircadianState;
+  availability: Record<string, boolean> | undefined;
+  rooms: RoomsMap;
+  overrides: OverridesMap;
+  onSlider: (key: keyof LightingValues, value: number) => void;
+  onDeviceSlider: (name: string, key: keyof LightingValues, value: number) => void;
+  onRoomSlider: (roomName: string, key: keyof LightingValues, value: number) => void;
+  onTogglePower: (group: string) => void;
+  onToggleCircadian: (group: string) => void;
+  onRoomTogglePower: (roomName: string) => void;
+  onRoomToggleCircadian: (roomName: string) => void;
+  onClearRoomOverride: (roomName: string) => void;
+  onGoToDevices: () => void;
+}
+
 export default function ControlsView({
   serverState, localDevices, circadian, availability, rooms, overrides,
   onSlider, onDeviceSlider, onRoomSlider,
   onTogglePower, onToggleCircadian,
   onRoomTogglePower, onRoomToggleCircadian, onClearRoomOverride,
   onGoToDevices,
-}) {
+}: ControlsViewProps) {
   const offline       = !serverState.connected;
   const deviceEntries = Object.entries(serverState.groups);
   const avail         = availability ?? {};

@@ -2,8 +2,30 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BackIcon } from '../icons';
 import PlayingBars from './PlayingBars';
+import type { SpotifyPlaylist, SpotifyAlbum, SpotifyShow, SpotifyListItem } from '../../types';
 
-function SquareItem({ item, onClick }) {
+interface GridItem {
+  id: string;
+  name: string;
+  image: string | null;
+  artist?: string | null;
+  uri?: string;
+}
+
+interface ExplorerSelection {
+  type: string;
+  data?: GridItem | SpotifyListItem;
+}
+
+interface SearchResultsData {
+  tracks?: SpotifyListItem[];
+  albums?: SpotifyAlbum[];
+  playlists?: SpotifyPlaylist[];
+  shows?: (SpotifyShow & { artist?: string })[];
+  episodes?: SpotifyListItem[];
+}
+
+function SquareItem({ item, onClick }: { item: GridItem; onClick: (item: GridItem) => void }) {
   return (
     <button
       onClick={() => onClick(item)}
@@ -32,7 +54,15 @@ function SkeletonSquare() {
   );
 }
 
-function HorizontalRow({ title, items, loading, onSeeAll, onSelect }) {
+interface HorizontalRowProps {
+  title: string;
+  items: GridItem[];
+  loading?: boolean;
+  onSeeAll: () => void;
+  onSelect: (item: GridItem) => void;
+}
+
+function HorizontalRow({ title, items, loading, onSeeAll, onSelect }: HorizontalRowProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2 px-4">
@@ -53,7 +83,7 @@ function HorizontalRow({ title, items, loading, onSeeAll, onSelect }) {
   );
 }
 
-function GridView({ title, items, onBack, onSelect }) {
+function GridView({ title, items, onBack, onSelect }: { title: string; items: GridItem[]; onBack: () => void; onSelect: (item: GridItem) => void }) {
   return (
     <div>
       <div className="flex items-center gap-3 px-4 py-2 sticky top-0 bg-app-bg z-10">
@@ -85,7 +115,7 @@ function GridView({ title, items, onBack, onSelect }) {
   );
 }
 
-function RowItem({ item, active, isPlaying, onClick }) {
+function RowItem({ item, active, isPlaying, onClick }: { item: SpotifyListItem; active: boolean; isPlaying: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -104,7 +134,7 @@ function RowItem({ item, active, isPlaying, onClick }) {
   );
 }
 
-function SearchResults({ results, onSelect, currentUri, isPlaying }) {
+function SearchResults({ results, onSelect, currentUri, isPlaying }: { results: SearchResultsData | null; onSelect: (s: ExplorerSelection) => void; currentUri: string | null | undefined; isPlaying: boolean }) {
   if (!results) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -188,13 +218,22 @@ function SearchResults({ results, onSelect, currentUri, isPlaying }) {
   );
 }
 
-export default function Explorer({ playlists, albums, albumsError, onSelect, currentUri, isPlaying }) {
+interface ExplorerProps {
+  playlists: SpotifyPlaylist[] | null;
+  albums: SpotifyAlbum[] | null;
+  albumsError: string | null;
+  onSelect: (selection: ExplorerSelection) => void;
+  currentUri: string | null | undefined;
+  isPlaying: boolean;
+}
+
+export default function Explorer({ playlists, albums, albumsError, onSelect, currentUri, isPlaying }: ExplorerProps) {
   const [view,          setView]          = useState('home');
   const [query,         setQuery]         = useState('');
-  const [searchResults, setSearchResults] = useState(null);
-  const [likedCount,    setLikedCount]    = useState(null);
-  const [podcasts,      setPodcasts]      = useState(null);
-  const searchTimer = useRef(null);
+  const [searchResults, setSearchResults] = useState<SearchResultsData | null>(null);
+  const [likedCount,    setLikedCount]    = useState<number | null>(null);
+  const [podcasts,      setPodcasts]      = useState<(SpotifyShow & { artist?: string })[] | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     axios.get('/api/spotify/liked-songs?count_only=true')
@@ -208,14 +247,14 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
   useEffect(() => {
     const q = query.trim();
     if (!q) { setSearchResults(null); return; }
-    clearTimeout(searchTimer.current);
+    clearTimeout(searchTimer.current ?? undefined);
     searchTimer.current = setTimeout(async () => {
       try {
         const { data } = await axios.get(`/api/spotify/search?q=${encodeURIComponent(q)}`);
         setSearchResults(data);
       } catch {}
     }, 400);
-    return () => clearTimeout(searchTimer.current);
+    return () => clearTimeout(searchTimer.current ?? undefined);
   }, [query]);
 
   const isSearching = query.trim().length > 0;
@@ -258,7 +297,7 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
         ) : view === 'podcasts' ? (
           <GridView
             title="Podcasts"
-            items={podcasts.map((s) => ({ ...s, artist: s.publisher }))}
+            items={(podcasts ?? []).map((s) => ({ ...s, artist: s.publisher }))}
             onBack={() => setView('home')}
             onSelect={(s) => onSelect({ type: 'show', data: s })}
           />

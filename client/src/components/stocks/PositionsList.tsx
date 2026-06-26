@@ -1,6 +1,17 @@
 import { money, sign } from './utils';
 
-export default function PositionsList({ positions }) {
+interface Position {
+  symbol: string;
+  qty: string;
+  current_price: string;
+  market_value: string;
+  unrealized_pl: string;
+  unrealized_plpc: string;
+}
+
+interface Props { positions: Position[] }
+
+export default function PositionsList({ positions }: Props) {
   return (
     <div className="w-72 shrink-0 flex flex-col p-5 overflow-hidden">
       <div className="text-[10px] font-medium text-white/25 uppercase tracking-widest mb-4 shrink-0">

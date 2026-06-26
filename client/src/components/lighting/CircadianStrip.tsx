@@ -1,4 +1,10 @@
-export default function CircadianStrip({ circadian }) {
+import type { CircadianState } from '../../types';
+
+interface Props {
+  circadian: CircadianState;
+}
+
+export default function CircadianStrip({ circadian }: Props) {
   const { brightness, colorTemp, nextChange, timeline } = circadian;
   const tempLabel = colorTemp < 33 ? 'Warm' : colorTemp < 67 ? 'Neutral' : 'Cool';
 

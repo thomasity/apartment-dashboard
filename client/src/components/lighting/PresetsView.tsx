@@ -1,7 +1,13 @@
 import PRESETS from '../../presets.json';
 import { avg, tempLabel } from './utils';
+import type { LightingValues } from '../../types';
 
-export default function PresetsView({ localDevices, onApplyPreset }) {
+interface Props {
+  localDevices: Record<string, LightingValues>;
+  onApplyPreset: (preset: LightingValues) => void;
+}
+
+export default function PresetsView({ localDevices, onApplyPreset }: Props) {
   const allBrightness = avg(localDevices, 'brightness');
   const allColorTemp  = avg(localDevices, 'colorTemp');
   const activePreset  = PRESETS.find((p) => p.brightness === allBrightness && p.colorTemp === allColorTemp);

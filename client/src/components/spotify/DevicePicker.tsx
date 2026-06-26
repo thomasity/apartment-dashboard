@@ -1,19 +1,29 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { DeviceTypeIcon, BluetoothIcon } from '../icons';
+import type { SpotifyDevice } from '../../types';
 
-export default function DevicePicker({ onClose, devices, transferTo }) {
-  const [btPaired,     setBtPaired]     = useState([]);
-  const [btDiscovered, setBtDiscovered] = useState([]);
+interface BtDevice { mac: string; name: string; connected: boolean; }
+interface BtDiscoveredDevice { mac: string; name?: string; }
+
+interface Props {
+  onClose: () => void;
+  devices: SpotifyDevice[];
+  transferTo: (id: string, play: boolean) => Promise<void>;
+}
+
+export default function DevicePicker({ onClose, devices, transferTo }: Props) {
+  const [btPaired,     setBtPaired]     = useState<BtDevice[]>([]);
+  const [btDiscovered, setBtDiscovered] = useState<BtDiscoveredDevice[]>([]);
   const [scanning,     setScanning]     = useState(false);
-  const [scanError,    setScanError]    = useState(null);
-  const [pairing,      setPairing]      = useState(null);
+  const [scanError,    setScanError]    = useState<string | null>(null);
+  const [pairing,      setPairing]      = useState<string | null>(null);
 
   useEffect(() => {
     axios.get('/api/bluetooth/devices').then((r) => setBtPaired(r.data)).catch(() => {});
   }, []);
 
-  const handleSpotifySelect = useCallback(async (deviceId) => {
+  const handleSpotifySelect = useCallback(async (deviceId: string) => {
     await transferTo(deviceId, true);
     onClose();
   }, [transferTo, onClose]);
@@ -26,8 +36,8 @@ export default function DevicePicker({ onClose, devices, transferTo }) {
       const { data } = await axios.get('/api/bluetooth/scan');
       setBtDiscovered(data);
       if (data.length === 0) setScanError('No devices found. Make sure your speaker is in pairing mode.');
-    } catch (err) {
-      const msg = err.response?.status === 409
+    } catch (err: unknown) {
+      const msg = (err as { response?: { status?: number } }).response?.status === 409
         ? 'Scan already in progress — try again in a moment.'
         : 'Scan failed. Check server logs.';
       setScanError(msg);
@@ -35,7 +45,7 @@ export default function DevicePicker({ onClose, devices, transferTo }) {
     setScanning(false);
   }, []);
 
-  const pair = useCallback(async (mac) => {
+  const pair = useCallback(async (mac: string) => {
     setPairing(mac);
     try {
       await axios.post('/api/bluetooth/pair', { mac });
@@ -46,7 +56,7 @@ export default function DevicePicker({ onClose, devices, transferTo }) {
     setPairing(null);
   }, []);
 
-  const toggleConnect = useCallback(async (d) => {
+  const toggleConnect = useCallback(async (d: BtDevice) => {
     try {
       if (d.connected) {
         await axios.post('/api/bluetooth/disconnect', { mac: d.mac });
@@ -58,7 +68,7 @@ export default function DevicePicker({ onClose, devices, transferTo }) {
     } catch {}
   }, []);
 
-  const forget = useCallback(async (mac) => {
+  const forget = useCallback(async (mac: string) => {
     try {
       await axios.delete(`/api/bluetooth/device/${mac}`);
       setBtPaired((prev) => prev.filter((d) => d.mac !== mac));
@@ -85,13 +95,13 @@ export default function DevicePicker({ onClose, devices, transferTo }) {
             {devices.map((d) => (
               <button
                 key={d.id}
-                onClick={() => handleSpotifySelect(d.id)}
+                onClick={() => d.id && handleSpotifySelect(d.id)}
                 className={`grid grid-cols-3 gap-4 px-5 py-5 rounded-item touch-manipulation transition-colors ${
                   d.isActive ? 'bg-white/10 text-white' : 'text-white/50 active:bg-white/[0.06]'
                 }`}
               >
                 <span className={d.isActive ? 'text-white' : 'text-white/30'}>
-                  <DeviceTypeIcon type={d.type} />
+                  <DeviceTypeIcon type={d.type ?? 'unknown'} />
                 </span>
                 <span className="text-sm truncate flex-1 justify-self-center">{d.name}</span>
                 {d.isActive && <span className="text-white/30 text-xs justify-self-end">Active</span>}

@@ -4,11 +4,18 @@ import MarketSummary from './MarketSummary';
 import SPYChart      from './SPYChart';
 import PositionsList from './PositionsList';
 
+interface AccountData { equity: string; last_equity: string; }
+interface SpySnap { latestTrade: { p: number }; prevDailyBar: { c: number }; }
+interface Position {
+  symbol: string; qty: string; current_price: string; market_value: string;
+  unrealized_pl: string; unrealized_plpc: string;
+}
+
 export default function Stocks() {
-  const [account,   setAccount]   = useState(null);
-  const [positions, setPositions] = useState([]);
-  const [spySnap,   setSpySnap]   = useState(null);
-  const [error,     setError]     = useState(null);
+  const [account,   setAccount]   = useState<AccountData | null>(null);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [spySnap,   setSpySnap]   = useState<SpySnap | null>(null);
+  const [error,     setError]     = useState<string | null>(null);
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -19,8 +26,8 @@ export default function Stocks() {
       setAccount(accRes.data);
       setPositions(posRes.data);
       setError(null);
-    } catch (err) {
-      setError(err.response?.data?.error ?? 'Failed to load');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Failed to load');
     }
   }, []);
 

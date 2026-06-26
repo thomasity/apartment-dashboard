@@ -34,11 +34,21 @@ function SunBright() {
   );
 }
 
+interface LightSlidersProps {
+  brightness: number;
+  colorTemp: number;
+  tempLabel: string;
+  onBrightness: (v: number) => void;
+  onColorTemp: (v: number) => void;
+  brightnessMixed?: boolean;
+  colorTempMixed?: boolean;
+}
+
 export function LightSliders({
   brightness, colorTemp, tempLabel,
   onBrightness, onColorTemp,
   brightnessMixed = false, colorTempMixed = false,
-}) {
+}: LightSlidersProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">

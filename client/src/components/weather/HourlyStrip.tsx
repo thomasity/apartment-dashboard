@@ -1,7 +1,13 @@
 import { wmo }  from '../../lib/wmo';
 import { DAYS } from './utils';
+import type { WeatherHourly, WeatherDaily } from '../../hooks/useWeather';
 
-export default function HourlyStrip({ hourly, daily }) {
+interface Props {
+  hourly: WeatherHourly;
+  daily: WeatherDaily;
+}
+
+export default function HourlyStrip({ hourly, daily }: Props) {
   const todayStr = daily.time[0];
   const nowHour  = new Date().getHours();
 

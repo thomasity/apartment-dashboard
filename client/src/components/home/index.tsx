@@ -9,9 +9,13 @@ import WeatherStrip   from './WeatherStrip';
 
 const ROTATION_MS  = 30 * 60 * 1000;
 const currentEpoch = () => Math.floor(Date.now() / ROTATION_MS);
-const picUrl       = (n) => `https://picsum.photos/seed/${n}/1920/1080`;
+const picUrl       = (n: number) => `https://picsum.photos/seed/${n}/1920/1080`;
 
-export default function Home({ onNavigate }) {
+interface Props {
+  onNavigate: (tab: string) => void;
+}
+
+export default function Home({ onNavigate }: Props) {
   const [epochs, setEpochs] = useState({ back: currentEpoch() - 1, front: currentEpoch() });
   const now                 = useClock();
   const { data: weather }   = useWeather();

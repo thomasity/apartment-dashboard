@@ -8,9 +8,13 @@ import {
   PowerIcon, RemoteIcon, KeyboardIcon, CastIcon, CheckIcon, SearchIcon,
 } from '../icons';
 
-const STATE_LABEL = { play: 'Playing', pause: 'Paused', stop: 'Stopped' };
+interface TvStatus { appId?: string; appName?: string; playerState?: string; position?: number; duration?: number; }
+interface TvApp { id: string; name: string; }
+interface DiscoveredDevice { ip: string; name: string; model?: string; }
 
-function fmtSec(s) {
+const STATE_LABEL: Record<string, string> = { play: 'Playing', pause: 'Paused', stop: 'Stopped' };
+
+function fmtSec(s: number) {
   if (!s || s <= 0) return '0:00';
   const h   = Math.floor(s / 3600);
   const m   = Math.floor((s % 3600) / 60);
@@ -20,7 +24,7 @@ function fmtSec(s) {
     : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-function AppTile({ app, onLaunch }) {
+function AppTile({ app, onLaunch }: { app: TvApp; onLaunch: (id: string) => void }) {
   const [imgFailed, setImgFailed] = useState(false);
   return (
     <button
@@ -48,7 +52,7 @@ function AppTile({ app, onLaunch }) {
   );
 }
 
-function BarBtn({ children, onClick, active, danger }) {
+function BarBtn({ children, onClick, active, danger }: { children: React.ReactNode; onClick: () => void; active?: boolean; danger?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -65,7 +69,7 @@ function BarBtn({ children, onClick, active, danger }) {
   );
 }
 
-function FlatBtn({ children, onClick }) {
+function FlatBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -76,7 +80,7 @@ function FlatBtn({ children, onClick }) {
   );
 }
 
-function RoundBtn({ children, onClick, dim, lg }) {
+function RoundBtn({ children, onClick, dim, lg }: { children: React.ReactNode; onClick: () => void; dim?: boolean; lg?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -92,16 +96,16 @@ function RoundBtn({ children, onClick, dim, lg }) {
 }
 
 export default function TV() {
-  const [status, setStatus]               = useState(null);
-  const [apps, setApps]                   = useState([]);
-  const [error, setError]                 = useState(null);
-  const [appsError, setAppsError]         = useState(null);
+  const [status, setStatus]               = useState<TvStatus | null>(null);
+  const [apps, setApps]                   = useState<TvApp[]>([]);
+  const [error, setError]                 = useState<string | null>(null);
+  const [appsError, setAppsError]         = useState<string | null>(null);
   const [remoteOpen, setRemoteOpen]       = useState(false);
   const [keyboardOpen, setKeyboardOpen]   = useState(false);
   const [searchQuery, setSearchQuery]     = useState('');
   const [pickerOpen, setPickerOpen]       = useState(false);
-  const [device, setDevice]               = useState(null);
-  const [discovered, setDiscovered]       = useState([]);
+  const [device, setDevice]               = useState<DiscoveredDevice | null>(null);
+  const [discovered, setDiscovered]       = useState<DiscoveredDevice[]>([]);
   const [discovering, setDiscovering]     = useState(false);
   const [typeText, setTypeText]           = useState('');
   const [waking, setWaking]               = useState(false);
@@ -156,7 +160,7 @@ export default function TV() {
       .finally(() => setDiscovering(false));
   }, []);
 
-  const selectDevice = useCallback((d) => {
+  const selectDevice = useCallback((d: DiscoveredDevice) => {
     axios.post('/api/tv/select', { ip: d.ip, name: d.name })
       .then(() => { setDevice(d); setPickerOpen(false); })
       .catch(() => {});
@@ -164,14 +168,14 @@ export default function TV() {
 
   const openPicker = useCallback(() => { setPickerOpen(true); discover(); }, [discover]);
 
-  const key = (k) => axios.post(`/api/tv/keypress/${k}`).catch(console.warn);
+  const key = (k: string) => axios.post(`/api/tv/keypress/${k}`).catch(console.warn);
 
-  const launch = (id) => {
+  const launch = (id: string) => {
     axios.post(`/api/tv/launch/${id}`).catch(console.warn);
     setTimeout(fetchStatus, 1500);
   };
 
-  const handleTypeChange = useCallback((e) => {
+  const handleTypeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newText = e.target.value;
     const prev    = prevTextRef.current;
     if (newText.length > prev.length) {
@@ -248,7 +252,7 @@ export default function TV() {
                 src={`/api/tv/icon/${appId}`}
                 alt={appName}
                 className="w-8 h-6 object-contain rounded shrink-0"
-                onError={(e) => { e.target.style.display = 'none'; }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             )}
             <span className="text-sm text-white/60 truncate">{appName ?? '—'}</span>

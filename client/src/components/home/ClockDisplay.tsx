@@ -1,4 +1,12 @@
-export default function ClockDisplay({ hour, m, s, ampm, dateStr }) {
+interface Props {
+  hour: string;
+  m: string;
+  s: string;
+  ampm: string;
+  dateStr: string;
+}
+
+export default function ClockDisplay({ hour, m, s, ampm, dateStr }: Props) {
   return (
     <div className="relative h-full flex flex-col items-center justify-center">
       <div className="flex items-end gap-4">

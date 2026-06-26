@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
 import axios from 'axios';
 
 const PERIODS = ['1D', '1W', '1M', '3M'];
 
 export default function SPYChart() {
-  const [chartBars, setChartBars] = useState([]);
+  const [chartBars, setChartBars] = useState<Array<{ t: string; c: number }>>([]);
   const [period,    setPeriod]    = useState('1M');
 
-  const containerRef = useRef(null);
-  const chartRef     = useRef(null);
-  const seriesRef    = useRef(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef     = useRef<IChartApi | null>(null);
+  const seriesRef    = useRef<ISeriesApi<'Area'> | null>(null);
 
   const loadChart = useCallback(async () => {
     try {
@@ -73,7 +74,7 @@ export default function SPYChart() {
     if (!seriesRef.current || !chartBars.length) return;
 
     const data = chartBars
-      .map((b) => ({ time: Math.floor(new Date(b.t).getTime() / 1000), value: b.c }))
+      .map((b) => ({ time: Math.floor(new Date(b.t).getTime() / 1000) as UTCTimestamp, value: b.c }))
       .sort((a, b) => a.time - b.time);
 
     try {

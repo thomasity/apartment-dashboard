@@ -4,6 +4,26 @@ import {
   CastIcon, VolumeIcon,
 } from '../icons';
 import { fmtMs } from './utils';
+import type { SpotifyPlaybackItem, SpotifyPlaylist } from '../../types';
+
+interface Props {
+  item: SpotifyPlaybackItem | null;
+  isPlaying: boolean;
+  shuffle: boolean;
+  repeat: 'off' | 'context' | 'track';
+  deviceName: string | undefined;
+  deviceVolume: number | undefined;
+  contextLabel: string | null | undefined;
+  contextPlaylist: SpotifyPlaylist | null;
+  contextTypeLabel: string;
+  control: (action: string) => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
+  seek: (ms: number) => void;
+  setVolume: (v: number) => void;
+  onOpenPicker: () => void;
+  onSelectPlaylist: (playlist: SpotifyPlaylist) => void;
+}
 
 export default function NowPlaying({
   item,
@@ -22,11 +42,11 @@ export default function NowPlaying({
   setVolume,
   onOpenPicker,
   onSelectPlaylist,
-}) {
-  const [seekValue, setSeekValue] = useState(null);
+}: Props) {
+  const [seekValue, setSeekValue] = useState<number | null>(null);
 
-  const handleSeekEnd = useCallback((e) => {
-    seek(Number(e.target.value));
+  const handleSeekEnd = useCallback((e: React.SyntheticEvent<HTMLInputElement>) => {
+    seek(Number(e.currentTarget.value));
     setSeekValue(null);
   }, [seek]);
 
@@ -39,7 +59,7 @@ export default function NowPlaying({
     }
   }, [deviceVolume]);
 
-  const handleVolumeChange = useCallback((e) => {
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setLocalVolume(val);
     localChangedAt.current = Date.now();
@@ -81,7 +101,7 @@ export default function NowPlaying({
         {item.art ? (
           <img
             src={item.art}
-            alt={item.album}
+            alt={item.album ?? ''}
             className="w-40 h-40 object-cover"
             style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
           />

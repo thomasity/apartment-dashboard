@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import type { SpotifyState, SpotifyPlaylist, SpotifyAlbum, SpotifyDevice } from '../types';
 
 export function useSpotify() {
-  const [state,       setState]       = useState(null);
-  const [playlists,   setPlaylists]   = useState(null);
-  const [albums,      setAlbums]      = useState(null);
-  const [albumsError, setAlbumsError] = useState(null);
-  const [devices,     setDevices]     = useState([]);
+  const [state,       setState]       = useState<SpotifyState | null>(null);
+  const [playlists,   setPlaylists]   = useState<SpotifyPlaylist[] | null>(null);
+  const [albums,      setAlbums]      = useState<SpotifyAlbum[] | null>(null);
+  const [albumsError, setAlbumsError] = useState<string | null>(null);
+  const [devices,     setDevices]     = useState<SpotifyDevice[]>([]);
   const [tick,      setTick]      = useState(0);
   const polledAt                  = useRef(0);
-  const volumeDebounce            = useRef(null);
+  const volumeDebounce            = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const poll = useCallback(async () => {
     try {
@@ -43,23 +44,23 @@ export function useSpotify() {
     return () => clearInterval(id);
   }, [state?.isPlaying]);
 
-  const control = useCallback(async (action, body) => {
+  const control = useCallback(async (action: string, body?: Record<string, unknown>) => {
     try {
       await axios.post(`/api/spotify/${action}`, body);
       setTimeout(poll, 400);
     } catch {}
   }, [poll]);
 
-  const playContext = useCallback(async (context_uri, offset_uri) => {
+  const playContext = useCallback(async (context_uri: string | undefined, offset_uri?: string) => {
     try {
-      const body = { context_uri };
+      const body: { context_uri?: string; offset_uri?: string } = { context_uri };
       if (offset_uri) body.offset_uri = offset_uri;
       await axios.post('/api/spotify/play', body);
       setTimeout(poll, 400);
     } catch {}
   }, [poll]);
 
-  const playUri = useCallback(async (uri) => {
+  const playUri = useCallback(async (uri: string) => {
     try {
       await axios.post('/api/spotify/play', { uris: [uri] });
       setTimeout(poll, 400);
@@ -74,7 +75,7 @@ export function useSpotify() {
     } catch { return []; }
   }, []);
 
-  const transferTo = useCallback(async (deviceId, play = false) => {
+  const transferTo = useCallback(async (deviceId: string, play = false) => {
     try {
       await axios.post('/api/spotify/transfer', { deviceId, play });
       setTimeout(poll, 600);
@@ -85,7 +86,10 @@ export function useSpotify() {
     try {
       await axios.post('/api/spotify/shuffle', { state: !(state?.shuffle ?? false) });
       setTimeout(poll, 1000);
-    } catch (err) { console.error('[spotify] shuffle:', err.response?.data ?? err.message); }
+    } catch (err) {
+      const e = err as { response?: { data?: unknown }; message?: string };
+      console.error('[spotify] shuffle:', e.response?.data ?? e.message);
+    }
   }, [state?.shuffle, poll]);
 
   const cycleRepeat = useCallback(async () => {
@@ -94,10 +98,13 @@ export function useSpotify() {
       const next = order[(order.indexOf(state?.repeat ?? 'off') + 1) % order.length];
       await axios.post('/api/spotify/repeat', { state: next });
       setTimeout(poll, 1000);
-    } catch (err) { console.error('[spotify] repeat:', err.response?.data ?? err.message); }
+    } catch (err) {
+      const e = err as { response?: { data?: unknown }; message?: string };
+      console.error('[spotify] repeat:', e.response?.data ?? e.message);
+    }
   }, [state?.repeat, poll]);
 
-  const seek = useCallback(async (position) => {
+  const seek = useCallback(async (position: number) => {
     try {
       await axios.post('/api/spotify/seek', { position });
       polledAt.current = Date.now();
@@ -105,8 +112,8 @@ export function useSpotify() {
     } catch {}
   }, []);
 
-  const setVolume = useCallback((vol) => {
-    clearTimeout(volumeDebounce.current);
+  const setVolume = useCallback((vol: number) => {
+    clearTimeout(volumeDebounce.current ?? undefined);
     volumeDebounce.current = setTimeout(() => {
       axios.post('/api/spotify/volume', { volume: vol }).catch(() => {});
     }, 300);

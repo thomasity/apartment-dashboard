@@ -1,35 +1,62 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { PencilIcon, TrashIcon, CheckIcon } from '../icons';
+import type { Socket } from 'socket.io-client';
+import type { RoomsMap } from '../../types';
 
 const SCAN_DURATION = 254;
 
-function getRoomForDevice(name, rooms) {
+interface DeviceEntry {
+  ieee_address: string;
+  friendly_name: string;
+  type: string;
+  definition?: { description?: string };
+}
+
+interface DevicesState {
+  bridgeOnline: boolean;
+  devices: DeviceEntry[];
+  pairing: boolean;
+  availability?: Record<string, boolean>;
+}
+
+function getRoomForDevice(name: string, rooms: RoomsMap): string | null {
   for (const [room, devices] of Object.entries(rooms)) {
     if (devices.includes(name)) return room;
   }
   return null;
 }
 
-export default function DevicesView({ socket, devState, setDevState, rooms, onCreateRoom, onRenameRoom, onDeleteRoom, onAssignDevice }) {
+interface Props {
+  socket: Socket | null;
+  devState: DevicesState;
+  setDevState: React.Dispatch<React.SetStateAction<DevicesState>>;
+  rooms: RoomsMap;
+  onCreateRoom: (name: string) => void;
+  onRenameRoom: (oldName: string, newName: string) => void;
+  onDeleteRoom: (name: string) => void;
+  onAssignDevice: (deviceName: string, roomName: string | null) => void;
+}
+
+export default function DevicesView({ socket, devState, setDevState, rooms, onCreateRoom, onRenameRoom, onDeleteRoom, onAssignDevice }: Props) {
   // Scan state
-  const [editingId, setEditingId]       = useState(null);
+  const [editingId, setEditingId]       = useState<string | null>(null);
   const [draftName, setDraftName]       = useState('');
   const [countdown, setCountdown]       = useState(0);
-  const [newDeviceIds, setNewDeviceIds] = useState(new Set());
+  const [newDeviceIds, setNewDeviceIds] = useState<Set<string>>(new Set());
   const prevPairing    = useRef(false);
-  const scanStartIds   = useRef(null);
-  const countdownTimer = useRef(null);
-  const scanStartTime  = useRef(null);
+  const scanStartIds   = useRef<Set<string> | null>(null);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scanStartTime  = useRef<number | null>(null);
 
   // Room management state
-  const [editingRoom, setEditingRoom]     = useState(null);
+  const [editingRoom, setEditingRoom]     = useState<string | null>(null);
   const [draftRoomName, setDraftRoomName] = useState('');
   const [addingRoom, setAddingRoom]       = useState(false);
   const [newRoomName, setNewRoomName]     = useState('');
 
   // Room device-picker state — which room's '+' was tapped
-  const [pickerRoom, setPickerRoom] = useState(null);
+  const [pickerRoom, setPickerRoom] = useState<string | null>(null);
 
   useEffect(() => {
     if (devState.pairing && !prevPairing.current) {
@@ -37,34 +64,34 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
       scanStartTime.current = Date.now();
       setCountdown(SCAN_DURATION);
       countdownTimer.current = setInterval(() => {
-        const remaining = Math.max(0, SCAN_DURATION - Math.floor((Date.now() - scanStartTime.current) / 1000));
+        const remaining = Math.max(0, SCAN_DURATION - Math.floor((Date.now() - (scanStartTime.current ?? Date.now())) / 1000));
         setCountdown(remaining);
-        if (remaining === 0) clearInterval(countdownTimer.current);
+        if (remaining === 0) clearInterval(countdownTimer.current ?? undefined);
       }, 1000);
     } else if (!devState.pairing && prevPairing.current) {
-      clearInterval(countdownTimer.current);
+      clearInterval(countdownTimer.current ?? undefined);
       scanStartIds.current  = null;
       scanStartTime.current = null;
       setCountdown(0);
       setNewDeviceIds(new Set());
     }
     prevPairing.current = devState.pairing;
-    return () => clearInterval(countdownTimer.current);
+    return () => clearInterval(countdownTimer.current ?? undefined);
   }, [devState.pairing]);
 
   useEffect(() => {
     if (!scanStartIds.current) return;
     const joined = devState.devices
-      .filter((d) => d.type !== 'Coordinator' && !scanStartIds.current.has(d.ieee_address))
+      .filter((d) => d.type !== 'Coordinator' && !scanStartIds.current!.has(d.ieee_address))
       .map((d) => d.ieee_address);
     if (joined.length) setNewDeviceIds(new Set(joined));
   }, [devState.devices]);
 
   const toggleScan   = () => axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
-  const startEdit    = (d) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
-  const removeDevice = (id) => axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
+  const startEdit    = (d: DeviceEntry) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
+  const removeDevice = (id: string) => axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
 
-  const submitRename = (oldName) => {
+  const submitRename = (oldName: string) => {
     const trimmed = draftName.trim();
     if (trimmed && trimmed !== oldName)
       axios.post('/api/lighting/devices/rename', { from: oldName, to: trimmed }).catch(console.warn);
@@ -78,19 +105,19 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
     setNewRoomName('');
   };
 
-  const submitRenameRoom = (oldName) => {
+  const submitRenameRoom = (oldName: string) => {
     const name = draftRoomName.trim();
     if (name && name !== oldName) onRenameRoom(oldName, name);
     setEditingRoom(null);
   };
 
-  const toggleDeviceInRoom = (deviceName, roomName) => {
+  const toggleDeviceInRoom = (deviceName: string, roomName: string) => {
     const currentRoom = getRoomForDevice(deviceName, rooms);
     // If already in this room, remove (unassign); otherwise assign to this room
     onAssignDevice(deviceName, currentRoom === roomName ? null : roomName);
   };
 
-  const fmt     = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const fmt     = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const visible = devState.devices.filter((d) => d.type !== 'Coordinator');
 
   return (

@@ -5,6 +5,18 @@ import NowPlaying from './NowPlaying';
 import TrackList from './TrackList';
 import Explorer from './Explorer';
 import DevicePicker from './DevicePicker';
+import type { SpotifyListItem, SpotifyPlaylist } from '../../types';
+
+interface SelectionData {
+  id?: string;
+  uri?: string;
+  name?: string;
+  image?: string | null;
+  collectionUri?: string;
+  artist?: string | null;
+}
+interface ExplorerSelection { type: string; data?: SelectionData; }
+type SelectedSource = ExplorerSelection & { data: SelectionData & { name: string; image: string | null } };
 
 export default function Spotify() {
   const {
@@ -14,41 +26,41 @@ export default function Spotify() {
   } = useSpotify();
 
   const [pickerOpen,      setPickerOpen]      = useState(false);
-  const [selectedSource,  setSelectedSource]  = useState(null);
-  const [tracks,          setTracks]          = useState([]);
+  const [selectedSource,  setSelectedSource]  = useState<SelectedSource | null>(null);
+  const [tracks,          setTracks]          = useState<SpotifyListItem[]>([]);
   const [tracksLoading,   setTracksLoading]   = useState(false);
 
-  const handleSelect = useCallback(async (selection) => {
+  const handleSelect = useCallback(async (selection: ExplorerSelection) => {
     if (selection.type === 'track' || selection.type === 'episode') {
-      playUri(selection.data.uri);
+      playUri(selection.data?.uri ?? '');
       return;
     }
 
     // Switch to TrackList immediately so user sees the loading state right away
-    const prelimSource = selection.type === 'liked'
+    const prelimSource: SelectedSource = selection.type === 'liked'
       ? { type: 'liked', data: { name: 'Liked Songs', image: null } }
-      : selection;
+      : (selection as SelectedSource);
     setSelectedSource(prelimSource);
     setTracks([]);
     setTracksLoading(true);
 
     try {
       if (selection.type === 'playlist') {
-        const { data } = await axios.get(`/api/spotify/playlist/${selection.data.id}/tracks`);
+        const { data } = await axios.get(`/api/spotify/playlist/${selection.data?.id}/tracks`);
         setTracks(data);
       } else if (selection.type === 'album') {
-        const { data } = await axios.get(`/api/spotify/album/${selection.data.id}/tracks`);
+        const { data } = await axios.get(`/api/spotify/album/${selection.data?.id}/tracks`);
         setTracks(data);
       } else if (selection.type === 'liked') {
         const { data } = await axios.get('/api/spotify/liked-songs');
         setTracks(data.tracks);
         setSelectedSource({ type: 'liked', data: { name: 'Liked Songs', image: null, collectionUri: data.collectionUri } });
       } else if (selection.type === 'show') {
-        const { data } = await axios.get(`/api/spotify/shows/${selection.data.id}/episodes`);
+        const { data } = await axios.get(`/api/spotify/shows/${selection.data?.id}/episodes`);
         setTracks(data);
       }
-    } catch (err) {
-      console.error('[spotify] tracks fetch failed:', err.message);
+    } catch (err: unknown) {
+      console.error('[spotify] tracks fetch failed:', err instanceof Error ? err.message : err);
       setSelectedSource(null);
     }
     setTracksLoading(false);
@@ -59,7 +71,7 @@ export default function Spotify() {
     setTracks([]);
   }, []);
 
-  const handlePlay = useCallback((trackUri) => {
+  const handlePlay = useCallback((trackUri: string) => {
     if (!selectedSource) return;
     if (selectedSource.type === 'show')     return playUri(trackUri);
     if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri, trackUri);
@@ -84,8 +96,9 @@ export default function Spotify() {
   const shuffle   = state?.shuffle   ?? false;
   const repeat    = state?.repeat    ?? 'off';
 
+  const contextUri = state?.context?.uri;
   const contextPlaylist = state?.context?.type === 'playlist'
-    ? ((playlists ?? []).find((pl) => pl.uri === state.context.uri) ?? null)
+    ? ((playlists ?? []).find((pl) => pl.uri === contextUri) ?? null)
     : null;
   const contextLabel =
     state?.context?.type === 'collection' ? 'Liked Songs' :
@@ -116,7 +129,7 @@ export default function Spotify() {
           seek={seek}
           setVolume={setVolume}
           onOpenPicker={openPicker}
-          onSelectPlaylist={handleSelect}
+          onSelectPlaylist={(pl: SpotifyPlaylist) => handleSelect({ type: 'playlist', data: pl })}
         />
       </div>
 

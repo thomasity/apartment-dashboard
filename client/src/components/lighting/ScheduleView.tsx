@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { TrashIcon } from '../icons';
+import type { Rule, RuleAction, RuleActionType, RoomsMap } from '../../types';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function fmt12(timeStr) {
+function fmt12(timeStr: string): string {
   if (!timeStr) return '';
   const [h, m] = timeStr.split(':').map(Number);
   const period = h < 12 ? 'AM' : 'PM';
@@ -13,7 +14,7 @@ function fmt12(timeStr) {
   return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-function fmtDays(days) {
+function fmtDays(days: number[]): string {
   if (!days || days.length === 0) return '—';
   if (days.length === 7) return 'Every day';
   const sorted = [...days].sort();
@@ -22,7 +23,7 @@ function fmtDays(days) {
   return sorted.map((d) => DAY_NAMES[d]).join(', ');
 }
 
-function fmtAction(action, rooms) {
+function fmtAction(action: RuleAction, rooms: RoomsMap): string {
   if (!action) return '';
   const target = action.group === 'all' ? 'All lights' : action.group;
   if (action.type === 'power')    return `Turn ${action.on ? 'on' : 'off'} · ${target}`;
@@ -31,18 +32,29 @@ function fmtAction(action, rooms) {
   return '';
 }
 
-const BLANK_FORM = {
+interface FormState {
+  name: string;
+  time: string;
+  days: number[];
+  action: RuleAction;
+}
+
+const BLANK_FORM: FormState = {
   name:   '',
   time:   '22:00',
   days:   [1, 2, 3, 4, 5],
   action: { type: 'power', group: 'all', on: false, brightness: 50, colorTemp: 30, enabled: true },
 };
 
-export default function ScheduleView({ rooms }) {
-  const [rules,     setRules]     = useState([]);
+interface Props {
+  rooms: RoomsMap;
+}
+
+export default function ScheduleView({ rooms }: Props) {
+  const [rules,     setRules]     = useState<Rule[]>([]);
   const [showForm,  setShowForm]  = useState(false);
-  const [editId,    setEditId]    = useState(null);
-  const [form,      setForm]      = useState(BLANK_FORM);
+  const [editId,    setEditId]    = useState<string | null>(null);
+  const [form,      setForm]      = useState<FormState>(BLANK_FORM);
 
   useEffect(() => {
     axios.get('/api/lighting/rules').then((r) => setRules(r.data)).catch(() => {});
@@ -56,7 +68,7 @@ export default function ScheduleView({ rooms }) {
     setShowForm(true);
   };
 
-  const openEdit = (rule) => {
+  const openEdit = (rule: Rule) => {
     setEditId(rule.id);
     setForm({
       name:   rule.name,
@@ -80,24 +92,24 @@ export default function ScheduleView({ rooms }) {
     closeForm();
   };
 
-  const toggleEnabled = async (rule) => {
+  const toggleEnabled = async (rule: Rule) => {
     await axios.patch(`/api/lighting/rules/${rule.id}`, { enabled: !rule.enabled }).catch(console.warn);
     refetch();
   };
 
-  const deleteRule = async (id) => {
+  const deleteRule = async (id: string) => {
     await axios.delete(`/api/lighting/rules/${id}`).catch(console.warn);
     refetch();
   };
 
-  const toggleDay = (day) => {
+  const toggleDay = (day: number) => {
     setForm((f) => ({
       ...f,
       days: f.days.includes(day) ? f.days.filter((d) => d !== day) : [...f.days, day],
     }));
   };
 
-  const setAction = (patch) => setForm((f) => ({ ...f, action: { ...f.action, ...patch } }));
+  const setAction = (patch: Partial<RuleAction>) => setForm((f) => ({ ...f, action: { ...f.action, ...patch } }));
 
   const roomNames = Object.keys(rooms);
 
@@ -220,11 +232,11 @@ export default function ScheduleView({ rooms }) {
             <div className="flex flex-col gap-2">
               <label className="text-[10px] uppercase tracking-widest text-white/30">Action</label>
               <div className="flex gap-2">
-                {[
-                  { key: 'power',    label: 'Power' },
-                  { key: 'scene',    label: 'Scene' },
-                  { key: 'circadian', label: 'Auto' },
-                ].map(({ key, label }) => (
+                {([
+                  { key: 'power' as RuleActionType,    label: 'Power' },
+                  { key: 'scene' as RuleActionType,    label: 'Scene' },
+                  { key: 'circadian' as RuleActionType, label: 'Auto' },
+                ] as { key: RuleActionType; label: string }[]).map(({ key, label }) => (
                   <button
                     key={key}
                     onClick={() => setAction({ type: key })}
@@ -307,12 +319,12 @@ export default function ScheduleView({ rooms }) {
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] uppercase tracking-widest text-white/30">Color Temp</label>
                     <span className="text-[10px] text-white/40">
-                      {form.action.colorTemp < 33 ? 'Warm' : form.action.colorTemp < 67 ? 'Neutral' : 'Cool'}
+                      {(form.action.colorTemp ?? 0) < 33 ? 'Warm' : (form.action.colorTemp ?? 0) < 67 ? 'Neutral' : 'Cool'}
                     </span>
                   </div>
                   <input
                     type="range" min="0" max="100"
-                    value={form.action.colorTemp}
+                    value={form.action.colorTemp ?? 0}
                     onChange={(e) => setAction({ colorTemp: Number(e.target.value) })}
                     className="w-full"
                     style={{ accentColor: '#a8c8ff' }}

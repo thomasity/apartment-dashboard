@@ -1,4 +1,13 @@
-export default function WeatherStrip({ icon, temperature, high, low, precip, onNavigate }) {
+interface Props {
+  icon: string | null;
+  temperature: number | null;
+  high: number | null;
+  low: number | null;
+  precip: number | null;
+  onNavigate: () => void;
+}
+
+export default function WeatherStrip({ icon, temperature, high, low, precip, onNavigate }: Props) {
   if (!icon) return null;
 
   return (

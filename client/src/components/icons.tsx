@@ -62,7 +62,7 @@ export function ShuffleIcon({ size = 20 }) {
   );
 }
 
-export function RepeatIcon({ one, size = 20 }) {
+export function RepeatIcon({ one, size = 20 }: { one?: boolean; size?: number }) {
   return (
     <div className="relative inline-flex items-center justify-center">
       <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -244,7 +244,7 @@ export function CheckIcon({ size = 18 }) {
   );
 }
 
-export function DeviceTypeIcon({ type, size = 16 }) {
+export function DeviceTypeIcon({ type, size = 16 }: { type: string; size?: number }) {
   if (type === 'smartphone') return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>

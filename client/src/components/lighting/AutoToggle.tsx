@@ -1,4 +1,9 @@
-export default function AutoToggle({ on, onClick }) {
+interface Props {
+  on: boolean;
+  onClick: () => void;
+}
+
+export default function AutoToggle({ on, onClick }: Props) {
   return (
     <button
       onClick={onClick}

@@ -24,37 +24,37 @@ export default function App() {
   const [tab,        setTab]        = useState('home');
   const [navVisible, setNavVisible] = useState(true);
 
-  const touchStart    = useRef(null);
-  const inactivityRef = useRef(null);
-  const navHideRef    = useRef(null);
+  const touchStart    = useRef<{ x: number; y: number } | null>(null);
+  const inactivityRef = useRef<number | null>(null);
+  const navHideRef    = useRef<number | null>(null);
   const tabRef        = useRef(tab);
 
   useEffect(() => { tabRef.current = tab; }, [tab]);
 
   // ── Nav auto-hide: fades out after 3 s on Home, always visible elsewhere ──
   const scheduleNavHide = useCallback(() => {
-    clearTimeout(navHideRef.current);
+    clearTimeout(navHideRef.current ?? undefined);
     navHideRef.current = setTimeout(() => setNavVisible(false), NAV_HIDE_MS);
   }, []);
 
   useEffect(() => {
-    clearTimeout(navHideRef.current);
+    clearTimeout(navHideRef.current ?? undefined);
     if (tab === 'home') {
       scheduleNavHide();
     } else {
       setNavVisible(true);
     }
-    return () => clearTimeout(navHideRef.current);
+    return () => clearTimeout(navHideRef.current ?? undefined);
   }, [tab, scheduleNavHide]);
 
   // ── Inactivity: reset timer on every touch, return to home on expiry ──
   const resetInactivity = useCallback(() => {
-    clearTimeout(inactivityRef.current);
+    clearTimeout(inactivityRef.current ?? undefined);
     inactivityRef.current = setTimeout(() => setTab('home'), INACTIVITY_MS);
 
     // Any touch shows the nav; if already on Home, restart the hide countdown
     setNavVisible(true);
-    clearTimeout(navHideRef.current);
+    clearTimeout(navHideRef.current ?? undefined);
     if (tabRef.current === 'home') {
       navHideRef.current = setTimeout(() => setNavVisible(false), NAV_HIDE_MS);
     }
@@ -62,17 +62,17 @@ export default function App() {
 
   useEffect(() => {
     resetInactivity();
-    return () => clearTimeout(inactivityRef.current);
+    return () => clearTimeout(inactivityRef.current ?? undefined);
   }, [resetInactivity]);
 
   // ── Swipe detection ─────────────────────────────────────────────────
-  const handleTouchStart = (e) => {
-    if (e.target.closest('[data-no-swipe]')) return;
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if ((e.target as Element).closest('[data-no-swipe]')) return;
     const t = e.touches[0];
     touchStart.current = { x: t.clientX, y: t.clientY };
   };
 
-  const handleTouchEnd = (e) => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return;
     const t  = e.changedTouches[0];
     const dx = t.clientX - touchStart.current.x;

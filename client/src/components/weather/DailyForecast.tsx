@@ -1,7 +1,12 @@
 import { wmo }  from '../../lib/wmo';
 import { DAYS } from './utils';
+import type { WeatherDaily } from '../../hooks/useWeather';
 
-export default function DailyForecast({ daily }) {
+interface Props {
+  daily: WeatherDaily;
+}
+
+export default function DailyForecast({ daily }: Props) {
   return (
     <div className="flex-1 min-h-0 flex flex-col px-8 py-4 overflow-hidden">
       <div className="text-[10px] font-medium text-white/25 uppercase tracking-widest mb-3 shrink-0">

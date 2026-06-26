@@ -1,4 +1,12 @@
-export default function CurrentConditions({ current, icon, label }) {
+import type { WeatherCurrent } from '../../hooks/useWeather';
+
+interface Props {
+  current: WeatherCurrent;
+  icon: string;
+  label: string;
+}
+
+export default function CurrentConditions({ current, icon, label }: Props) {
   return (
     <div className="shrink-0 flex items-center gap-6 px-8 py-5 border-b border-subtle">
       <span className="text-6xl leading-none">{icon}</span>

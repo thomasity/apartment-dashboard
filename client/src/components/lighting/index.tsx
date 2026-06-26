@@ -1,25 +1,40 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
 import ControlsView  from './ControlsView';
 import PresetsView   from './PresetsView';
 import ScheduleView  from './ScheduleView';
 import DevicesView   from './DevicesView';
+import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap } from '../../types';
 
 export default function Lighting() {
-  const [view,         setView]         = useState('controls');
-  const [serverState,  setServerState]  = useState({ connected: false, groups: {} });
-  const [devicesState, setDevicesState] = useState({ bridgeOnline: false, devices: [], pairing: false });
-  const [localDevices, setLocalDevices] = useState({});
-  const [socket,       setSocket]       = useState(null);
-  const [circadian,    setCircadian]    = useState({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
-  const [rooms,        setRooms]        = useState({});
-  const [overrides,    setOverrides]    = useState({});
+  interface DevicesState {
+    bridgeOnline: boolean;
+    devices: DeviceEntry[];
+    pairing: boolean;
+    availability?: Record<string, boolean>;
+  }
 
-  const timers           = useRef({});
-  const roomTimers       = useRef({});
-  const lastTouchDevices = useRef({});
-  const timersDevices    = useRef({});
+  interface DeviceEntry {
+    ieee_address: string;
+    friendly_name: string;
+    type: string;
+    definition?: { description?: string };
+  }
+
+  const [view,         setView]         = useState('controls');
+  const [serverState,  setServerState]  = useState<LightingServerState>({ connected: false, groups: {}, poweredOff: [] });
+  const [devicesState, setDevicesState] = useState<DevicesState>({ bridgeOnline: false, devices: [], pairing: false });
+  const [localDevices, setLocalDevices] = useState<Record<string, LightingValues>>({});
+  const [socket,       setSocket]       = useState<Socket | null>(null);
+  const [circadian,    setCircadian]    = useState<CircadianState>({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
+  const [rooms,        setRooms]        = useState<RoomsMap>({});
+  const [overrides,    setOverrides]    = useState<OverridesMap>({});
+
+  const timers           = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const roomTimers       = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastTouchDevices = useRef<Record<string, Record<string, number>>>({});
+  const timersDevices    = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     axios.get('/api/lighting/circadian').then((r) => setCircadian(r.data)).catch(() => {});
@@ -32,10 +47,10 @@ export default function Lighting() {
   }, []);
 
   useEffect(() => {
-    axios.get('/api/lighting/state').then(({ data }) => {
+    axios.get('/api/lighting/state').then(({ data }: { data: LightingServerState }) => {
       if (!Object.keys(data.groups).length) return;
       setServerState(data);
-      const initial = {};
+      const initial: Record<string, LightingValues> = {};
       Object.entries(data.groups).forEach(([name, g]) => {
         initial[name] = { brightness: g.brightness ?? 70, colorTemp: g.colorTemp ?? 30 };
       });
@@ -46,11 +61,11 @@ export default function Lighting() {
   useEffect(() => {
     const s = io({ transports: ['websocket', 'polling'] });
     setSocket(s);
-    s.on('lighting:state', (state) => {
+    s.on('lighting:state', (state: LightingServerState) => {
       setServerState(state);
       const now = Date.now();
       setLocalDevices((prev) => {
-        const next = {};
+        const next: Record<string, LightingValues> = {};
         Object.entries(state.groups).forEach(([name, g]) => {
           const dt = lastTouchDevices.current[name] ?? {};
           next[name] = {
@@ -62,19 +77,19 @@ export default function Lighting() {
       });
     });
     s.on('lighting:devices',  setDevicesState);
-    s.on('lighting:circadian', (data) => setCircadian((prev) => ({ ...prev, ...data })));
+    s.on('lighting:circadian', (data: Partial<CircadianState>) => setCircadian((prev) => ({ ...prev, ...data })));
     s.on('lighting:rooms',     setRooms);
     s.on('lighting:override',  setOverrides);
-    return () => s.disconnect();
+    return () => { s.disconnect(); };
   }, []);
 
   // ── Global (all devices) ─────────────────────────────────────────────────
 
-  const sendAll = useCallback((payload) => {
+  const sendAll = useCallback((payload: Record<string, unknown>) => {
     axios.post('/api/lighting/set', { group: 'all', ...payload }).catch(console.warn);
   }, []);
 
-  const handleSlider = useCallback((key, value) => {
+  const handleSlider = useCallback((key: keyof LightingValues, value: number) => {
     const now = Date.now();
     const off = serverState.poweredOff ?? [];
     Object.keys(localDevices).forEach((name) => {
@@ -83,7 +98,7 @@ export default function Lighting() {
       lastTouchDevices.current[name][key] = now;
     });
     setLocalDevices((prev) => {
-      const next = {};
+      const next: Record<string, LightingValues> = {};
       Object.keys(prev).forEach((name) => {
         next[name] = off.includes(name) ? prev[name] : { ...prev[name], [key]: value };
       });
@@ -93,7 +108,7 @@ export default function Lighting() {
     timers.current[key] = setTimeout(() => sendAll({ [key]: value }), 220);
   }, [serverState.poweredOff, localDevices, sendAll]);
 
-  const togglePower = useCallback((group) => {
+  const togglePower = useCallback((group: string) => {
     const poweredOff    = serverState.poweredOff ?? [];
     const deviceEntries = Object.entries(serverState.groups);
     const isOff = group === 'all'
@@ -102,7 +117,7 @@ export default function Lighting() {
     axios.post('/api/lighting/power', { group, on: isOff }).catch(console.warn);
   }, [serverState]);
 
-  const toggleCircadianGroup = useCallback(async (group) => {
+  const toggleCircadianGroup = useCallback(async (group: string) => {
     const deviceEntries = Object.entries(serverState.groups);
     const enabled = group === 'all'
       ? !deviceEntries.every(([n]) => (circadian.enabledGroups ?? []).includes(n))
@@ -112,7 +127,7 @@ export default function Lighting() {
 
   // ── Per-device ───────────────────────────────────────────────────────────
 
-  const handleDeviceSlider = useCallback((name, key, value) => {
+  const handleDeviceSlider = useCallback((name: string, key: keyof LightingValues, value: number) => {
     if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
     lastTouchDevices.current[name][key] = Date.now();
     setLocalDevices((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), [key]: value } }));
@@ -125,7 +140,7 @@ export default function Lighting() {
 
   // ── Room-level ───────────────────────────────────────────────────────────
 
-  const handleRoomSlider = useCallback((roomName, key, value) => {
+  const handleRoomSlider = useCallback((roomName: string, key: keyof LightingValues, value: number) => {
     const now = Date.now();
     const off = serverState.poweredOff ?? [];
     const devicesInRoom = rooms[roomName] ?? [];
@@ -148,14 +163,14 @@ export default function Lighting() {
     }, 220);
   }, [serverState.poweredOff, rooms]);
 
-  const toggleRoomPower = useCallback((roomName) => {
+  const toggleRoomPower = useCallback((roomName: string) => {
     const devicesInRoom = rooms[roomName] ?? [];
     const poweredOff = serverState.poweredOff ?? [];
     const isOff = devicesInRoom.length > 0 && devicesInRoom.every((n) => poweredOff.includes(n));
     axios.post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/power`, { on: isOff }).catch(console.warn);
   }, [serverState.poweredOff, rooms]);
 
-  const toggleRoomCircadian = useCallback(async (roomName) => {
+  const toggleRoomCircadian = useCallback(async (roomName: string) => {
     const devicesInRoom = rooms[roomName] ?? [];
     const isEnabled = devicesInRoom.length > 0 && devicesInRoom.every((n) => (circadian.enabledGroups ?? []).includes(n));
     await axios.post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/circadian`, { enabled: !isEnabled }).catch(console.warn);
@@ -167,31 +182,31 @@ export default function Lighting() {
     axios.get('/api/lighting/rooms').then((r) => setRooms(r.data)).catch(() => {});
   }, []);
 
-  const createRoom = useCallback((name) => {
+  const createRoom = useCallback((name: string) => {
     axios.post('/api/lighting/rooms', { name }).then(refetchRooms).catch(console.warn);
   }, [refetchRooms]);
 
-  const renameRoom = useCallback((oldName, newName) => {
+  const renameRoom = useCallback((oldName: string, newName: string) => {
     axios.patch(`/api/lighting/rooms/${encodeURIComponent(oldName)}`, { newName }).then(refetchRooms).catch(console.warn);
   }, [refetchRooms]);
 
-  const deleteRoom = useCallback((name) => {
+  const deleteRoom = useCallback((name: string) => {
     axios.delete(`/api/lighting/rooms/${encodeURIComponent(name)}`).then(refetchRooms).catch(console.warn);
   }, [refetchRooms]);
 
-  const assignDevice = useCallback((deviceName, roomName) => {
+  const assignDevice = useCallback((deviceName: string, roomName: string | null) => {
     axios.post('/api/lighting/rooms/assign', { device: deviceName, room: roomName ?? null }).then(refetchRooms).catch(console.warn);
   }, [refetchRooms]);
 
   // ── Override ─────────────────────────────────────────────────────────────
 
-  const clearRoomOverride = useCallback((roomName) => {
+  const clearRoomOverride = useCallback((roomName: string) => {
     axios.delete(`/api/lighting/rooms/${encodeURIComponent(roomName)}/override`).catch(console.warn);
   }, []);
 
   // ── Presets ──────────────────────────────────────────────────────────────
 
-  const applyPreset = useCallback((preset) => {
+  const applyPreset = useCallback((preset: LightingValues) => {
     if ((circadian.enabledGroups ?? []).length > 0) {
       axios.post('/api/lighting/circadian', { group: 'all', enabled: false }).catch(console.warn);
       setCircadian((prev) => ({ ...prev, enabledGroups: [] }));

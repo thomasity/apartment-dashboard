@@ -1,8 +1,22 @@
 import PlayingBars from './PlayingBars';
 import { BackIcon, PlayIcon } from '../icons';
 import { fmtMs } from './utils';
+import type { SpotifyListItem } from '../../types';
 
-export default function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, currentUri, isPlaying }) {
+interface PlaylistLike { name: string; image: string | null }
+
+interface Props {
+  playlist: PlaylistLike;
+  tracks: SpotifyListItem[];
+  loading: boolean;
+  onBack: () => void;
+  onPlay: (uri: string) => void;
+  onPlayAll: () => void;
+  currentUri: string | null | undefined;
+  isPlaying: boolean;
+}
+
+export default function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, currentUri, isPlaying }: Props) {
   return (
     <div className="flex flex-col m-4">
       {/* Header */}

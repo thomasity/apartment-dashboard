@@ -1,14 +1,19 @@
 import { money, sign } from './utils';
 
-export default function MarketSummary({ account, spySnap }) {
-  const equity     = parseFloat(account?.equity      ?? 0);
-  const lastEquity = parseFloat(account?.last_equity ?? 0);
+interface Props {
+  account: { equity: string; last_equity: string } | null;
+  spySnap: { latestTrade: { p: number }; prevDailyBar: { c: number } } | null;
+}
+
+export default function MarketSummary({ account, spySnap }: Props) {
+  const equity     = parseFloat(account?.equity      ?? '0');
+  const lastEquity = parseFloat(account?.last_equity ?? '0');
   const dayPnl     = equity - lastEquity;
   const dayPnlPct  = lastEquity ? (dayPnl / lastEquity) * 100 : 0;
   const isUp       = dayPnl >= 0;
 
-  const spyPrice  = parseFloat(spySnap?.latestTrade?.p  ?? 0);
-  const spyPrev   = parseFloat(spySnap?.prevDailyBar?.c ?? 0);
+  const spyPrice  = spySnap?.latestTrade?.p  ?? 0;
+  const spyPrev   = spySnap?.prevDailyBar?.c ?? 0;
   const spyChange = spyPrice - spyPrev;
   const spyPct    = spyPrev ? (spyChange / spyPrev) * 100 : 0;
   const spyUp     = spyChange >= 0;

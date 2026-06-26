@@ -1,6 +1,16 @@
 import { PrevIcon, PlayIcon, PauseIcon, NextIcon } from '../icons';
+import type { SpotifyPlaybackItem } from '../../types';
 
-export default function SpotifyStrip({ item, isPlaying, onControl, onPrevious, onNext, onNavigate }) {
+interface Props {
+  item: SpotifyPlaybackItem | null;
+  isPlaying: boolean;
+  onControl: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
+  onNavigate: () => void;
+}
+
+export default function SpotifyStrip({ item, isPlaying, onControl, onPrevious, onNext, onNavigate }: Props) {
   if (!item) return null;
 
   return (

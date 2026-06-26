@@ -31,12 +31,12 @@ export default function Header() {
       </div>
 
       {/* Center: now playing */}
-      {spot?.track && (
+      {spot?.item && (
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 select-none max-w-[200px]">
           <span className="text-white/30 text-xs">♪</span>
-          <span className="text-xs text-white/40 truncate">{spot.track.name}</span>
+          <span className="text-xs text-white/40 truncate">{spot.item.name}</span>
           <span className="text-white/20 text-xs">·</span>
-          <span className="text-xs text-white/25 truncate">{spot.track.artist}</span>
+          <span className="text-xs text-white/25 truncate">{spot.item.artist}</span>
         </div>
       )}
 
