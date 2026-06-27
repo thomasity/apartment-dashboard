@@ -2,8 +2,25 @@ import { useClock }   from '../hooks/useClock';
 import { useWeather } from '../hooks/useWeather';
 import { useSpotify } from '../hooks/useSpotify';
 import { wmo }        from '../lib/wmo';
+import type { VoiceStatus } from '../hooks/useVoice';
 
-export default function Header() {
+interface Props {
+  micStatus: VoiceStatus;
+  onMicClick: () => void;
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="8"  y1="22" x2="16" y2="22" />
+    </svg>
+  );
+}
+
+export default function Header({ micStatus, onMicClick }: Props) {
   const now             = useClock();
   const { data }        = useWeather();
   const { state: spot } = useSpotify();
@@ -40,14 +57,27 @@ export default function Header() {
         </div>
       )}
 
-      {current && (
-        <div className="flex items-center gap-2 select-none">
-          <span className="text-lg leading-none">{wmo(current.weather_code).icon}</span>
-          <span className="text-xl font-thin text-white/60">
-            {Math.round(current.temperature_2m)}°
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-3">
+        {current && (
+          <div className="flex items-center gap-2 select-none">
+            <span className="text-lg leading-none">{wmo(current.weather_code).icon}</span>
+            <span className="text-xl font-thin text-white/60">
+              {Math.round(current.temperature_2m)}°
+            </span>
+          </div>
+        )}
+        <button
+          onClick={onMicClick}
+          data-no-swipe
+          className={`flex items-center justify-center w-8 h-8 rounded-full border transition-colors touch-manipulation ${
+            micStatus !== 'idle'
+              ? 'bg-red-500/20 border-red-500/50 text-red-400'
+              : 'bg-white/5 border-white/15 text-white/40 hover:text-white/60 hover:border-white/25'
+          }`}
+        >
+          <MicIcon />
+        </button>
+      </div>
     </div>
   );
 }

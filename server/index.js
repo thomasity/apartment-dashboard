@@ -34,6 +34,7 @@ app.use('/api/spotify',   require('./routes/spotify'));
 app.use('/api/bluetooth', require('./routes/bluetooth'));
 app.use('/api/tv',        require('./routes/tv'));
 app.use('/api/voice',     require('./routes/voice'));
+app.use('/api/plants',    require('./routes/plants'));
 
 if (process.env.NODE_ENV === 'production') {
   const clientBuild = path.join(__dirname, '../client/dist');

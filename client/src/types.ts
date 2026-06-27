@@ -128,3 +128,13 @@ export interface Rule {
   enabled: boolean;
   action: RuleAction;
 }
+
+// ── Plants ────────────────────────────────────────────────────────────────────
+
+export interface Plant {
+  id: string;
+  name: string;
+  intervalDays: number;
+  /** ISO date "YYYY-MM-DD", or null if never watered */
+  lastWatered: string | null;
+}

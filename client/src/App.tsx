@@ -5,7 +5,9 @@ import Weather from './components/weather';
 import Lighting from './components/lighting';
 import Spotify from './components/spotify';
 import TV from './components/tv';
+import Plants from './components/plants';
 import VoiceOverlay from './components/voice/VoiceOverlay';
+import { useVoice } from './hooks/useVoice';
 
 const TABS      = [
   { id: 'home',    label: 'Home'    },
@@ -13,6 +15,7 @@ const TABS      = [
   { id: 'lights',  label: 'Lights'  },
   { id: 'spotify', label: 'Music'   },
   { id: 'tv',      label: 'TV'      },
+  { id: 'plants',  label: 'Plants'  },
 ];
 const TAB_ORDER = TABS.map((t) => t.id);
 
@@ -22,6 +25,13 @@ const NAV_HIDE_MS    = 3 * 1000;
 export default function App() {
   const [tab,        setTab]        = useState('home');
   const [navVisible, setNavVisible] = useState(true);
+  const { status, transcript, response, start, stop, cancel } = useVoice();
+
+  function handleMicClick() {
+    if (status === 'idle')         start();
+    else if (status === 'listening') stop();
+    else                             cancel();
+  }
 
   const touchStart    = useRef<{ x: number; y: number } | null>(null);
   const inactivityRef = useRef<number | null>(null);
@@ -104,12 +114,13 @@ export default function App() {
               tab === id ? 'opacity-100' : 'opacity-0 pointer-events-none'
             } ${id !== 'home' ? 'pt-[52px] pb-14' : ''}`}
           >
-            {id === 'home'    && <Home onNavigate={setTab} />}
+            {id === 'home'    && <Home onNavigate={setTab} micStatus={status} onMicClick={handleMicClick} />}
             {id === 'weather' && <Weather />}
             {/* {id === 'stocks'  && <Stocks />} */}
             {id === 'lights'  && <Lighting />}
             {id === 'spotify' && <Spotify />}
             {id === 'tv'      && <TV />}
+            {id === 'plants'  && <Plants />}
           </div>
         ))}
       </div>
@@ -117,13 +128,13 @@ export default function App() {
       {/* ── Header overlay (non-home tabs only) ── */}
       {tab !== 'home' && (
         <div className="absolute top-0 inset-x-0 z-20">
-          <Header />
+          <Header micStatus={status} onMicClick={handleMicClick} />
         </div>
       )}
 
       {/* ── Nav overlay — frosted glass, auto-hides on Home ── */}
       <nav
-        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-muted backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
+        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-6 border-t border-muted backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
           navVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
@@ -147,7 +158,7 @@ export default function App() {
         ))}
       </nav>
 
-      <VoiceOverlay />
+      <VoiceOverlay status={status} transcript={transcript} response={response} onCancel={cancel} />
     </div>
   );
 }

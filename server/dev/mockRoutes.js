@@ -55,4 +55,10 @@ router.post('/tv/keypress/:key',  ok);
 router.post('/tv/launch/:appId',  ok);
 router.post('/tv/type',           ok);
 
+// ── Plants ────────────────────────────────────────────────────────────────────
+router.get('/plants',     (_req, res) => res.json(mock.plants));
+router.post('/plants',    ok);
+router.put('/plants/:id', ok);
+router.delete('/plants/:id', ok);
+
 module.exports = router;

@@ -81,6 +81,12 @@ const tvApps = [
   { id: '61322', name: 'Max' },
 ];
 
+const plants = [
+  { id: 'plant-1', name: 'Monstera',  intervalDays: 7,  lastWatered: '2026-06-20' },
+  { id: 'plant-2', name: 'Pothos',    intervalDays: 5,  lastWatered: '2026-06-26' },
+  { id: 'plant-3', name: 'Cactus',    intervalDays: 14, lastWatered: null },
+];
+
 module.exports = {
   lightingState,
   devicesState,
@@ -92,4 +98,5 @@ module.exports = {
   bluetoothDevices,
   tvStatus,
   tvApps,
+  plants,
 };
