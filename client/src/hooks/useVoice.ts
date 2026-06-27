@@ -8,15 +8,14 @@ export function useVoice() {
   const [response,   setResponse]   = useState('');
 
   const recogRef       = useRef<any>(null);
-  const audioRef       = useRef<HTMLAudioElement | null>(null);
+  const audioRef       = useRef<AudioBufferSourceNode | null>(null);
+  const audioCtxRef    = useRef<AudioContext | null>(null);
   const transcriptRef  = useRef('');
 
   const cancel = useCallback(() => {
     recogRef.current?.abort();
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    try { audioRef.current?.stop(); } catch {}
+    audioRef.current = null;
     setStatus('idle');
     setTranscript('');
     setResponse('');
@@ -38,20 +37,21 @@ export function useVoice() {
         setStatus('idle');
         return;
       }
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
+      const arrayBuffer = await res.arrayBuffer();
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContext();
+      }
+      const ctx         = audioCtxRef.current;
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      const source      = ctx.createBufferSource();
+      source.buffer     = audioBuffer;
+      source.connect(ctx.destination);
+      source.onended = () => {
         audioRef.current = null;
         setStatus('idle');
       };
-      audio.onerror = (e) => {
-        console.error('[voice] audio playback error:', e);
-        setStatus('idle');
-      };
-      audio.play();
+      audioRef.current = source;
+      source.start(ctx.currentTime + 0.15);
     } catch (err) {
       console.error('[voice] speak error:', err);
       setStatus('idle');
