@@ -5,6 +5,7 @@ import Weather from './components/weather';
 import Lighting from './components/lighting';
 import Spotify from './components/spotify';
 import TV from './components/tv';
+import VoiceOverlay from './components/voice/VoiceOverlay';
 
 const TABS      = [
   { id: 'home',    label: 'Home'    },
@@ -145,6 +146,8 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      <VoiceOverlay />
     </div>
   );
 }
