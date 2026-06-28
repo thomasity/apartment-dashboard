@@ -8,6 +8,15 @@ const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 let accessToken    = null;
 let tokenExpiresAt = 0;
 
+let nowPlayingCache    = { data: null, at: 0 };
+let nowPlayingBackoff  = 0;
+const NOW_PLAYING_TTL  = 4_000;
+const BACKOFF_DURATION = 30_000;
+
+let playlistsCache = { data: null, at: 0 };
+let albumsCache    = { data: null, at: 0 };
+const LIBRARY_TTL  = 10 * 60 * 1000; // 10 minutes
+
 async function getAccessToken() {
   if (Date.now() < tokenExpiresAt && accessToken) return accessToken;
 
@@ -33,13 +42,37 @@ async function spotify(method, path, data) {
     headers: { Authorization: `Bearer ${token}` } });
 }
 
+function spotifyError(label, err, res) {
+  const status     = err.response?.status ?? 500;
+  const retryAfter = err.response?.headers?.['retry-after'];
+  const message    = err.response?.data?.error?.message ?? err.message;
+
+  if (status === 429) {
+    console.warn(`[spotify] ${label}: rate limited — Retry-After: ${retryAfter ?? 'unknown'}s`);
+  } else {
+    console.error(`[spotify] ${label}: HTTP ${status}`, err.response?.data ?? err.message);
+  }
+
+  res.status(status).json({ error: message, ...(retryAfter != null ? { retryAfter: Number(retryAfter) } : {}) });
+}
+
 router.get('/now-playing', async (req, res) => {
+  const now = Date.now();
+
+  // Serve cached data during back-off or within TTL
+  if (now < nowPlayingBackoff || now - nowPlayingCache.at < NOW_PLAYING_TTL) {
+    return res.json(nowPlayingCache.data);
+  }
+
   try {
     const { data } = await spotify('GET', '/me/player?additional_types=track,episode');
-    if (!data) return res.json(null);
+    if (!data) {
+      nowPlayingCache = { data: null, at: now };
+      return res.json(null);
+    }
     const item      = data.item;
     const isEpisode = item?.type === 'episode';
-    res.json({
+    const payload = {
       isPlaying: data.is_playing,
       shuffle:   data.shuffle_state ?? false,
       repeat:    data.repeat_state  ?? 'off',
@@ -58,10 +91,22 @@ router.get('/now-playing', async (req, res) => {
         name:   data.device?.name,
         volume: data.device?.volume_percent ?? 100,
       },
-    });
+    };
+    nowPlayingCache = { data: payload, at: now };
+    res.json(payload);
   } catch (err) {
-    if (err.response?.status === 204) return res.json(null);
-    res.status(500).json({ error: err.message });
+    if (err.response?.status === 204) {
+      nowPlayingCache = { data: null, at: now };
+      return res.json(null);
+    }
+    if (err.response?.status === 429) {
+      const retryAfter = err.response?.headers?.['retry-after'];
+      const backoffMs  = retryAfter ? Number(retryAfter) * 1000 : BACKOFF_DURATION;
+      nowPlayingBackoff = now + backoffMs;
+      console.warn(`[spotify] now-playing: rate limited — Retry-After: ${retryAfter ?? '?'}s (backing off ${backoffMs / 1000}s)`);
+      return res.json(nowPlayingCache.data);
+    }
+    spotifyError('now-playing', err, res);
   }
 });
 
@@ -92,10 +137,13 @@ router.post('/play', async (req, res) => {
     const params = deviceId ? `?device_id=${deviceId}` : '';
     await spotify('PUT', `/me/player/play${params}`, Object.keys(body).length ? body : undefined);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('play', err, res); }
 });
 
 router.get('/playlists', async (_req, res) => {
+  if (playlistsCache.data && Date.now() - playlistsCache.at < LIBRARY_TTL) {
+    return res.json(playlistsCache.data);
+  }
   try {
     const { data: me } = await spotify('GET', '/me');
     const userId = me.id;
@@ -109,43 +157,45 @@ router.get('/playlists', async (_req, res) => {
     }
 
     const owned = items.filter((pl) => pl.owner.id === userId || pl.collaborative);
-    res.json(owned.map((pl) => ({
+    const payload = owned.map((pl) => ({
       id:    pl.id,
       uri:   pl.uri,
       name:  pl.name,
       image: pl.images?.[0]?.url ?? null,
       total: pl.tracks?.total ?? 0,
-    })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    }));
+    playlistsCache = { data: payload, at: Date.now() };
+    res.json(payload);
+  } catch (err) { spotifyError('playlists', err, res); }
 });
 
 router.post('/pause',    async (_req, res) => {
   try { await spotify('PUT',  '/me/player/pause');    res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { spotifyError('pause', err, res); }
 });
 
 router.post('/next',     async (_req, res) => {
   try { await spotify('POST', '/me/player/next');     res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { spotifyError('next', err, res); }
 });
 
 router.post('/previous', async (_req, res) => {
   try { await spotify('POST', '/me/player/previous'); res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { spotifyError('previous', err, res); }
 });
 
 router.post('/seek', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/seek?position_ms=${req.body.position}`);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('seek', err, res); }
 });
 
 router.post('/volume', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/volume?volume_percent=${req.body.volume}`);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('volume', err, res); }
 });
 
 router.get('/devices', async (_req, res) => {
@@ -158,27 +208,21 @@ router.get('/devices', async (_req, res) => {
       isActive: d.is_active,
       volume:   d.volume_percent,
     })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('devices', err, res); }
 });
 
 router.post('/shuffle', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/shuffle?state=${req.body.state ? 'true' : 'false'}`);
     res.json({ ok: true });
-  } catch (err) {
-    console.error('[spotify] shuffle error:', err.response?.status, err.response?.data ?? err.message);
-    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
-  }
+  } catch (err) { spotifyError('shuffle', err, res); }
 });
 
 router.post('/repeat', async (req, res) => {
   try {
     await spotify('PUT', `/me/player/repeat?state=${req.body.state}`);
     res.json({ ok: true });
-  } catch (err) {
-    console.error('[spotify] repeat error:', err.response?.status, err.response?.data ?? err.message);
-    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
-  }
+  } catch (err) { spotifyError('repeat', err, res); }
 });
 
 router.get('/liked-songs', async (req, res) => {
@@ -212,10 +256,7 @@ router.get('/liked-songs', async (req, res) => {
           art:      i.track.album?.images?.[2]?.url ?? i.track.album?.images?.[0]?.url ?? null,
         })),
     });
-  } catch (err) {
-    console.error('[spotify] liked-songs error:', err.response?.status, err.response?.data ?? err.message);
-    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
-  }
+  } catch (err) { spotifyError('liked-songs', err, res); }
 });
 
 router.get('/shows', async (_req, res) => {
@@ -235,7 +276,7 @@ router.get('/shows', async (_req, res) => {
       image:     i.show.images?.[0]?.url ?? null,
       total:     i.show.total_episodes,
     })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('shows', err, res); }
 });
 
 router.get('/shows/:id/episodes', async (req, res) => {
@@ -254,10 +295,13 @@ router.get('/shows/:id/episodes', async (req, res) => {
       duration: ep.duration_ms,
       art:      ep.images?.[0]?.url ?? null,
     })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('episodes', err, res); }
 });
 
 router.get('/albums', async (req, res) => {
+  if (albumsCache.data && Date.now() - albumsCache.at < LIBRARY_TTL) {
+    return res.json(albumsCache.data);
+  }
   try {
     const items = [];
     let url = '/me/albums?limit=50';
@@ -266,17 +310,16 @@ router.get('/albums', async (req, res) => {
       items.push(...data.items);
       url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
     }
-    res.json(items.map((i) => ({
+    const payload = items.map((i) => ({
       id:     i.album.id,
       uri:    i.album.uri,
       name:   i.album.name,
       artist: i.album.artists.map((a) => a.name).join(', '),
       image:  i.album.images?.[0]?.url ?? null,
-    })));
-  } catch (err) {
-    console.error('[spotify] albums error:', err.response?.status, err.response?.data ?? err.message);
-    res.status(err.response?.status ?? 500).json({ error: err.response?.data?.error?.message ?? err.message });
-  }
+    }));
+    albumsCache = { data: payload, at: Date.now() };
+    res.json(payload);
+  } catch (err) { spotifyError('albums', err, res); }
 });
 
 router.get('/album/:id/tracks', async (req, res) => {
@@ -294,7 +337,7 @@ router.get('/album/:id/tracks', async (req, res) => {
       duration: t.duration_ms,
       art,
     })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('album-tracks', err, res); }
 });
 
 router.get('/search', async (req, res) => {
@@ -340,7 +383,7 @@ router.get('/search', async (req, res) => {
         art:      ep.images?.[0]?.url ?? null,
       })),
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('search', err, res); }
 });
 
 router.get('/playlist/:id/tracks', async (req, res) => {
@@ -364,17 +407,14 @@ router.get('/playlist/:id/tracks', async (req, res) => {
           art:      i.item.album?.images?.[2]?.url ?? i.item.album?.images?.[0]?.url ?? null,
         }))
     );
-  } catch (err) {
-    console.error('[spotify] tracks error:', err.response?.status, err.response?.data ?? err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { spotifyError('playlist-tracks', err, res); }
 });
 
 router.post('/transfer', async (req, res) => {
   try {
     await spotify('PUT', '/me/player', { device_ids: [req.body.deviceId], play: req.body.play ?? false });
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { spotifyError('transfer', err, res); }
 });
 
 module.exports = router;

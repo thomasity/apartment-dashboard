@@ -1,11 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { useSpotify } from '../../hooks/useSpotify';
 import NowPlaying from './NowPlaying';
 import TrackList from './TrackList';
 import Explorer from './Explorer';
 import DevicePicker from './DevicePicker';
-import type { SpotifyListItem, SpotifyPlaylist } from '../../types';
+import type { SpotifyListItem, SpotifyPlaylist, SpotifyAlbum } from '../../types';
 
 interface SelectionData {
   id?: string;
@@ -20,10 +20,25 @@ type SelectedSource = ExplorerSelection & { data: SelectionData & { name: string
 
 export default function Spotify() {
   const {
-    state, control, playContext, playUri, playlists, albums, albumsError,
+    state, control, playContext, playUri,
     devices, fetchDevices, transferTo,
     toggleShuffle, cycleRepeat, seek, setVolume,
   } = useSpotify();
+
+  const [playlists,   setPlaylists]   = useState<SpotifyPlaylist[] | null>(null);
+  const [albums,      setAlbums]      = useState<SpotifyAlbum[] | null>(null);
+  const [albumsError, setAlbumsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    axios.get('/api/spotify/playlists').then((r) => setPlaylists(r.data)).catch(() => {});
+    axios.get('/api/spotify/albums')
+      .then((r) => setAlbums(r.data))
+      .catch((err) => {
+        const status = err.response?.status;
+        setAlbumsError(status === 403 || status === 401 ? 'scope' : 'error');
+        console.error('[spotify] albums fetch failed:', err.response?.data ?? err.message);
+      });
+  }, []);
 
   const [pickerOpen,      setPickerOpen]      = useState(false);
   const [selectedSource,  setSelectedSource]  = useState<SelectedSource | null>(null);

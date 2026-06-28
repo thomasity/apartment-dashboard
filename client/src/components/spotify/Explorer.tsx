@@ -62,21 +62,34 @@ interface HorizontalRowProps {
   onSelect: (item: GridItem) => void;
 }
 
+const ROW_PREVIEW = 6;
+
 function HorizontalRow({ title, items, loading, onSeeAll, onSelect }: HorizontalRowProps) {
+  const preview = items.slice(0, ROW_PREVIEW);
+  const hasMore = items.length > ROW_PREVIEW;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-2 px-4">
+      <div className="mb-2 px-4">
         <span className="text-white/40 text-xs font-medium tracking-widest uppercase">{title}</span>
-        {!loading && (
-          <button onClick={onSeeAll} className="text-white/30 text-xs active:text-white/60 touch-manipulation">
-            See all
-          </button>
-        )}
       </div>
       <div className="flex gap-3 px-4 overflow-x-auto pb-1 h-[154px]" style={{ scrollbarWidth: 'none' }}>
         {loading
-          ? Array.from({ length: 5 }).map((_, i) => <SkeletonSquare key={i} />)
-          : items.map((item) => <SquareItem key={item.id} item={item} onClick={onSelect} />)
+          ? Array.from({ length: ROW_PREVIEW }).map((_, i) => <SkeletonSquare key={i} />)
+          : (
+            <>
+              {preview.map((item) => <SquareItem key={item.id} item={item} onClick={onSelect} />)}
+              {hasMore && (
+                <button
+                  onClick={onSeeAll}
+                  className="flex-shrink-0 w-28 flex flex-col items-center justify-center gap-1 text-white/30 active:text-white/60 touch-manipulation"
+                >
+                  <span className="text-2xl leading-none">›</span>
+                  <span className="text-[10px] tracking-widest uppercase">See all</span>
+                </button>
+              )}
+            </>
+          )
         }
       </div>
     </div>

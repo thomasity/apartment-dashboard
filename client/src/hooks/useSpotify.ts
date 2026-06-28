@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import type { SpotifyState, SpotifyPlaylist, SpotifyAlbum, SpotifyDevice } from '../types';
+import type { SpotifyState, SpotifyDevice } from '../types';
 
 export function useSpotify() {
-  const [state,       setState]       = useState<SpotifyState | null>(null);
-  const [playlists,   setPlaylists]   = useState<SpotifyPlaylist[] | null>(null);
-  const [albums,      setAlbums]      = useState<SpotifyAlbum[] | null>(null);
-  const [albumsError, setAlbumsError] = useState<string | null>(null);
-  const [devices,     setDevices]     = useState<SpotifyDevice[]>([]);
-  const [tick,      setTick]      = useState(0);
+  const [state,   setState] = useState<SpotifyState | null>(null);
+  const [devices, setDevices] = useState<SpotifyDevice[]>([]);
+  const [tick,    setTick]  = useState(0);
   const polledAt                  = useRef(0);
   const volumeDebounce            = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -25,17 +22,6 @@ export function useSpotify() {
     const id = setInterval(poll, 5000);
     return () => clearInterval(id);
   }, [poll]);
-
-  useEffect(() => {
-    axios.get('/api/spotify/playlists').then((r) => setPlaylists(r.data)).catch(() => {});
-    axios.get('/api/spotify/albums')
-      .then((r) => setAlbums(r.data))
-      .catch((err) => {
-        const status = err.response?.status;
-        setAlbumsError(status === 403 || status === 401 ? 'scope' : 'error');
-        console.error('[spotify] albums fetch failed:', err.response?.data ?? err.message);
-      });
-  }, []);
 
   // Tick every second while playing so the progress bar moves smoothly
   useEffect(() => {
@@ -134,9 +120,6 @@ export function useSpotify() {
     control,
     playContext,
     playUri,
-    playlists,
-    albums,
-    albumsError,
     devices,
     fetchDevices,
     transferTo,

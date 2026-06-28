@@ -23,8 +23,9 @@ const INACTIVITY_MS  = 5 * 60 * 1000;
 const NAV_HIDE_MS    = 3 * 1000;
 
 export default function App() {
-  const [tab,        setTab]        = useState('home');
-  const [navVisible, setNavVisible] = useState(true);
+  const [tab,             setTab]             = useState('home');
+  const [navVisible,      setNavVisible]      = useState(true);
+  const [spotifyMounted,  setSpotifyMounted]  = useState(false);
   const { status, transcript, response, start, stop, cancel, interrupt, clearHistory } = useVoice();
 
   function handleMicClick() {
@@ -39,7 +40,10 @@ export default function App() {
   const navHideRef    = useRef<number | null>(null);
   const tabRef        = useRef(tab);
 
-  useEffect(() => { tabRef.current = tab; }, [tab]);
+  useEffect(() => {
+    tabRef.current = tab;
+    if (tab === 'spotify') setSpotifyMounted(true);
+  }, [tab]);
 
   // ── Nav auto-hide: fades out after 3 s on Home, always visible elsewhere ──
   const scheduleNavHide = useCallback(() => {
@@ -119,7 +123,7 @@ export default function App() {
             {id === 'weather' && <Weather />}
             {/* {id === 'stocks'  && <Stocks />} */}
             {id === 'lights'  && <Lighting />}
-            {id === 'spotify' && <Spotify />}
+            {id === 'spotify' && spotifyMounted && <Spotify />}
             {id === 'tv'      && <TV />}
             {id === 'plants'  && <Plants />}
           </div>

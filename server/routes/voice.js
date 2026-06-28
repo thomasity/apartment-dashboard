@@ -1,5 +1,6 @@
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
+const crypto   = require('crypto');
 const config   = require('../config');
 
 const router = express.Router();
@@ -8,6 +9,24 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // ── In-memory timer store (lost on restart — acceptable) ──────────────────────
 let timerSeq = 0;
 const timerMap = new Map(); // id → { handle, description, firesAt }
+
+// ── TTS LRU cache ─────────────────────────────────────────────────────────────
+const TTS_CACHE_MAX = 60;
+const ttsCache      = new Map(); // key → Buffer  (Map preserves insertion order for LRU)
+
+function getTts(key) {
+  if (!ttsCache.has(key)) return null;
+  const buf = ttsCache.get(key); // promote to most-recent
+  ttsCache.delete(key);
+  ttsCache.set(key, buf);
+  return buf;
+}
+
+function setTts(key, buf) {
+  if (ttsCache.has(key)) ttsCache.delete(key);
+  ttsCache.set(key, buf);
+  if (ttsCache.size > TTS_CACHE_MAX) ttsCache.delete(ttsCache.keys().next().value);
+}
 
 const TOOLS = [
   // ── Read ──────────────────────────────────────────────────────────────────
@@ -297,6 +316,9 @@ router.post('/chat', async (req, res) => {
 
 // ── Context injection ─────────────────────────────────────────────────────────
 
+let spotifyContextCache = { data: null, at: 0 };
+const SPOTIFY_CACHE_TTL = 30_000;
+
 async function buildContext(base) {
   const now = new Date();
   const timeStr = now.toLocaleString('en-US', {
@@ -324,12 +346,13 @@ async function buildContext(base) {
   } catch {}
 
   try {
-    const spRes = await fetch(`${base}/spotify/now-playing`);
-    if (spRes.ok) {
-      const sp    = await spRes.json();
-      const track = (sp?.item ?? sp?.track)?.name;
-      if (sp?.isPlaying && track) parts.push(`Spotify: ${track} playing`);
+    if (Date.now() - spotifyContextCache.at > SPOTIFY_CACHE_TTL) {
+      const spRes = await fetch(`${base}/spotify/now-playing`);
+      if (spRes.ok) spotifyContextCache = { data: await spRes.json(), at: Date.now() };
     }
+    const sp    = spotifyContextCache.data;
+    const track = (sp?.item ?? sp?.track)?.name;
+    if (sp?.isPlaying && track) parts.push(`Spotify: ${track} playing`);
   } catch {}
 
   return `[Context: ${parts.join(' · ')}]`;
@@ -642,6 +665,13 @@ router.post('/speak', async (req, res) => {
     || process.env.ELEVENLABS_VOICE_ID
     || 'pNInz6obpgDQGcFmaJgB';
 
+  const cacheKey = crypto.createHash('md5').update(voiceId + text).digest('hex');
+  const cached   = getTts(cacheKey);
+  if (cached) {
+    res.set('Content-Type', 'audio/mpeg');
+    return res.send(cached);
+  }
+
   try {
     const upstream = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -661,9 +691,10 @@ router.post('/speak', async (req, res) => {
       return res.status(upstream.status).json({ error: msg });
     }
 
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    setTts(cacheKey, buffer);
     res.set('Content-Type', 'audio/mpeg');
-    const buffer = await upstream.arrayBuffer();
-    res.send(Buffer.from(buffer));
+    res.send(buffer);
   } catch (err) {
     console.error('[voice] elevenlabs error:', err.message);
     res.status(500).json({ error: err.message });
