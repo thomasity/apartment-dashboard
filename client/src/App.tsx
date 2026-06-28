@@ -25,11 +25,12 @@ const NAV_HIDE_MS    = 3 * 1000;
 export default function App() {
   const [tab,        setTab]        = useState('home');
   const [navVisible, setNavVisible] = useState(true);
-  const { status, transcript, response, start, stop, cancel } = useVoice();
+  const { status, transcript, response, start, stop, cancel, interrupt, clearHistory } = useVoice();
 
   function handleMicClick() {
-    if (status === 'idle')         start();
+    if (status === 'idle')           start();
     else if (status === 'listening') stop();
+    else if (status === 'speaking')  interrupt();
     else                             cancel();
   }
 
@@ -59,7 +60,7 @@ export default function App() {
   // ── Inactivity: reset timer on every touch, return to home on expiry ──
   const resetInactivity = useCallback(() => {
     clearTimeout(inactivityRef.current ?? undefined);
-    inactivityRef.current = setTimeout(() => setTab('home'), INACTIVITY_MS);
+    inactivityRef.current = setTimeout(() => { setTab('home'); clearHistory(); }, INACTIVITY_MS);
 
     // Any touch shows the nav; if already on Home, restart the hide countdown
     setNavVisible(true);
@@ -158,7 +159,7 @@ export default function App() {
         ))}
       </nav>
 
-      <VoiceOverlay status={status} transcript={transcript} response={response} onCancel={cancel} />
+      <VoiceOverlay status={status} transcript={transcript} response={response} onCancel={cancel} onInterrupt={interrupt} />
     </div>
   );
 }

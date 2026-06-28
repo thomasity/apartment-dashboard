@@ -5,6 +5,7 @@ interface Props {
   transcript: string;
   response: string;
   onCancel: () => void;
+  onInterrupt: () => void;
 }
 
 const STATUS_LABEL: Record<VoiceStatus, string> = {
@@ -14,7 +15,7 @@ const STATUS_LABEL: Record<VoiceStatus, string> = {
   speaking:   'Jarvis',
 };
 
-export default function VoiceOverlay({ status, transcript, response, onCancel }: Props) {
+export default function VoiceOverlay({ status, transcript, response, onCancel, onInterrupt }: Props) {
   if (status === 'idle') return null;
 
   const bodyText = status === 'speaking'   ? response
@@ -24,7 +25,7 @@ export default function VoiceOverlay({ status, transcript, response, onCancel }:
   return (
     <div
       className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center"
-      onClick={onCancel}
+      onClick={status === 'speaking' ? onInterrupt : onCancel}
     >
       <div
         className="bg-black/60 border border-white/10 rounded-2xl px-6 py-5 max-w-xs w-[85%] flex flex-col gap-3"

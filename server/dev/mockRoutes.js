@@ -23,6 +23,7 @@ router.get('/spotify/now-playing', (_req, res) => res.json(mock.nowPlaying));
 router.get('/spotify/devices',     (_req, res) => res.json(mock.spotifyDevices));
 router.get('/spotify/playlists',   (_req, res) => res.json(mock.playlists));
 router.get('/spotify/playlist/:id/tracks', (_req, res) => res.json(mock.playlistTracks));
+router.get('/spotify/search', (_req, res) => res.json(mock.searchResults));
 router.post('/spotify/play',     ok);
 router.post('/spotify/pause',    ok);
 router.post('/spotify/next',     ok);

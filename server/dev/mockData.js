@@ -81,6 +81,16 @@ const tvApps = [
   { id: '61322', name: 'Max' },
 ];
 
+const searchResults = {
+  tracks: [
+    { uri: 'spotify:track:dev-search-1', name: 'Blinding Lights', artist: 'The Weeknd' },
+    { uri: 'spotify:track:dev-search-2', name: 'Upbeat Track',     artist: 'Dev Artist' },
+  ],
+  playlists: [
+    { uri: 'spotify:playlist:dev-search-1', name: 'Top Hits 2024' },
+  ],
+};
+
 const plants = [
   { id: 'plant-1', name: 'Monstera',  intervalDays: 7,  lastWatered: '2026-06-20' },
   { id: 'plant-2', name: 'Pothos',    intervalDays: 5,  lastWatered: '2026-06-26' },
@@ -95,6 +105,7 @@ module.exports = {
   spotifyDevices,
   playlists,
   playlistTracks,
+  searchResults,
   bluetoothDevices,
   tvStatus,
   tvApps,
