@@ -4,4 +4,3 @@ client/dist/
 *.log
 .DS_Store
 backups/
-server/config.json

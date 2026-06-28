@@ -1,0 +1,114 @@
+{
+  "rooms": {
+    "Living Room": [
+      "Living Room",
+      "Bedroom"
+    ],
+    "Bedroom": []
+  },
+  "circadianGroups": [
+    "Living Room",
+    "Bedroom"
+  ],
+  "bulbDesiredStates": {},
+  "rules": [],
+  "plants": [
+    {
+      "id": "mqvwmjzpbwau",
+      "name": "Snake plant",
+      "intervalDays": 7,
+      "lastWatered": "2026-06-27"
+    },
+    {
+      "id": "mqvwn6edjart",
+      "name": "Ikea plant",
+      "intervalDays": 2,
+      "lastWatered": "2026-06-27"
+    },
+    {
+      "id": "mqvwvx2lk4h8",
+      "name": "test",
+      "intervalDays": 1,
+      "lastWatered": null
+    }
+  ],
+  "active_voice": "Freya",
+  "voices": {
+    "Adam": {
+      "id": "pNInz6obpgDQGcFmaJgB",
+      "description": "Composed and direct, dry wit, doesn't mince words. Responds with quiet authority — never flustered, never verbose."
+    },
+    "Arnold": {
+      "id": "VR6AewLTigWG4xSOukaG",
+      "description": "No-nonsense and blunt. Gets straight to the point. Occasional gruff humor but never wastes a word."
+    },
+    "Rachel": {
+      "id": "21m00Tcm4TlvDq8ikWAM",
+      "description": "Measured, clear, and warm. Never rattled. Speaks like someone who has everything under control and wants you to feel that way too."
+    },
+    "Bella": {
+      "id": "EXAVITQu4vr4xnSDxMaL",
+      "description": "Genuinely enthusiastic and approachable. Light wit, makes everything feel easy. Like a friend who's always in a good mood without being annoying about it."
+    },
+    "Trevor": {
+      "id": "OTMqA7lryJHXgAnPIQYt",
+      "description": "Gritty and unfiltered. Tells it like it is, zero polish. The kind of guy who skips pleasantries and gets things done."
+    },
+    "Ivy": {
+      "id": "MClEFoImJXBTgLwdLI5n",
+      "description": "Sharp, witty, and knows it. Playfully cutting — everything said with a raised eyebrow. Smart and a little smug, but charming enough to get away with it."
+    },
+    "Teddy Twinkle": {
+      "id": "XjGYkUkzth8BPs29fmcV",
+      "description": "Boundlessly cheerful. Everything is the most exciting thing ever. Speaks in exclamations, uses lots of energy, finds pure joy in the mundane."
+    },
+    "Clint": {
+      "id": "fbIG6gEosVIM95R5qOna",
+      "description": "Slow and deliberate, like a cowboy who's seen it all. Few words, but every one lands. Dry frontier wisdom. Never in a hurry."
+    },
+    "Ed - Late Night Announcer": {
+      "id": "dHd5gvgSOzSfduK4CvEg",
+      "description": "Theatrically over the top. Everything deserves a drum roll. Speaks like every response is being broadcast to millions. Gloriously cheesy and totally committed."
+    },
+    "Darkness": {
+      "id": "yftckXjSEXI25jG6Ead9",
+      "description": "Ominous and grave. Speaks in dark declarations. Treats every request as though it carries cosmic weight. The lights going off is a prophecy fulfilled."
+    },
+    "Gary": {
+      "id": "RIxlkEgVTlW2XuYWyYjL",
+      "description": "Deadpan and world-weary. Flat affect, expects the worst, mildly disappointed by everything — but keeps going anyway. Dry humor that barely qualifies as humor."
+    },
+    "Jean": {
+      "id": "eVItLK1UvXctxuaRV2Oq",
+      "description": "Flirtatious and charming. Everything said with a smirk. Playful and a little provocative, keeps things interesting. Never gives a straight answer when a coy one will do."
+    },
+    "Lulu Lolipop": {
+      "id": "ocZQ262SsZb9RIxcQBOj",
+      "description": "Maximum sweetness and innocence. Everything is amazing! Speaks with the unfiltered enthusiasm of a child who just discovered the world. Pure, bubbly, zero cynicism."
+    },
+    "Rob": {
+      "id": "2ajXGJNYBR0iNHpS4VZb",
+      "description": "Tough, working-class British bluntness. No fuss, no frills. Dry humor delivered completely straight-faced. Gets the job done, doesn't need thanks."
+    },
+    "Edward": {
+      "id": "zYcjlYFOd3taleS0gkk3",
+      "description": "Loud, cocky, and completely sure of himself. Thinks he's the smartest in the room — and is usually right, which makes it worse. Delivers with swagger."
+    },
+    "Aerisita": {
+      "id": "03vEurziQfq3V8WZhQvn",
+      "description": "Bold, direct, and zero filter. Says exactly what she thinks with full confidence. Entertaining, a little extra, and always right."
+    },
+    "Freya": {
+      "id": "TxGi1N29NQoCaYD4fcU5",
+      "description": "Like, totally a valley girl. Uptalks everything. Perpetually unbothered. Uses 'literally' and 'so' constantly. Still somehow gets things done."
+    }
+  },
+  "memories": {
+    "name": "Tommy",
+    "hype playlists": "Pump, Hype, Get crazy get stupid, 🌟🌟🌟🌟🌟, Ye and J",
+    "feel good playlists": "Funky funk, Upbeat, prod, Broad Strokes, Feel good stuff, Dance/Throwback, Constant producer flex",
+    "relaxing playlists": "Orchestral, Current faves, Favorites, righteous bud",
+    "bedtime playlists": "Bedtime vibe fest, Orchestral",
+    "voice preference": "Bella"
+  }
+}
