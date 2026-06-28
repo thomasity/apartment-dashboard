@@ -14,6 +14,7 @@ export function useVoice() {
   const audioRef      = useRef<AudioBufferSourceNode | null>(null);
   const audioCtxRef   = useRef<AudioContext | null>(null);
   const transcriptRef = useRef('');
+  const finalsRef     = useRef('');
   const historyRef    = useRef<Message[]>([]);
   const relistenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silenceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,6 +138,7 @@ export function useVoice() {
     recog.interimResults  = true;
     recog.lang            = 'en-US';
     transcriptRef.current = '';
+    finalsRef.current     = '';
 
     setTranscript('');
     setResponse('');
@@ -145,17 +147,27 @@ export function useVoice() {
     noSpeechTimer.current = setTimeout(() => recog.stop(), 6000);
 
     recog.onresult = (e: any) => {
-      const t = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join('');
-      setTranscript(t);
-      transcriptRef.current = t;
-
       if (noSpeechTimer.current) { clearTimeout(noSpeechTimer.current); noSpeechTimer.current = null; }
 
-      const lastResult = e.results[e.results.length - 1];
-      if (lastResult.isFinal) {
+      // Only process results starting at e.resultIndex to avoid re-joining
+      // already-seen results, which causes duplication on some browsers.
+      let newFinals = '';
+      let interim   = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const segment = e.results[i][0].transcript;
+        if (e.results[i].isFinal) newFinals += segment;
+        else                       interim   += segment;
+      }
+
+      if (newFinals) {
+        finalsRef.current += newFinals;
         if (silenceTimer.current) clearTimeout(silenceTimer.current);
         silenceTimer.current = setTimeout(() => recog.stop(), 1500);
       }
+
+      const full = finalsRef.current + interim;
+      transcriptRef.current = full;
+      setTranscript(full);
     };
 
     recog.onend = () => {
@@ -168,6 +180,7 @@ export function useVoice() {
         setStatus('idle');
       }
       transcriptRef.current = '';
+      finalsRef.current     = '';
     };
 
     recog.onerror = (e: any) => {
