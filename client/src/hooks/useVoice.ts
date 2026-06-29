@@ -107,7 +107,7 @@ export function useVoice() {
       const res  = await fetch('/api/voice/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ message: text, history }),
+        body:    JSON.stringify({ message: text, history, room: 'tablet' }),
       });
       const data          = await res.json() as { reply?: string; keepListening?: boolean };
       const reply         = data.reply ?? '';

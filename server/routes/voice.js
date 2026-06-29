@@ -261,12 +261,12 @@ Tools:
 ];
 
 router.post('/chat', async (req, res) => {
-  const { message, history = [] } = req.body;
+  const { message, history = [], room = null } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'No message provided' });
 
   try {
     const base    = `http://localhost:${process.env.PORT || 3001}/api`;
-    const context = await buildContext(base);
+    const context = await buildContext(base, room);
     const firstMessage = context ? `${context}\n\n${message}` : message;
 
     const messages = [
@@ -319,12 +319,14 @@ router.post('/chat', async (req, res) => {
 let spotifyContextCache = { data: null, at: 0 };
 const SPOTIFY_CACHE_TTL = 30_000;
 
-async function buildContext(base) {
+async function buildContext(base, room = null) {
   const now = new Date();
   const timeStr = now.toLocaleString('en-US', {
     weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: true,
   });
   const parts = [timeStr];
+
+  if (room) parts.push(room === 'tablet' ? 'Device: tablet' : `Room: ${room}`);
 
   const activeName = config.get('active_voice');
   const voices     = config.get('voices') || {};

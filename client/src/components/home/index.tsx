@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useClock }   from '../../hooks/useClock';
 import { useWeather } from '../../hooks/useWeather';
 import { useSpotify } from '../../hooks/useSpotify';
@@ -24,8 +24,23 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
   const [epochs, setEpochs] = useState({ back: currentEpoch() - 1, front: currentEpoch() });
   const now                 = useClock();
   const { data: weather }   = useWeather();
-  const { state: spotify, control } = useSpotify();
-  const plants                      = usePlants();
+  const { state: spotify, control, setVolume } = useSpotify();
+  const plants                                  = usePlants();
+  const preDuckVolume = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (micStatus !== 'idle') {
+      if (preDuckVolume.current === null && spotify?.isPlaying && spotify.device?.volume != null && spotify.device.volume > 15) {
+        preDuckVolume.current = spotify.device.volume;
+        setVolume(15);
+      }
+    } else {
+      if (preDuckVolume.current !== null) {
+        setVolume(preDuckVolume.current);
+        preDuckVolume.current = null;
+      }
+    }
+  }, [micStatus]);
 
   useEffect(() => {
     const check = () => {
