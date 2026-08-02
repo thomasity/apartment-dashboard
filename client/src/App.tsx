@@ -121,7 +121,6 @@ export default function App() {
           >
             {id === 'home'    && <Home onNavigate={setTab} micStatus={status} onMicClick={handleMicClick} />}
             {id === 'weather' && <Weather />}
-            {/* {id === 'stocks'  && <Stocks />} */}
             {id === 'lights'  && <Lighting />}
             {id === 'spotify' && spotifyMounted && <Spotify />}
             {id === 'tv'      && <TV />}

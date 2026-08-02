@@ -28,7 +28,6 @@ if (IS_DEV) {
 }
 
 app.use('/api/weather',  require('./routes/weather'));
-app.use('/api/stocks',   require('./routes/stocks'));
 app.use('/api/lighting', require('./routes/lighting')(io, mqttManager));
 app.use('/api/spotify',   require('./routes/spotify'));
 app.use('/api/bluetooth', require('./routes/bluetooth'));
