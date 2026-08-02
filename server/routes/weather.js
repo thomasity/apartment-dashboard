@@ -11,6 +11,7 @@ let cache = {};
 router.get('/', async (req, res) => {
   const lat = parseFloat(req.query.lat) || DEFAULT_LAT;
   const lon = parseFloat(req.query.lon) || DEFAULT_LON;
+  // Round coords into the cache key so nearby requests (e.g. GPS jitter) share a cache entry.
   const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
 
   if (cache[key] && Date.now() - cache[key].at < CACHE_TTL) {
@@ -37,6 +38,7 @@ router.get('/', async (req, res) => {
     res.json(response.data);
   } catch (err) {
     console.error('Weather fetch failed:', err.message);
+    // Prefer serving a stale forecast over an error screen on the dashboard.
     if (cache[key]) return res.json(cache[key].data);
     res.status(503).json({ error: 'Weather data unavailable' });
   }

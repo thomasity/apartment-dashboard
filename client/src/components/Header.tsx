@@ -3,21 +3,11 @@ import { useWeather } from '../hooks/useWeather';
 import { useSpotify } from '../hooks/useSpotify';
 import { wmo }        from '../lib/wmo';
 import type { VoiceStatus } from '../hooks/useVoice';
+import { MicrophoneIcon } from './icons';
 
 interface Props {
   micStatus: VoiceStatus;
   onMicClick: () => void;
-}
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      <line x1="12" y1="19" x2="12" y2="22" />
-      <line x1="8"  y1="22" x2="16" y2="22" />
-    </svg>
-  );
 }
 
 export default function Header({ micStatus, onMicClick }: Props) {
@@ -75,7 +65,7 @@ export default function Header({ micStatus, onMicClick }: Props) {
               : 'bg-white/5 border-white/15 text-white/40 hover:text-white/60 hover:border-white/25'
           }`}
         >
-          <MicIcon />
+          <MicrophoneIcon size={16} />
         </button>
       </div>
     </div>

@@ -13,6 +13,19 @@ module.exports = (io, mqttManager) => {
     groups.forEach((g) => overrideSvc.set(g));
   }
 
+  // "all" (or no group) expands to every configured group; otherwise just the one named.
+  function resolveGroups(group) {
+    return (!group || group === 'all') ? Object.keys(mqttManager.groups) : [group];
+  }
+
+  // Only pass through brightness/colorTemp fields that were actually provided.
+  function buildLightPayload({ brightness, colorTemp }) {
+    return {
+      brightness: brightness !== undefined ? Number(brightness) : undefined,
+      colorTemp:  colorTemp  !== undefined ? Number(colorTemp)  : undefined,
+    };
+  }
+
   // ── Override ─────────────────────────────────────────────────────────────
 
   router.get('/override', (_req, res) => {
@@ -97,12 +110,8 @@ module.exports = (io, mqttManager) => {
   // ── Room-level actions (fan out to member devices) ───────────────────────
 
   router.post('/rooms/:name/set', (req, res) => {
-    const { brightness, colorTemp } = req.body;
-    const payload = {
-      brightness: brightness !== undefined ? Number(brightness) : undefined,
-      colorTemp:  colorTemp  !== undefined ? Number(colorTemp)  : undefined,
-    };
-    const groups = roomsSvc.getDevices(req.params.name);
+    const payload = buildLightPayload(req.body);
+    const groups  = roomsSvc.getDevices(req.params.name);
     groups.forEach((g) => mqttManager.setGroup(g, payload));
     setOverride(groups);
     res.json({ ok: true });
@@ -168,14 +177,8 @@ module.exports = (io, mqttManager) => {
   // ── Global set / power ───────────────────────────────────────────────────
 
   router.post('/set', (req, res) => {
-    const { group, brightness, colorTemp } = req.body;
-    const payload = {
-      brightness: brightness !== undefined ? Number(brightness) : undefined,
-      colorTemp:  colorTemp  !== undefined ? Number(colorTemp)  : undefined,
-    };
-    const groups = (!group || group === 'all')
-      ? Object.keys(mqttManager.groups)
-      : [group];
+    const payload = buildLightPayload(req.body);
+    const groups  = resolveGroups(req.body.group);
     groups.forEach((g) => mqttManager.setGroup(g, payload));
     setOverride(groups);
     res.json({ ok: true });
@@ -195,13 +198,13 @@ module.exports = (io, mqttManager) => {
 
   router.post('/circadian', (req, res) => {
     const { group = 'all', enabled } = req.body;
-    // Clear overrides BEFORE enabling so apply() sees no active overrides
     if (enabled) {
-      const groups = group === 'all' ? Object.keys(mqttManager.groups) : [group];
-      groups.forEach((g) => overrideSvc.clear(g));
+      // Clear overrides BEFORE enabling so apply() sees no active overrides
+      resolveGroups(group).forEach((g) => overrideSvc.clear(g));
+      circadian.enable(group);
+    } else {
+      circadian.disable(group);
     }
-    if (enabled) circadian.enable(group);
-    else circadian.disable(group);
     res.json({ ok: true });
   });
 

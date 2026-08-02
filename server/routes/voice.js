@@ -260,6 +260,51 @@ Tools:
   },
 ];
 
+// Drives the Claude tool-use loop: send messages, execute any requested tools, feed the
+// results back, and repeat until the model stops asking for tools. `messages` is mutated
+// in place so callers can inspect the final transcript if they need to.
+//
+// When `watchEndConversation` is set, an `end_conversation` tool call is intercepted here
+// (rather than dispatched to executeTool) and flips the returned `keepListening` to false —
+// used by /chat to tell the client whether to keep the mic open.
+async function runAgentLoop(messages, base, { maxTokens, watchEndConversation = false } = {}) {
+  let reply         = '';
+  let keepListening = true; // default: stay open; AI calls end_conversation to close
+
+  while (true) {
+    const response = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      system:     SYSTEM,
+      tools:      TOOLS,
+      messages,
+    });
+
+    for (const block of response.content) {
+      if (block.type === 'text') reply = block.text;
+    }
+
+    if (response.stop_reason !== 'tool_use') break;
+
+    const toolResults = [];
+    for (const block of response.content) {
+      if (block.type !== 'tool_use') continue;
+      if (watchEndConversation && block.name === 'end_conversation') {
+        keepListening = false;
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: '{}' });
+        continue;
+      }
+      const result = await executeTool(block.name, block.input, base);
+      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+    }
+
+    messages.push({ role: 'assistant', content: response.content });
+    messages.push({ role: 'user',      content: toolResults });
+  }
+
+  return { reply, keepListening };
+}
+
 router.post('/chat', async (req, res) => {
   const { message, history = [], room = null } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'No message provided' });
@@ -273,39 +318,11 @@ router.post('/chat', async (req, res) => {
       ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: firstMessage },
     ];
-    let reply         = '';
-    let keepListening = true; // default: stay open; AI calls end_conversation to close
 
-    while (true) {
-      const response = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        system:     SYSTEM,
-        tools:      TOOLS,
-        messages,
-      });
-
-      for (const block of response.content) {
-        if (block.type === 'text') reply = block.text;
-      }
-
-      if (response.stop_reason !== 'tool_use') break;
-
-      const toolResults = [];
-      for (const block of response.content) {
-        if (block.type !== 'tool_use') continue;
-        if (block.name === 'end_conversation') {
-          keepListening = false;
-          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: '{}' });
-          continue;
-        }
-        const result = await executeTool(block.name, block.input, base);
-        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
-      }
-
-      messages.push({ role: 'assistant', content: response.content });
-      messages.push({ role: 'user',      content: toolResults });
-    }
+    const { reply, keepListening } = await runAgentLoop(messages, base, {
+      maxTokens: 300,
+      watchEndConversation: true,
+    });
 
     res.json({ reply, keepListening });
   } catch (err) {
@@ -376,210 +393,220 @@ function wmoCondition(code) {
 
 // ── Tool execution ────────────────────────────────────────────────────────────
 
+// One handler per entry in TOOLS, keyed by tool name — keeps each tool's implementation
+// next to its neighbors instead of buried in a long if/else chain, and lets executeTool
+// stay a thin, uniform dispatcher.
+const toolHandlers = {
+  async get_home_state(input, base) {
+    const [lightsRes, spotifyRes, tvRes, plantsRes] = await Promise.all([
+      fetch(`${base}/lighting/state`),
+      fetch(`${base}/spotify/now-playing`),
+      fetch(`${base}/tv/status`),
+      fetch(`${base}/plants`),
+    ]);
+    const lights  = await lightsRes.json().catch(() => null);
+    const spotify = await spotifyRes.json().catch(() => null);
+    const tv      = await tvRes.json().catch(() => null);
+    const plants  = await plantsRes.json().catch(() => []);
+
+    return {
+      lights: lights ? {
+        rooms: Object.entries(lights.groups || {}).map(([roomName, vals]) => ({
+          name:       roomName,
+          brightness: vals.brightness,
+          colorTemp:  vals.colorTemp,
+          on:         !(lights.poweredOff || []).includes(roomName),
+        })),
+      } : null,
+      music: spotify ? {
+        isPlaying: spotify.isPlaying,
+        track:     (spotify.item ?? spotify.track)?.name   ?? null,
+        artist:    (spotify.item ?? spotify.track)?.artist ?? null,
+        volume:    spotify.device?.volume ?? null,
+        shuffle:   spotify.shuffle,
+        repeat:    spotify.repeat,
+      } : null,
+      tv: tv ? { app: tv.appName, state: tv.playerState } : null,
+      plants: plants.map((p) => {
+        const days = daysUntil(p);
+        return { name: p.name, status: plantStatus(days) };
+      }),
+    };
+  },
+
+  async get_plants_due(input, base) {
+    const plantsRes = await fetch(`${base}/plants`);
+    const plants    = await plantsRes.json();
+    const all = plants.map((p) => {
+      const days = daysUntil(p);
+      return { name: p.name, status: plantStatus(days), urgent: days === null || days <= 0 };
+    });
+    return { plants: all, anyDue: all.some((p) => p.urgent) };
+  },
+
+  async remember(input) {
+    const memories = config.get('memories') || {};
+    memories[input.label] = input.value;
+    config.set('memories', memories);
+    return { ok: true, stored: input.label };
+  },
+
+  async get_memories() {
+    const memories = config.get('memories') || {};
+    const entries  = Object.entries(memories);
+    if (!entries.length) return { memories: [], empty: true };
+    return { memories: entries.map(([label, value]) => ({ label, value })) };
+  },
+
+  async forget(input) {
+    const memories = config.get('memories') || {};
+    if (!(input.label in memories)) return { error: `No memory found with label "${input.label}".` };
+    delete memories[input.label];
+    config.set('memories', memories);
+    return { ok: true, forgotten: input.label };
+  },
+
+  async set_timer(input) {
+    const id      = ++timerSeq;
+    const ms      = Math.max(1, input.delay_minutes) * 60000;
+    const firesAt = new Date(Date.now() + ms);
+    const handle  = setTimeout(() => {
+      timerMap.delete(id);
+      runTimerAction(input.description).catch((err) =>
+        console.error('[voice] timer action failed:', err.message)
+      );
+    }, ms);
+    timerMap.set(id, { handle, description: input.description, firesAt });
+    return { ok: true, id, description: input.description, firesAt: firesAt.toLocaleTimeString() };
+  },
+
+  async cancel_timers() {
+    const cancelled = [];
+    for (const [id, t] of timerMap) {
+      clearTimeout(t.handle);
+      cancelled.push(t.description);
+      timerMap.delete(id);
+    }
+    return { ok: true, cancelled };
+  },
+
+  async control_lights(input, base) {
+    const { group, power, brightness, colorTemp } = input;
+    if (power !== undefined) {
+      await post(`${base}/lighting/power`, { group, on: power });
+    }
+    if (brightness !== undefined || colorTemp !== undefined) {
+      await post(`${base}/lighting/set`, {
+        group,
+        ...(brightness !== undefined && { brightness }),
+        ...(colorTemp  !== undefined && { colorTemp }),
+      });
+    }
+    return { ok: true };
+  },
+
+  async control_music(input, base) {
+    const { action, volume } = input;
+    if (action)               await post(`${base}/spotify/${action}`);
+    if (volume !== undefined) await post(`${base}/spotify/volume`, { volume });
+    return { ok: true };
+  },
+
+  async get_voices() {
+    const voices      = config.get('voices') || {};
+    const activeVoice = config.get('active_voice') || null;
+    return {
+      active: activeVoice,
+      voices: Object.entries(voices).map(([n, v]) => ({ name: n, description: v.description, active: n === activeVoice })),
+    };
+  },
+
+  async set_voice(input) {
+    const voices = config.get('voices') || {};
+    const match  = Object.keys(voices).find((n) => n.toLowerCase() === input.name.toLowerCase());
+    if (!match) return { error: `Voice "${input.name}" not found. Available: ${Object.keys(voices).join(', ')}` };
+    config.set('active_voice', match);
+    return { ok: true, active: match };
+  },
+
+  async get_playlists(input, base) {
+    const plRes     = await fetch(`${base}/spotify/playlists`);
+    const playlists = await plRes.json();
+    return { playlists: playlists.map((p) => ({ name: p.name, id: p.id, tracks: p.total })) };
+  },
+
+  async play_spotify(input, base) {
+    if (input.type === 'my_playlist') {
+      const plRes     = await fetch(`${base}/spotify/playlists`);
+      const playlists = await plRes.json();
+      const pl        = fuzzyMatch(playlists, input.query);
+      if (!pl) return { error: `Playlist "${input.query}" not found.` };
+      await post(`${base}/spotify/play`, { context_uri: pl.uri });
+      return { ok: true, playing: pl.name };
+    }
+    if (input.type === 'search') {
+      const searchRes = await fetch(`${base}/spotify/search?q=${encodeURIComponent(input.query)}`);
+      const results   = await searchRes.json();
+      const track     = results.tracks?.[0];
+      const playlist  = results.playlists?.[0];
+      if (track) {
+        await post(`${base}/spotify/play`, { uris: [track.uri] });
+        return { ok: true, playing: `${track.name} by ${track.artist}` };
+      }
+      if (playlist) {
+        await post(`${base}/spotify/play`, { context_uri: playlist.uri });
+        return { ok: true, playing: playlist.name };
+      }
+      return { error: 'No results found.' };
+    }
+    // Unrecognized type — same fallback as an unrecognized tool name.
+    return { error: 'Unknown tool' };
+  },
+
+  async set_shuffle(input, base) {
+    await post(`${base}/spotify/shuffle`, { state: input.state });
+    return { ok: true };
+  },
+
+  async set_repeat(input, base) {
+    await post(`${base}/spotify/repeat`, { state: input.state });
+    return { ok: true };
+  },
+
+  async control_tv(input, base) {
+    await post(`${base}/tv/keypress/${encodeURIComponent(input.key)}`);
+    return { ok: true };
+  },
+
+  async launch_tv_app(input, base) {
+    const appsRes = await fetch(`${base}/tv/apps`);
+    const apps    = await appsRes.json();
+    const app     = fuzzyMatch(apps, input.app_name);
+    if (!app) return { error: `App "${input.app_name}" not found. Available: ${apps.map((a) => a.name).join(', ')}` };
+    await post(`${base}/tv/launch/${app.id}`);
+    return { ok: true, launched: app.name };
+  },
+
+  async water_plant(input, base) {
+    const plantsRes = await fetch(`${base}/plants`);
+    const plants    = await plantsRes.json();
+    const plant     = fuzzyMatch(plants, input.plant_name);
+    if (!plant) return { error: `Plant "${input.plant_name}" not found. Available: ${plants.map((p) => p.name).join(', ')}` };
+    const today = new Date().toISOString().slice(0, 10);
+    await put(`${base}/plants/${plant.id}`, { lastWatered: today });
+    return { ok: true, watered: plant.name };
+  },
+};
+
 async function executeTool(name, input, base) {
   base = base || `http://localhost:${process.env.PORT || 3001}/api`;
   console.log(`[voice] tool → ${name}`, JSON.stringify(input));
+
+  const handler = toolHandlers[name];
+  if (!handler) return { error: 'Unknown tool' };
+
   try {
-
-    if (name === 'get_home_state') {
-      const [lightsRes, spotifyRes, tvRes, plantsRes] = await Promise.all([
-        fetch(`${base}/lighting/state`),
-        fetch(`${base}/spotify/now-playing`),
-        fetch(`${base}/tv/status`),
-        fetch(`${base}/plants`),
-      ]);
-      const lights  = await lightsRes.json().catch(() => null);
-      const spotify = await spotifyRes.json().catch(() => null);
-      const tv      = await tvRes.json().catch(() => null);
-      const plants  = await plantsRes.json().catch(() => []);
-
-      return {
-        lights: lights ? {
-          rooms: Object.entries(lights.groups || {}).map(([name, vals]) => ({
-            name,
-            brightness: vals.brightness,
-            colorTemp:  vals.colorTemp,
-            on:         !(lights.poweredOff || []).includes(name),
-          })),
-        } : null,
-        music: spotify ? {
-          isPlaying: spotify.isPlaying,
-          track:     (spotify.item ?? spotify.track)?.name   ?? null,
-          artist:    (spotify.item ?? spotify.track)?.artist ?? null,
-          volume:    spotify.device?.volume ?? null,
-          shuffle:   spotify.shuffle,
-          repeat:    spotify.repeat,
-        } : null,
-        tv: tv ? { app: tv.appName, state: tv.playerState } : null,
-        plants: plants.map((p) => {
-          const days = daysUntil(p);
-          return { name: p.name, status: plantStatus(days) };
-        }),
-      };
-    }
-
-    if (name === 'get_plants_due') {
-      const plantsRes = await fetch(`${base}/plants`);
-      const plants    = await plantsRes.json();
-      const all = plants.map((p) => {
-        const days = daysUntil(p);
-        return { name: p.name, status: plantStatus(days), urgent: days === null || days <= 0 };
-      });
-      return { plants: all, anyDue: all.some((p) => p.urgent) };
-    }
-
-    if (name === 'remember') {
-      const memories = config.get('memories') || {};
-      memories[input.label] = input.value;
-      config.set('memories', memories);
-      return { ok: true, stored: input.label };
-    }
-
-    if (name === 'get_memories') {
-      const memories = config.get('memories') || {};
-      const entries  = Object.entries(memories);
-      if (!entries.length) return { memories: [], empty: true };
-      return { memories: entries.map(([label, value]) => ({ label, value })) };
-    }
-
-    if (name === 'forget') {
-      const memories = config.get('memories') || {};
-      if (!(input.label in memories)) return { error: `No memory found with label "${input.label}".` };
-      delete memories[input.label];
-      config.set('memories', memories);
-      return { ok: true, forgotten: input.label };
-    }
-
-    if (name === 'set_timer') {
-      const id       = ++timerSeq;
-      const ms       = Math.max(1, input.delay_minutes) * 60000;
-      const firesAt  = new Date(Date.now() + ms);
-      const handle   = setTimeout(() => {
-        timerMap.delete(id);
-        runTimerAction(input.description).catch((err) =>
-          console.error('[voice] timer action failed:', err.message)
-        );
-      }, ms);
-      timerMap.set(id, { handle, description: input.description, firesAt });
-      return { ok: true, id, description: input.description, firesAt: firesAt.toLocaleTimeString() };
-    }
-
-    if (name === 'cancel_timers') {
-      const cancelled = [];
-      for (const [id, t] of timerMap) {
-        clearTimeout(t.handle);
-        cancelled.push(t.description);
-        timerMap.delete(id);
-      }
-      return { ok: true, cancelled };
-    }
-
-    if (name === 'control_lights') {
-      const { group, power, brightness, colorTemp } = input;
-      if (power !== undefined) {
-        await post(`${base}/lighting/power`, { group, on: power });
-      }
-      if (brightness !== undefined || colorTemp !== undefined) {
-        await post(`${base}/lighting/set`, {
-          group,
-          ...(brightness !== undefined && { brightness }),
-          ...(colorTemp  !== undefined && { colorTemp }),
-        });
-      }
-      return { ok: true };
-    }
-
-    if (name === 'control_music') {
-      const { action, volume } = input;
-      if (action)               await post(`${base}/spotify/${action}`);
-      if (volume !== undefined) await post(`${base}/spotify/volume`, { volume });
-      return { ok: true };
-    }
-
-    if (name === 'get_voices') {
-      const voices      = config.get('voices') || {};
-      const activeVoice = config.get('active_voice') || null;
-      return {
-        active: activeVoice,
-        voices: Object.entries(voices).map(([n, v]) => ({ name: n, description: v.description, active: n === activeVoice })),
-      };
-    }
-
-    if (name === 'set_voice') {
-      const voices = config.get('voices') || {};
-      const match  = Object.keys(voices).find((n) => n.toLowerCase() === input.name.toLowerCase());
-      if (!match) return { error: `Voice "${input.name}" not found. Available: ${Object.keys(voices).join(', ')}` };
-      config.set('active_voice', match);
-      return { ok: true, active: match };
-    }
-
-    if (name === 'get_playlists') {
-      const plRes     = await fetch(`${base}/spotify/playlists`);
-      const playlists = await plRes.json();
-      return { playlists: playlists.map((p) => ({ name: p.name, id: p.id, tracks: p.total })) };
-    }
-
-    if (name === 'play_spotify') {
-      if (input.type === 'my_playlist') {
-        const plRes     = await fetch(`${base}/spotify/playlists`);
-        const playlists = await plRes.json();
-        const pl        = fuzzyMatch(playlists, input.query);
-        if (!pl) return { error: `Playlist "${input.query}" not found.` };
-        await post(`${base}/spotify/play`, { context_uri: pl.uri });
-        return { ok: true, playing: pl.name };
-      }
-      if (input.type === 'search') {
-        const searchRes = await fetch(`${base}/spotify/search?q=${encodeURIComponent(input.query)}`);
-        const results   = await searchRes.json();
-        const track     = results.tracks?.[0];
-        const playlist  = results.playlists?.[0];
-        if (track) {
-          await post(`${base}/spotify/play`, { uris: [track.uri] });
-          return { ok: true, playing: `${track.name} by ${track.artist}` };
-        }
-        if (playlist) {
-          await post(`${base}/spotify/play`, { context_uri: playlist.uri });
-          return { ok: true, playing: playlist.name };
-        }
-        return { error: 'No results found.' };
-      }
-    }
-
-    if (name === 'set_shuffle') {
-      await post(`${base}/spotify/shuffle`, { state: input.state });
-      return { ok: true };
-    }
-
-    if (name === 'set_repeat') {
-      await post(`${base}/spotify/repeat`, { state: input.state });
-      return { ok: true };
-    }
-
-    if (name === 'control_tv') {
-      await post(`${base}/tv/keypress/${encodeURIComponent(input.key)}`);
-      return { ok: true };
-    }
-
-    if (name === 'launch_tv_app') {
-      const appsRes = await fetch(`${base}/tv/apps`);
-      const apps    = await appsRes.json();
-      const app     = fuzzyMatch(apps, input.app_name);
-      if (!app) return { error: `App "${input.app_name}" not found. Available: ${apps.map((a) => a.name).join(', ')}` };
-      await post(`${base}/tv/launch/${app.id}`);
-      return { ok: true, launched: app.name };
-    }
-
-    if (name === 'water_plant') {
-      const plantsRes = await fetch(`${base}/plants`);
-      const plants    = await plantsRes.json();
-      const plant     = fuzzyMatch(plants, input.plant_name);
-      if (!plant) return { error: `Plant "${input.plant_name}" not found. Available: ${plants.map((p) => p.name).join(', ')}` };
-      const today = new Date().toISOString().slice(0, 10);
-      await put(`${base}/plants/${plant.id}`, { lastWatered: today });
-      return { ok: true, watered: plant.name };
-    }
-
-    return { error: 'Unknown tool' };
+    return await handler(input, base);
   } catch (err) {
     console.error(`[voice] tool ${name} failed:`, err.message);
     return { error: err.message };
@@ -592,25 +619,7 @@ async function runTimerAction(description) {
   const base = `http://localhost:${process.env.PORT || 3001}/api`;
   console.log(`[voice] timer fired: ${description}`);
   const messages = [{ role: 'user', content: `Timer fired. Execute this action now: ${description}` }];
-
-  while (true) {
-    const response = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 100,
-      system:     SYSTEM,
-      tools:      TOOLS,
-      messages,
-    });
-    if (response.stop_reason !== 'tool_use') break;
-    const toolResults = [];
-    for (const block of response.content) {
-      if (block.type !== 'tool_use') continue;
-      const result = await executeTool(block.name, block.input, base);
-      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
-    }
-    messages.push({ role: 'assistant', content: response.content });
-    messages.push({ role: 'user',      content: toolResults });
-  }
+  await runAgentLoop(messages, base, { maxTokens: 100 });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

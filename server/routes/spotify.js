@@ -42,6 +42,19 @@ async function spotify(method, path, data) {
     headers: { Authorization: `Bearer ${token}` } });
 }
 
+// Spotify's Web API paginates list endpoints via a "next" URL — follow it until
+// exhausted and return every item collected along the way.
+async function fetchAllPages(path) {
+  const items = [];
+  let url = path;
+  while (url) {
+    const { data } = await spotify('GET', url);
+    items.push(...data.items);
+    url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
+  }
+  return items;
+}
+
 function spotifyError(label, err, res) {
   const status     = err.response?.status ?? 500;
   const retryAfter = err.response?.headers?.['retry-after'];
@@ -147,14 +160,7 @@ router.get('/playlists', async (_req, res) => {
   try {
     const { data: me } = await spotify('GET', '/me');
     const userId = me.id;
-
-    const items = [];
-    let url = '/me/playlists?limit=50';
-    while (url) {
-      const { data } = await spotify('GET', url);
-      items.push(...data.items);
-      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-    }
+    const items  = await fetchAllPages('/me/playlists?limit=50');
 
     const owned = items.filter((pl) => pl.owner.id === userId || pl.collaborative);
     const payload = owned.map((pl) => ({
@@ -235,13 +241,7 @@ router.get('/liked-songs', async (req, res) => {
     const collectionUri = `spotify:user:${me.id}:collection`;
     if (countOnly) return res.json({ total: first.total, collectionUri });
 
-    const allItems = [];
-    let url = '/me/tracks?limit=50';
-    while (url) {
-      const { data } = await spotify('GET', url);
-      allItems.push(...data.items);
-      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-    }
+    const allItems = await fetchAllPages('/me/tracks?limit=50');
     res.json({
       total: first.total,
       collectionUri,
@@ -261,13 +261,7 @@ router.get('/liked-songs', async (req, res) => {
 
 router.get('/shows', async (_req, res) => {
   try {
-    const items = [];
-    let url = '/me/shows?limit=50';
-    while (url) {
-      const { data } = await spotify('GET', url);
-      items.push(...data.items);
-      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-    }
+    const items = await fetchAllPages('/me/shows?limit=50');
     res.json(items.map((i) => ({
       id:        i.show.id,
       uri:       i.show.uri,
@@ -281,13 +275,7 @@ router.get('/shows', async (_req, res) => {
 
 router.get('/shows/:id/episodes', async (req, res) => {
   try {
-    const items = [];
-    let url = `/shows/${req.params.id}/episodes?limit=50&market=from_token`;
-    while (url) {
-      const { data } = await spotify('GET', url);
-      items.push(...data.items);
-      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-    }
+    const items = await fetchAllPages(`/shows/${req.params.id}/episodes?limit=50&market=from_token`);
     res.json(items.map((ep) => ({
       id:       ep.id,
       uri:      ep.uri,
@@ -303,13 +291,7 @@ router.get('/albums', async (req, res) => {
     return res.json(albumsCache.data);
   }
   try {
-    const items = [];
-    let url = '/me/albums?limit=50';
-    while (url) {
-      const { data } = await spotify('GET', url);
-      items.push(...data.items);
-      url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-    }
+    const items   = await fetchAllPages('/me/albums?limit=50');
     const payload = items.map((i) => ({
       id:     i.album.id,
       uri:    i.album.uri,
@@ -388,13 +370,7 @@ router.get('/search', async (req, res) => {
 
 router.get('/playlist/:id/tracks', async (req, res) => {
   try {
-    let path = `/playlists/${req.params.id}/items?limit=100`;
-    let allItems = [];
-    while (path) {
-      const { data } = await spotify('GET', path);
-      allItems = allItems.concat(data.items);
-      path = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-    }
+    const allItems = await fetchAllPages(`/playlists/${req.params.id}/items?limit=100`);
     res.json(
       allItems
         .filter((i) => i.item?.id && i.item?.type === 'track')

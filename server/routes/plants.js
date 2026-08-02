@@ -2,12 +2,13 @@ const express = require('express');
 const config  = require('../config');
 const router  = express.Router();
 
+// Short opaque id — no uuid dependency needed for a handful of plants.
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
 function getPlants() { return config.get('plants') ?? []; }
-function savePlants(p) { config.set('plants', p); }
+function savePlants(plants) { config.set('plants', plants); }
 
 router.get('/', (_req, res) => res.json(getPlants()));
 

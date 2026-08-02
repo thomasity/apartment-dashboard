@@ -102,7 +102,7 @@ router.post('/pair', async (req, res) => {
   try {
     await btCmd(['pair',  mac], 20000);
     await btCmd(['trust', mac]);
-    await sleep(2000);
+    await sleep(2000); // give bluetoothd a moment to settle before requesting a connection
     await btCmd(['connect', mac], 20000);
     const sinkId = await findBluetoothSink(mac);
     if (sinkId) {
@@ -121,17 +121,17 @@ function findBluetoothSink(mac, retries = 10, delayMs = 500) {
   const sinkKey = 'bluez_output.' + mac.replace(/:/g, '_');
   return new Promise((resolve) => {
     let attempts = 0;
-    const try_ = () => {
+    const attempt = () => {
       execFile('pactl', ['list', 'sinks', 'short'], (err, stdout) => {
         if (!err) {
           const line = stdout.split('\n').find((l) => l.includes(sinkKey));
           if (line) { resolve(line.trim().split(/\s+/)[0]); return; }
         }
-        if (++attempts < retries) setTimeout(try_, delayMs);
+        if (++attempts < retries) setTimeout(attempt, delayMs);
         else resolve(null);
       });
     };
-    try_();
+    attempt();
   });
 }
 

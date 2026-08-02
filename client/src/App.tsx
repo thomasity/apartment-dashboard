@@ -20,7 +20,7 @@ const TABS      = [
 const TAB_ORDER = TABS.map((t) => t.id);
 
 const INACTIVITY_MS  = 5 * 60 * 1000;
-const NAV_HIDE_MS    = 3 * 1000;
+const NAV_HIDE_MS    = 10 * 1000;
 
 export default function App() {
   const [tab,             setTab]             = useState('home');
@@ -45,7 +45,7 @@ export default function App() {
     if (tab === 'spotify') setSpotifyMounted(true);
   }, [tab]);
 
-  // ── Nav auto-hide: fades out after 3 s on Home, always visible elsewhere ──
+  // ── Nav auto-hide: fades out after X s on Home, always visible elsewhere ──
   const scheduleNavHide = useCallback(() => {
     clearTimeout(navHideRef.current ?? undefined);
     navHideRef.current = setTimeout(() => setNavVisible(false), NAV_HIDE_MS);

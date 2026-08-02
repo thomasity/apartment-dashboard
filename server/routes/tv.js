@@ -20,24 +20,34 @@ function rokuBase() {
   return `http://${ip}:8060`;
 }
 
-function xmlAttr(xml, tag, attr) {
-  const re = new RegExp(`<${tag}\\b[^>]*\\s${attr}="([^"]*)"`, 'i');
-  const m  = xml.match(re);
-  return m ? m[1] : null;
-}
+// Roku's ECP responses are small, predictable XML fragments, so a handful of regexes
+// are simpler here than pulling in a full XML parser.
 
-function parseRokuTime(str) {
-  if (!str) return 0;
-  const m = str.match(/^(\d+):(\d+):(\d+)/);
-  if (!m) return 0;
-  return parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseInt(m[3]);
+function xmlAttr(xml, tag, attr) {
+  const re    = new RegExp(`<${tag}\\b[^>]*\\s${attr}="([^"]*)"`, 'i');
+  const match = xml.match(re);
+  return match ? match[1] : null;
 }
 
 function xmlTag(xml, tag) {
-  const m = xml.match(new RegExp(`<${tag}>([^<]*)<\\/${tag}>`));
-  return m ? m[1].trim() : null;
+  const match = xml.match(new RegExp(`<${tag}>([^<]*)<\\/${tag}>`));
+  return match ? match[1].trim() : null;
 }
 
+// Roku reports playback position/duration as "HH:MM:SS" — convert to seconds.
+function parseRokuTime(str) {
+  if (!str) return 0;
+  const match = str.match(/^(\d+):(\d+):(\d+)/);
+  if (!match) return 0;
+  return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]);
+}
+
+// Roku errors surface as a missing-config 400, everything else as a 503 (device unreachable).
+function rokuErrorStatus(err) {
+  return err.code === 'NO_IP' ? 400 : 503;
+}
+
+// Wake-on-LAN "magic packet": 6 bytes of 0xFF followed by the target MAC repeated 16 times.
 function buildMagicPacket(mac) {
   const bytes = mac.replace(/[:\-]/g, '').match(/.{2}/g).map((h) => parseInt(h, 16));
   if (bytes.length !== 6) throw new Error('Invalid MAC: ' + mac);
@@ -48,8 +58,9 @@ function buildMagicPacket(mac) {
 }
 
 function sendWoL(mac, tvIp) {
-  const packet    = buildMagicPacket(mac);
-  const targets   = ['255.255.255.255'];
+  const packet  = buildMagicPacket(mac);
+  const targets = ['255.255.255.255'];
+  // Also broadcast to the TV's own subnet — some routers block the global broadcast address.
   if (tvIp) {
     const parts = tvIp.split('.');
     parts[3]    = '255';
@@ -70,14 +81,15 @@ function sendWoL(mac, tvIp) {
   })));
 }
 
+// Broadcasts an SSDP M-SEARCH for Roku's ECP service and collects replies for timeoutMs.
 function discoverRoku(timeoutMs = 3000) {
   return new Promise((resolve) => {
     const socket   = dgram.createSocket({ type: 'udp4', reuseAddr: true });
     const foundIps = new Set();
 
     socket.on('message', (buf) => {
-      const m = buf.toString().match(/LOCATION:\s*http:\/\/([^:/]+)/i);
-      if (m) foundIps.add(m[1]);
+      const match = buf.toString().match(/LOCATION:\s*http:\/\/([^:/]+)/i);
+      if (match) foundIps.add(match[1]);
     });
 
     socket.on('error', () => {});
@@ -145,8 +157,8 @@ router.get('/status', async (_req, res) => {
 
     let appId = null, appName = null;
     if (appRes.status === 'fulfilled') {
-      const m = appRes.value.data.match(/<app\b[^>]*id="([^"]*)"[^>]*>([^<]*)<\/app>/);
-      if (m) { appId = m[1]; appName = m[2].trim(); }
+      const match = appRes.value.data.match(/<app\b[^>]*id="([^"]*)"[^>]*>([^<]*)<\/app>/);
+      if (match) { appId = match[1]; appName = match[2].trim(); }
     }
 
     let playerState = 'none', position = 0, duration = 0;
@@ -159,7 +171,7 @@ router.get('/status', async (_req, res) => {
 
     res.json({ appId, appName, playerState, position, duration });
   } catch (err) {
-    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+    res.status(rokuErrorStatus(err)).json({ error: err.message });
   }
 });
 
@@ -168,12 +180,12 @@ router.get('/apps', async (_req, res) => {
     const { data } = await axios.get(`${rokuBase()}/query/apps`, { timeout: 10000 });
     const apps = [];
     const re = /<app\b[^>]*id="([^"]*)"[^>]*>([^<]*)<\/app>/g;
-    let m;
-    while ((m = re.exec(data)) !== null) apps.push({ id: m[1], name: m[2].trim() });
+    let match;
+    while ((match = re.exec(data)) !== null) apps.push({ id: match[1], name: match[2].trim() });
     res.json(apps);
   } catch (err) {
     console.error('[tv] apps query failed:', err.code ?? err.message);
-    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+    res.status(rokuErrorStatus(err)).json({ error: err.message });
   }
 });
 
@@ -229,7 +241,7 @@ router.post('/keypress/:key', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[tv] keypress failed:', req.params.key, err.code ?? err.response?.status ?? err.message);
-    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+    res.status(rokuErrorStatus(err)).json({ error: err.message });
   }
 });
 
@@ -242,7 +254,7 @@ router.post('/type', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+    res.status(rokuErrorStatus(err)).json({ error: err.message });
   }
 });
 
@@ -254,7 +266,7 @@ router.post('/search', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[tv] search failed:', err.code ?? err.message);
-    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+    res.status(rokuErrorStatus(err)).json({ error: err.message });
   }
 });
 
@@ -263,7 +275,7 @@ router.post('/launch/:appId', async (req, res) => {
     await axios.post(`${rokuBase()}/launch/${req.params.appId}`, null, { timeout: 3000 });
     res.json({ ok: true });
   } catch (err) {
-    res.status(err.code === 'NO_IP' ? 400 : 503).json({ error: err.message });
+    res.status(rokuErrorStatus(err)).json({ error: err.message });
   }
 });
 
