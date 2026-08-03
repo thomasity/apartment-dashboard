@@ -26,7 +26,7 @@ export default function App() {
   const [tab,             setTab]             = useState('home');
   const [navVisible,      setNavVisible]      = useState(true);
   const [spotifyMounted,  setSpotifyMounted]  = useState(false);
-  const { status, transcript, response, start, stop, cancel, interrupt, clearHistory } = useVoice();
+  const { status, transcript, response, start, stop, cancel, interrupt, clearHistory, activeVoice } = useVoice();
 
   function handleMicClick() {
     if (status === 'idle')           start();
@@ -162,7 +162,7 @@ export default function App() {
         ))}
       </nav>
 
-      <VoiceOverlay status={status} transcript={transcript} response={response} onCancel={cancel} onInterrupt={interrupt} />
+      <VoiceOverlay status={status} transcript={transcript} response={response} onCancel={cancel} onInterrupt={interrupt} activeVoice={activeVoice} />
     </div>
   );
 }

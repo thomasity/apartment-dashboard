@@ -9,6 +9,7 @@ export function useVoice() {
   const [status,     setStatus]     = useState<VoiceStatus>('idle');
   const [transcript, setTranscript] = useState('');
   const [response,   setResponse]   = useState('');
+  const [activeVoice, setActiveVoice] = useState('Jarvis');
 
   const recogRef      = useRef<any>(null);
   const audioRef      = useRef<AudioBufferSourceNode | null>(null);
@@ -59,6 +60,10 @@ export function useVoice() {
       }
       return;
     }
+    fetch('/api/voice/voices')
+      .then((res) => res.json())
+      .then((data) => { if (data.active) setActiveVoice(data.active); })
+      .catch(() => {});
 
     setStatus('speaking');
     setResponse(text);
@@ -196,5 +201,5 @@ export function useVoice() {
     recogRef.current?.stop();
   }, []);
 
-  return { status, transcript, response, start, stop, cancel, interrupt, clearHistory };
+  return { status, transcript, response, start, stop, cancel, interrupt, clearHistory, activeVoice };
 }
