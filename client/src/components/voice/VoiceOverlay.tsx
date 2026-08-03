@@ -1,3 +1,5 @@
+"use client";
+import {useState, useEffect} from 'react';
 import type { VoiceStatus } from '../../hooks/useVoice';
 
 interface Props {
@@ -8,14 +10,23 @@ interface Props {
   onInterrupt: () => void;
 }
 
-const STATUS_LABEL: Record<VoiceStatus, string> = {
-  idle:       '',
-  listening:  'Listening…',
-  processing: 'Thinking…',
-  speaking:   'Jarvis',
-};
-
 export default function VoiceOverlay({ status, transcript, response, onCancel, onInterrupt }: Props) {
+  const [activeVoice, setActiveVoice] = useState('Jarvis');
+
+  useEffect(() => {
+    fetch('/api/voice/voices')
+      .then((res) => res.json())
+      .then((data) => { if (data.active) setActiveVoice(data.active); })
+      .catch(() => {});
+  }, []);
+
+  const STATUS_LABEL: Record<VoiceStatus, string> = {
+    idle:       '',
+    listening:  'Listening…',
+    processing: 'Thinking…',
+    speaking:   activeVoice,
+  };
+
   if (status === 'idle') return null;
 
   const bodyText = status === 'speaking'   ? response

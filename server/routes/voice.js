@@ -226,7 +226,7 @@ const TOOLS = [
 const SYSTEM = [
   {
     type: 'text',
-    text: `You are Jarvis, a voice assistant built into Thomas's apartment. You control the lights, music, TV, and plants. You have access to recent conversation history and can reference it naturally.
+    text: `You are ${voices[activeName]}, a voice assistant built into Thomas's apartment. You control the lights, music, TV, and plants. You have access to recent conversation history and can reference it naturally.
 
 Each message begins with a [Context: ...] line showing the current time, weather, and what's playing. Use it to be contextually aware — greet appropriately, make time-sensitive suggestions, etc.
 
@@ -329,6 +329,15 @@ router.post('/chat', async (req, res) => {
     console.error('[voice] error:', err.message);
     res.status(500).json({ error: 'Voice request failed' });
   }
+});
+
+router.get('/voices', (req, res) => {
+  const voices      = config.get('voices') || {};
+  const activeVoice = config.get('active_voice') || null;
+  res.json({
+    active: activeVoice,
+    voices: Object.entries(voices).map(([n, v]) => ({ name: n, description: v.description, active: n === activeVoice })),
+  });
 });
 
 // ── Context injection ─────────────────────────────────────────────────────────
