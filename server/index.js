@@ -10,6 +10,7 @@ const circadian   = require('./services/circadian');
 const roomsSvc    = require('./services/rooms');
 const overrideSvc = require('./services/override');
 const rulesSvc    = require('./services/rules');
+const presenceSvc = require('./services/presence');
 
 const IS_DEV = process.env.PROD === 'false';
 
@@ -79,6 +80,7 @@ overrideSvc.on('resume', (groupName) => {
 });
 
 circadian.init(mqttManager, io, (g) => overrideSvc.isOverridden(g));
+presenceSvc.init(mqttManager, roomsSvc);
 
 rulesSvc.init((rule) => {
   const { action } = rule;

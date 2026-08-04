@@ -5,6 +5,11 @@ function save(rooms) { config.set('rooms', rooms); }
 
 function getDevices(roomName) { return get()[roomName] ?? []; }
 
+function getRoomForDevice(deviceName) {
+  const rooms = get();
+  return Object.keys(rooms).find((r) => rooms[r].includes(deviceName)) ?? null;
+}
+
 function create(name) {
   if (!name) throw Object.assign(new Error('name required'), { code: 'INVALID' });
   const rooms = get();
@@ -40,4 +45,4 @@ function assignDevice(deviceName, roomName) {
   save(rooms);
 }
 
-module.exports = { get, getDevices, create, rename, remove, assignDevice };
+module.exports = { get, getDevices, getRoomForDevice, create, rename, remove, assignDevice };

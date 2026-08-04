@@ -3,6 +3,7 @@ const circadian    = require('../services/circadian');
 const roomsSvc     = require('../services/rooms');
 const overrideSvc  = require('../services/override');
 const rulesSvc     = require('../services/rules');
+const presenceSvc  = require('../services/presence');
 
 module.exports = (io, mqttManager) => {
   const router = express.Router();
@@ -11,6 +12,13 @@ module.exports = (io, mqttManager) => {
 
   function setOverride(groups) {
     groups.forEach((g) => overrideSvc.set(g));
+  }
+
+  // Maps a list of device/group names back to their rooms and tells presence.js
+  // about the manual power change, so it can suppress or clear auto-on suppression.
+  function recordManualPowerForGroups(groups, on) {
+    const rooms = new Set(groups.map((g) => roomsSvc.getRoomForDevice(g)).filter(Boolean));
+    rooms.forEach((room) => presenceSvc.recordManualPower(room, on));
   }
 
   // "all" (or no group) expands to every configured group; otherwise just the one named.
@@ -64,6 +72,31 @@ module.exports = (io, mqttManager) => {
 
   router.delete('/rules/:id', (req, res) => {
     rulesSvc.remove(req.params.id);
+    res.json({ ok: true });
+  });
+
+  // ── Presence ─────────────────────────────────────────────────────────────
+
+  router.get('/presence', (_req, res) => res.json(presenceSvc.getState()));
+
+  router.post('/presence', (req, res) => {
+    try {
+      res.json(presenceSvc.create(req.body));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.patch('/presence/:sensor', (req, res) => {
+    try {
+      res.json(presenceSvc.update(req.params.sensor, req.body));
+    } catch (err) {
+      res.status(err.code === 'NOT_FOUND' ? 404 : 400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/presence/:sensor', (req, res) => {
+    presenceSvc.remove(req.params.sensor);
     res.json({ ok: true });
   });
 
@@ -121,6 +154,7 @@ module.exports = (io, mqttManager) => {
     const { on } = req.body;
     const groups = roomsSvc.getDevices(req.params.name);
     groups.forEach((g) => mqttManager.setPower(g, on));
+    presenceSvc.recordManualPower(req.params.name, on);
     res.json({ ok: true });
   });
 
@@ -187,6 +221,7 @@ module.exports = (io, mqttManager) => {
   router.post('/power', (req, res) => {
     const { group = 'all', on } = req.body;
     mqttManager.setPower(group, on);
+    recordManualPowerForGroups(resolveGroups(group), on);
     res.json({ ok: true });
   });
 

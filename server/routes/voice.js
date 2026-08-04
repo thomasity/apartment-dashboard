@@ -6,6 +6,8 @@ const config   = require('../config');
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
 // ── In-memory timer store (lost on restart — acceptable) ──────────────────────
 let timerSeq = 0;
 const timerMap = new Map(); // id → { handle, description, firesAt }
@@ -66,6 +68,39 @@ const TOOLS = [
       type: 'object',
       properties: {
         label: { type: 'string', description: 'The exact label of the memory to delete.' },
+      },
+      required: ['label'],
+    },
+  },
+
+  // ── Routines ──────────────────────────────────────────────────────────────
+  {
+    name: 'remember_routine',
+    description: 'Store a recurring routine — something that happens on certain days within a certain time window, e.g. "weekday mornings I\'m getting ready for work." The current time/day is checked against all stored routines on every message, and any matching one is added to context automatically. Use a label that already exists to overwrite/update that routine.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        label:       { type: 'string', description: 'Short key for this routine, e.g. "weekday mornings", "sunday wind-down".' },
+        days:        { type: 'array', items: { type: 'string', enum: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] }, description: 'Days this routine applies on.' },
+        start_time:  { type: 'string', description: '24-hour "HH:MM" — start of the window, e.g. "07:00".' },
+        end_time:    { type: 'string', description: '24-hour "HH:MM" — end of the window, e.g. "08:30".' },
+        description: { type: 'string', description: 'What\'s going on and how to behave, e.g. "getting ready for work — keep responses terse, skip small talk."' },
+      },
+      required: ['label', 'days', 'start_time', 'end_time', 'description'],
+    },
+  },
+  {
+    name: 'get_routines',
+    description: 'Retrieve all stored routines. Call this when the user asks what routines you know about, or wants to review/adjust one.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'forget_routine',
+    description: 'Delete a single stored routine by its label. Use when the user asks you to forget or correct one.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', description: 'The exact label of the routine to delete.' },
       },
       required: ['label'],
     },
@@ -253,7 +288,9 @@ Tools:
 - Call get_home_state before answering questions about current state, or to discover room names.
 - When the user says "the lights" without a room, use group "all".
 - Use remember to store things the user wants you to remember.
-- Call get_memories when addressing Thomas personally, or when a request might match a stored preference (music taste, routines, favorite settings).
+- Call get_memories when addressing Thomas personally, or when a request might match a stored preference (music taste, favorite settings).
+- If the current time/day matches a stored routine, the context line will show it (e.g. "Routine: getting ready for work") — let it shape your tone and assumptions without being told explicitly.
+- When Thomas describes a recurring pattern in his day ("weekday mornings I'm rushing out the door", "I wind down around 10 on Sundays"), use remember_routine to store it with the right days/time window. Use get_routines if he asks what you know about his schedule, and forget_routine to remove or let him redefine one.
 - Use set_timer for "turn off the lights in X minutes" style requests.
 - Call end_conversation when you're clearly done — task completed, question answered, user said goodbye. If you asked a question or need more input, do NOT call it; the mic will stay open by default.`,
     cache_control: { type: 'ephemeral' },
@@ -353,6 +390,9 @@ async function buildContext(base, room = null) {
   const parts = [timeStr];
 
   if (room) parts.push(room === 'tablet' ? 'Device: tablet' : `Room: ${room}`);
+
+  const routine = activeRoutine(now);
+  if (routine) parts.push(`Routine: ${routine}`);
 
   const activeName = config.get('active_voice');
   const voices     = config.get('voices') || {};
@@ -472,6 +512,37 @@ const toolHandlers = {
     if (!(input.label in memories)) return { error: `No memory found with label "${input.label}".` };
     delete memories[input.label];
     config.set('memories', memories);
+    return { ok: true, forgotten: input.label };
+  },
+
+  async remember_routine(input) {
+    const { label, days, start_time, end_time, description } = input;
+    const dayIndices = days.map((d) => DAY_NAMES.indexOf(d.toLowerCase())).filter((i) => i !== -1);
+    const routines = config.get('routines') || {};
+    routines[label] = { days: dayIndices, start: start_time, end: end_time, description };
+    config.set('routines', routines);
+    return { ok: true, stored: label };
+  },
+
+  async get_routines() {
+    const routines = config.get('routines') || {};
+    const entries  = Object.entries(routines);
+    if (!entries.length) return { routines: [], empty: true };
+    return {
+      routines: entries.map(([label, r]) => ({
+        label,
+        days: r.days.map((i) => DAY_NAMES[i]),
+        window: `${r.start}–${r.end}`,
+        description: r.description,
+      })),
+    };
+  },
+
+  async forget_routine(input) {
+    const routines = config.get('routines') || {};
+    if (!(input.label in routines)) return { error: `No routine found with label "${input.label}".` };
+    delete routines[input.label];
+    config.set('routines', routines);
     return { ok: true, forgotten: input.label };
   },
 
@@ -632,6 +703,23 @@ async function runTimerAction(description) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Returns the description of the first stored routine whose day+time window contains `now`,
+// or null if none match. Windows that cross midnight (start > end) wrap correctly.
+function activeRoutine(now) {
+  const day  = now.getDay();
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const routines = config.get('routines') || {};
+
+  for (const r of Object.values(routines)) {
+    if (!r.days.includes(day)) continue;
+    const inWindow = r.start <= r.end
+      ? hhmm >= r.start && hhmm <= r.end
+      : hhmm >= r.start || hhmm <= r.end;
+    if (inWindow) return r.description;
+  }
+  return null;
+}
 
 function daysUntil(plant) {
   if (!plant.lastWatered) return null;

@@ -15,12 +15,19 @@ function percentToMireds(percent) {
   return Math.round(MIRED_WARM - (percent / 100) * (MIRED_WARM - MIRED_COOL));
 }
 
+// Distinguishes dimmable lights (which get tracked as `groups`) from everything else
+// (sensors, etc., tracked as `sensors`) using the Zigbee2MQTT-reported feature list.
+function isLightDevice(device) {
+  return (device.definition?.exposes || []).some((e) => e.type === 'light');
+}
+
 class MqttManager extends EventEmitter {
   constructor() {
     super();
     this.connected   = false;
     this.client      = null;
     this.groups      = {};
+    this.sensors     = {};
     this.bridgeOnline = false;
     this.devices     = [];
     this.pairing     = false;
@@ -123,6 +130,16 @@ class MqttManager extends EventEmitter {
 
         // Device state update — friendly name is everything after 'zigbee2mqtt/'
         const friendlyName = topic.slice('zigbee2mqtt/'.length);
+
+        if (this.sensors[friendlyName]) {
+          const data = JSON.parse(payload.toString());
+          if (data.occupancy !== undefined) {
+            this.sensors[friendlyName].occupancy = data.occupancy;
+            this.emit('occupancyChange', { name: friendlyName, occupancy: data.occupancy });
+          }
+          return;
+        }
+
         if (!this.groups[friendlyName]) return;
 
         const data = JSON.parse(payload.toString());
@@ -163,9 +180,11 @@ class MqttManager extends EventEmitter {
     const controllable = this.devices.filter(
       (d) => d.type !== 'Coordinator' && d.interview_completed
     );
+    const lights  = controllable.filter((d) => isLightDevice(d));
+    const sensors = controllable.filter((d) => !isLightDevice(d));
 
-    // Subscribe to any newly discovered devices
-    controllable.forEach((d) => {
+    // Subscribe to any newly discovered lights
+    lights.forEach((d) => {
       if (!this.groups[d.friendly_name]) {
         this.groups[d.friendly_name] = { label: d.friendly_name, brightness: 70, colorTemp: 30 };
         this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
@@ -181,12 +200,32 @@ class MqttManager extends EventEmitter {
       }
     });
 
-    // Unsubscribe from devices that have been removed
-    const activeNames = new Set(controllable.map((d) => d.friendly_name));
+    // Unsubscribe from lights that have been removed
+    const activeLightNames = new Set(lights.map((d) => d.friendly_name));
     Object.keys(this.groups).forEach((name) => {
-      if (!activeNames.has(name)) {
+      if (!activeLightNames.has(name)) {
         this.client.unsubscribe(`zigbee2mqtt/${name}`);
         delete this.groups[name];
+      }
+    });
+
+    // Subscribe to any newly discovered sensors (occupancy, etc.)
+    sensors.forEach((d) => {
+      if (!this.sensors[d.friendly_name]) {
+        this.sensors[d.friendly_name] = { label: d.friendly_name, occupancy: null };
+        this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
+          if (err) return;
+          console.log(`  subscribed (sensor): zigbee2mqtt/${d.friendly_name}`);
+        });
+      }
+    });
+
+    // Unsubscribe from sensors that have been removed
+    const activeSensorNames = new Set(sensors.map((d) => d.friendly_name));
+    Object.keys(this.sensors).forEach((name) => {
+      if (!activeSensorNames.has(name)) {
+        this.client.unsubscribe(`zigbee2mqtt/${name}`);
+        delete this.sensors[name];
       }
     });
   }
@@ -284,6 +323,10 @@ class MqttManager extends EventEmitter {
 
   getDevicesState() {
     return { bridgeOnline: this.bridgeOnline, devices: this.devices, pairing: this.pairing, availability: this.availability };
+  }
+
+  getSensorsState() {
+    return { ...this.sensors };
   }
 }
 
