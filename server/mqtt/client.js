@@ -216,6 +216,12 @@ class MqttManager extends EventEmitter {
         this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
           if (err) return;
           console.log(`  subscribed (sensor): zigbee2mqtt/${d.friendly_name}`);
+          // Request current state so occupancy isn't stuck at null until the next report
+          this.client.publish(
+            `zigbee2mqtt/${d.friendly_name}/get`,
+            JSON.stringify({ occupancy: '' }),
+            { qos: 0 },
+          );
         });
       }
     });
