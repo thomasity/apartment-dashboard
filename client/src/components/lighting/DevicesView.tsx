@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { PencilIcon, TrashIcon, CheckIcon } from '../icons';
 import type { Socket } from 'socket.io-client';
-import type { RoomsMap, PresenceEntry, SensorsMap } from '../../types';
+import type { RoomsMap, PresenceEntry, SensorsMap, DeviceExpose } from '../../types';
 
 const SCAN_DURATION = 254;
 
@@ -10,7 +10,7 @@ interface DeviceEntry {
   ieee_address: string;
   friendly_name: string;
   type: string;
-  definition?: { description?: string };
+  definition?: { description?: string; exposes?: DeviceExpose[] };
 }
 
 interface DevicesState {
@@ -132,6 +132,22 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
   const removePresence = async (sensorName: string) => {
     await axios.delete(`/api/lighting/presence/${encodeURIComponent(sensorName)}`).catch(console.warn);
     refetchPresence();
+  };
+
+  const sensorSetTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Debounced for sliders (numeric), immediate for discrete picks (enum) — same 220ms
+  // pattern used by the lighting sliders elsewhere in this app.
+  const setSensorProperty = (sensorName: string, property: string, value: number | string, debounceMs = 0) => {
+    setSensors((prev) => ({
+      ...prev,
+      [sensorName]: { ...(prev[sensorName] ?? { label: sensorName, occupancy: null }), [property]: value },
+    }));
+    const key = `${sensorName}|${property}`;
+    clearTimeout(sensorSetTimers.current[key]);
+    sensorSetTimers.current[key] = setTimeout(() => {
+      axios.post(`/api/lighting/sensors/${encodeURIComponent(sensorName)}/set`, { [property]: value }).catch(console.warn);
+    }, debounceMs);
   };
 
   const toggleScan   = () => axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
@@ -476,6 +492,66 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                 />
               </button>
             </div>
+
+            {/* Sensor settings — built from whatever this device actually reports as settable
+                (e.g. radar sensitivity, detection distance), instead of hardcoding property names. */}
+            {(() => {
+              const device = devState.devices.find((d) => d.friendly_name === presenceSheetFor);
+              const settable = (device?.definition?.exposes || []).filter((e) => (e.access & 2) !== 0);
+              if (!settable.length) return null;
+              const current = sensors[presenceSheetFor] ?? {};
+              return (
+                <div className="flex flex-col gap-4">
+                  <label className="text-[10px] uppercase tracking-widest text-white/30">Sensor Settings</label>
+                  {settable.map((e) => {
+                    const value = current[e.property];
+                    if (e.type === 'numeric') {
+                      const min  = e.value_min ?? 0;
+                      const max  = e.value_max ?? 100;
+                      const step = e.value_step ?? 1;
+                      const num  = typeof value === 'number' ? value : min;
+                      return (
+                        <div key={e.property} className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/50">{e.description || e.name}</span>
+                            <span className="text-[10px] text-white/40">{num}{e.unit ? ` ${e.unit}` : ''}</span>
+                          </div>
+                          <input
+                            type="range" min={min} max={max} step={step}
+                            value={num}
+                            onChange={(ev) => setSensorProperty(presenceSheetFor, e.property, Number(ev.target.value), 300)}
+                            className="w-full accent-white/60"
+                          />
+                        </div>
+                      );
+                    }
+                    if (e.type === 'enum' && e.values) {
+                      return (
+                        <div key={e.property} className="flex flex-col gap-2">
+                          <span className="text-xs text-white/50">{e.description || e.name}</span>
+                          <div className="flex flex-wrap gap-2">
+                            {e.values.map((v) => (
+                              <button
+                                key={String(v)}
+                                onClick={() => setSensorProperty(presenceSheetFor, e.property, v)}
+                                className={`px-3 py-1.5 rounded-full text-xs touch-manipulation transition-colors ${
+                                  value === v
+                                    ? 'bg-white/[0.15] text-white/80'
+                                    : 'bg-white/[0.05] text-white/35 hover:bg-white/[0.10]'
+                                }`}
+                              >
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              );
+            })()}
 
             <div className="flex gap-3">
               {presence.some((p) => p.sensor === presenceSheetFor) && (

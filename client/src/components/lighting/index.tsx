@@ -5,7 +5,7 @@ import ControlsView  from './ControlsView';
 import PresetsView   from './PresetsView';
 import ScheduleView  from './ScheduleView';
 import DevicesView   from './DevicesView';
-import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap } from '../../types';
+import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap, DeviceExpose } from '../../types';
 
 export default function Lighting() {
   interface DevicesState {
@@ -19,7 +19,7 @@ export default function Lighting() {
     ieee_address: string;
     friendly_name: string;
     type: string;
-    definition?: { description?: string };
+    definition?: { description?: string; exposes?: DeviceExpose[] };
   }
 
   const [view,         setView]         = useState('controls');

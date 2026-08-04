@@ -133,8 +133,8 @@ class MqttManager extends EventEmitter {
 
         if (this.sensors[friendlyName]) {
           const data = JSON.parse(payload.toString());
+          Object.assign(this.sensors[friendlyName], data); // capture any reported property (sensitivity, illuminance, etc.), not just occupancy
           if (data.occupancy !== undefined) {
-            this.sensors[friendlyName].occupancy = data.occupancy;
             this.emit('occupancyChange', { name: friendlyName, occupancy: data.occupancy });
           }
           return;
@@ -216,12 +216,13 @@ class MqttManager extends EventEmitter {
         this.client.subscribe(`zigbee2mqtt/${d.friendly_name}`, (err) => {
           if (err) return;
           console.log(`  subscribed (sensor): zigbee2mqtt/${d.friendly_name}`);
-          // Request current state so occupancy isn't stuck at null until the next report
-          this.client.publish(
-            `zigbee2mqtt/${d.friendly_name}/get`,
-            JSON.stringify({ occupancy: '' }),
-            { qos: 0 },
-          );
+          // Request every exposed property (occupancy, sensitivity, distance, etc.) so
+          // nothing sits at null until the device happens to report it spontaneously.
+          const getPayload = {};
+          (d.definition?.exposes || []).forEach((e) => { if (e.property) getPayload[e.property] = ''; });
+          if (Object.keys(getPayload).length) {
+            this.client.publish(`zigbee2mqtt/${d.friendly_name}/get`, JSON.stringify(getPayload), { qos: 0 });
+          }
         });
       }
     });
@@ -333,6 +334,14 @@ class MqttManager extends EventEmitter {
 
   getSensorsState() {
     return { ...this.sensors };
+  }
+
+  // Publishes an arbitrary settable-property payload to a sensor, e.g.
+  // { radar_sensitivity: 3 } — whatever properties Zigbee2MQTT reports as settable
+  // for that device's exposes.
+  setSensorProperty(name, props) {
+    if (!this.client || !this.sensors[name]) return;
+    this.client.publish(`zigbee2mqtt/${name}/set`, JSON.stringify(props), { qos: 1 });
   }
 }
 

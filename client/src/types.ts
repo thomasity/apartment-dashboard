@@ -142,7 +142,21 @@ export interface PresenceEntry {
   vacancyTimerActive: boolean;
 }
 
-export type SensorsMap = Record<string, { label: string; occupancy: boolean | null }>;
+export type SensorsMap = Record<string, { label: string; occupancy: boolean | null } & Record<string, unknown>>;
+
+/** Zigbee2MQTT-reported settable/readable property for a device (access bit 2 = settable) */
+export interface DeviceExpose {
+  type: string;
+  name: string;
+  property: string;
+  access: number;
+  description?: string;
+  unit?: string;
+  value_min?: number;
+  value_max?: number;
+  value_step?: number;
+  values?: (string | number)[];
+}
 
 // ── Plants ────────────────────────────────────────────────────────────────────
 
