@@ -189,6 +189,10 @@ module.exports = (io, mqttManager) => {
     res.json(mqttManager.getDevicesState());
   });
 
+  router.get('/sensors', (_req, res) => {
+    res.json(mqttManager.getSensorsState());
+  });
+
   router.post('/pair', (req, res) => {
     mqttManager.permitJoin(!!req.body.enable);
     res.json({ ok: true });

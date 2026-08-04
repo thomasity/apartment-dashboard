@@ -129,6 +129,21 @@ export interface Rule {
   action: RuleAction;
 }
 
+// ── Presence ──────────────────────────────────────────────────────────────────
+
+export interface PresenceEntry {
+  sensor: string;
+  room: string;
+  vacantAfterMinutes: number;
+  manualOffCooldownMinutes: number;
+  enabled: boolean;
+  occupancy: boolean | null;
+  manualOffUntil: number | null;
+  vacancyTimerActive: boolean;
+}
+
+export type SensorsMap = Record<string, { label: string; occupancy: boolean | null }>;
+
 // ── Plants ────────────────────────────────────────────────────────────────────
 
 export interface Plant {

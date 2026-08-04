@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { PencilIcon, TrashIcon, CheckIcon } from '../icons';
 import type { Socket } from 'socket.io-client';
-import type { RoomsMap } from '../../types';
+import type { RoomsMap, PresenceEntry, SensorsMap } from '../../types';
 
 const SCAN_DURATION = 254;
 
@@ -58,6 +58,14 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
   // Room device-picker state — which room's '+' was tapped
   const [pickerRoom, setPickerRoom] = useState<string | null>(null);
 
+  // Presence trigger state
+  const [sensors,          setSensors]          = useState<SensorsMap>({});
+  const [presence,         setPresence]         = useState<PresenceEntry[]>([]);
+  const [presenceSheetFor, setPresenceSheetFor] = useState<string | null>(null);
+  const [presenceForm,     setPresenceForm]     = useState({
+    room: '', vacantAfterMinutes: 5, manualOffCooldownMinutes: 120, enabled: true,
+  });
+
   useEffect(() => {
     if (devState.pairing && !prevPairing.current) {
       scanStartIds.current  = new Set(devState.devices.map((d) => d.ieee_address));
@@ -86,6 +94,45 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
       .map((d) => d.ieee_address);
     if (joined.length) setNewDeviceIds(new Set(joined));
   }, [devState.devices]);
+
+  const refetchPresence = () => {
+    axios.get('/api/lighting/sensors').then((r) => setSensors(r.data)).catch(() => {});
+    axios.get('/api/lighting/presence').then((r) => setPresence(r.data)).catch(() => {});
+  };
+
+  useEffect(() => {
+    refetchPresence();
+    const interval = setInterval(refetchPresence, 4000); // live-ish occupancy while tuning
+    return () => clearInterval(interval);
+  }, []);
+
+  const openPresenceConfig = (sensorName: string) => {
+    const existing = presence.find((p) => p.sensor === sensorName);
+    setPresenceForm({
+      room:                     existing?.room ?? Object.keys(rooms)[0] ?? '',
+      vacantAfterMinutes:       existing?.vacantAfterMinutes ?? 5,
+      manualOffCooldownMinutes: existing?.manualOffCooldownMinutes ?? 120,
+      enabled:                  existing?.enabled ?? true,
+    });
+    setPresenceSheetFor(sensorName);
+  };
+
+  const savePresence = async () => {
+    if (!presenceSheetFor || !presenceForm.room) return;
+    const existing = presence.find((p) => p.sensor === presenceSheetFor);
+    if (existing) {
+      await axios.patch(`/api/lighting/presence/${encodeURIComponent(presenceSheetFor)}`, presenceForm).catch(console.warn);
+    } else {
+      await axios.post('/api/lighting/presence', { sensor: presenceSheetFor, ...presenceForm }).catch(console.warn);
+    }
+    refetchPresence();
+    setPresenceSheetFor(null);
+  };
+
+  const removePresence = async (sensorName: string) => {
+    await axios.delete(`/api/lighting/presence/${encodeURIComponent(sensorName)}`).catch(console.warn);
+    refetchPresence();
+  };
 
   const toggleScan   = () => axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
   const startEdit    = (d: DeviceEntry) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
@@ -278,6 +325,29 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                         <span className="text-[10px] text-white/25">· {deviceRoom}</span>
                       )}
                     </div>
+                    {d.friendly_name in sensors && (() => {
+                      const occ   = sensors[d.friendly_name]?.occupancy ?? null;
+                      const entry = presence.find((p) => p.sensor === d.friendly_name);
+                      return (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${occ ? 'bg-online' : 'bg-white/20'}`} />
+                          <span className="text-[10px] text-white/25">
+                            {occ === null ? 'Presence unknown' : occ ? 'Occupied' : 'Vacant'}
+                          </span>
+                          {entry && (
+                            <span className="text-[10px] text-white/20">
+                              · {entry.room} · {entry.vacantAfterMinutes}m off / {(entry.manualOffCooldownMinutes / 60).toFixed(1)}h cooldown{!entry.enabled ? ' · disabled' : ''}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => openPresenceConfig(d.friendly_name)}
+                            className="text-[10px] text-accent/70 hover:text-accent touch-manipulation transition-colors"
+                          >
+                            {entry ? 'Edit' : 'Set up as trigger'}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <button onClick={() => startEdit(d)} className="p-2 text-white/20 hover:text-white/50 touch-manipulation transition-colors">
                     <PencilIcon />
@@ -320,6 +390,109 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Presence trigger config ── */}
+      {presenceSheetFor && (
+        <div className="absolute inset-0 z-30 flex flex-col justify-end" onClick={() => setPresenceSheetFor(null)}>
+          <div
+            className="bg-zinc-900 border-t border-white/10 px-5 pt-5 pb-8 rounded-t-2xl flex flex-col gap-5 max-h-[85%] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-white/60">Presence Trigger</span>
+              <button onClick={() => setPresenceSheetFor(null)} className="text-white/30 hover:text-white/60 text-xl leading-none touch-manipulation">✕</button>
+            </div>
+            <p className="text-[11px] text-white/25 -mt-3">{presenceSheetFor}</p>
+
+            {/* Room */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] uppercase tracking-widest text-white/30">Room</label>
+              {Object.keys(rooms).length === 0 ? (
+                <p className="text-[11px] text-white/20 italic">No rooms yet — create one above first.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {Object.keys(rooms).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setPresenceForm((f) => ({ ...f, room: r }))}
+                      className={`px-3 py-1.5 rounded-full text-xs touch-manipulation transition-colors ${
+                        presenceForm.room === r
+                          ? 'bg-white/[0.15] text-white/80'
+                          : 'bg-white/[0.05] text-white/35 hover:bg-white/[0.10]'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Vacancy timeout */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase tracking-widest text-white/30">Turn off after vacant</label>
+                <span className="text-[10px] text-white/40">{presenceForm.vacantAfterMinutes} min</span>
+              </div>
+              <input
+                type="range" min="1" max="60"
+                value={presenceForm.vacantAfterMinutes}
+                onChange={(e) => setPresenceForm((f) => ({ ...f, vacantAfterMinutes: Number(e.target.value) }))}
+                className="w-full accent-white/60"
+              />
+            </div>
+
+            {/* Manual-off cooldown */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase tracking-widest text-white/30">Manual-off cooldown</label>
+                <span className="text-[10px] text-white/40">{(presenceForm.manualOffCooldownMinutes / 60).toFixed(1)} hr</span>
+              </div>
+              <input
+                type="range" min="5" max="480" step="5"
+                value={presenceForm.manualOffCooldownMinutes}
+                onChange={(e) => setPresenceForm((f) => ({ ...f, manualOffCooldownMinutes: Number(e.target.value) }))}
+                className="w-full accent-white/60"
+              />
+            </div>
+
+            {/* Enabled toggle */}
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase tracking-widest text-white/30">Enabled</label>
+              <button
+                onClick={() => setPresenceForm((f) => ({ ...f, enabled: !f.enabled }))}
+                className={`w-10 h-6 rounded-full relative shrink-0 touch-manipulation transition-colors ${
+                  presenceForm.enabled ? 'bg-accent/40' : 'bg-white/[0.10]'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
+                    presenceForm.enabled ? 'left-5' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              {presence.some((p) => p.sensor === presenceSheetFor) && (
+                <button
+                  onClick={() => { removePresence(presenceSheetFor); setPresenceSheetFor(null); }}
+                  className="px-4 py-3 rounded-xl bg-danger/15 text-danger/70 font-medium text-sm touch-manipulation transition-colors hover:bg-danger/25"
+                >
+                  Remove
+                </button>
+              )}
+              <button
+                onClick={savePresence}
+                disabled={!presenceForm.room}
+                className="flex-1 py-3 rounded-xl bg-accent/25 text-accent font-semibold text-sm touch-manipulation transition-colors hover:bg-accent/35 disabled:opacity-30 disabled:pointer-events-none"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
