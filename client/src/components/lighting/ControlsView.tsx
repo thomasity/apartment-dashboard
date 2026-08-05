@@ -5,13 +5,7 @@ import AutoToggle from './AutoToggle';
 import CircadianStrip from './CircadianStrip';
 import { avg, spread, tempLabel } from './utils';
 import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap } from '../../types';
-
-function fmtRemaining(ms: number): string {
-  if (ms <= 0) return '0m';
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
+import { formatTime } from '../../lib/format';
 
 function PowerBtn({ isOff, onClick }: { isOff: boolean; onClick: () => void }) {
   return (
@@ -152,7 +146,7 @@ function RoomSection({
 
         {hasOverride && (
           <span className="flex items-center gap-1.5 text-[10px] text-amber-400/70 bg-amber-400/[0.08] border border-amber-400/20 px-2 py-0.5 rounded-full shrink-0">
-            Manual · {fmtRemaining(remainingMs)}
+            Manual · {formatTime(remainingMs)}
             <button
               onClick={() => onClearRoomOverride(name)}
               className="opacity-60 hover:opacity-100 leading-none touch-manipulation"

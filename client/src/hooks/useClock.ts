@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useContext } from 'react';
+import { ClockContext } from '../context/clockContext';
 
 export function useClock() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useContext(ClockContext);
+  if (!now) throw new Error('useClock must be used within a ClockProvider');
   return now;
 }
+
