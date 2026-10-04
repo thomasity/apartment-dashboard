@@ -1,7 +1,7 @@
 // Mock data for local development (PROD=false).
 // Shapes must exactly match what each real route returns.
 
-import type { CircadianPoint, CircadianState, DevicesState, LightingState, Plant } from '../types';
+import type { CircadianPoint, CircadianState, DevicesState, LightingState } from '../types';
 
 export const lightingState: LightingState = {
   connected: true,
@@ -93,9 +93,3 @@ export const searchResults = {
     { uri: 'spotify:playlist:dev-search-1', name: 'Top Hits 2024' },
   ],
 };
-
-export const plants: Plant[] = [
-  { id: 'plant-1', name: 'Monstera',  intervalDays: 7,  lastWatered: '2026-06-20' },
-  { id: 'plant-2', name: 'Pothos',    intervalDays: 5,  lastWatered: '2026-06-26' },
-  { id: 'plant-3', name: 'Cactus',    intervalDays: 14, lastWatered: null },
-];

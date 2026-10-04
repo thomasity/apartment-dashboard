@@ -15,7 +15,7 @@ export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// Short opaque id — no uuid dependency needed for a handful of plants/rules.
+// Short opaque id — no uuid dependency needed for a handful of rules.
 export function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }

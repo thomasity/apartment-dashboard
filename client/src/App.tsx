@@ -5,7 +5,6 @@ import Weather from './components/weather';
 import Lighting from './components/lighting';
 import Spotify from './components/spotify';
 import TV from './components/tv';
-import Plants from './components/plants';
 import VoiceOverlay from './components/voice/VoiceOverlay';
 import { useVoice } from './hooks/useVoice';
 
@@ -15,7 +14,6 @@ const TABS      = [
   { id: 'lights',  label: 'Lights'  },
   { id: 'spotify', label: 'Music'   },
   { id: 'tv',      label: 'TV'      },
-  { id: 'plants',  label: 'Plants'  },
 ];
 const TAB_ORDER = TABS.map((t) => t.id);
 
@@ -124,7 +122,6 @@ export default function App() {
             {id === 'lights'  && <Lighting />}
             {id === 'spotify' && spotifyMounted && <Spotify />}
             {id === 'tv'      && <TV />}
-            {id === 'plants'  && <Plants />}
           </div>
         ))}
       </div>

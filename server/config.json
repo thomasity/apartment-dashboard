@@ -12,26 +12,6 @@
   ],
   "bulbDesiredStates": {},
   "rules": [],
-  "plants": [
-    {
-      "id": "mqvwmjzpbwau",
-      "name": "Snake plant",
-      "intervalDays": 7,
-      "lastWatered": "2026-06-27"
-    },
-    {
-      "id": "mqvwn6edjart",
-      "name": "Ikea plant",
-      "intervalDays": 2,
-      "lastWatered": "2026-06-27"
-    },
-    {
-      "id": "mqvwvx2lk4h8",
-      "name": "test",
-      "intervalDays": 1,
-      "lastWatered": null
-    }
-  ],
   "active_voice": "Freya",
   "voices": {
     "Adam": {

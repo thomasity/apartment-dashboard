@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'crypto';
 import * as config from '../config';
 import { apiBase, errorMessage, toHHMM } from '../util';
-import type { LightingState, Plant } from '../types';
+import type { LightingState } from '../types';
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -41,12 +41,7 @@ const TOOLS: Anthropic.Tool[] = [
   // ── Read ──────────────────────────────────────────────────────────────────
   {
     name: 'get_home_state',
-    description: 'Read the current state of the apartment: light levels per room, what is playing on Spotify, TV status, and plant watering status. Call this before answering questions about current state or before targeting a specific room by name.',
-    input_schema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'get_plants_due',
-    description: 'Get a list of all plants and their watering status — which are overdue, due today, or upcoming.',
+    description: 'Read the current state of the apartment: light levels per room, what is playing on Spotify and TV Status. Call this before answering questions about current state or before targeting a specific room by name.',
     input_schema: { type: 'object', properties: {} },
   },
 
@@ -225,19 +220,6 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
 
-  // ── Plants ────────────────────────────────────────────────────────────────
-  {
-    name: 'water_plant',
-    description: 'Mark a plant as watered today.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        plant_name: { type: 'string', description: 'Name of the plant to water (fuzzy matched).' },
-      },
-      required: ['plant_name'],
-    },
-  },
-
   // ── Voice ─────────────────────────────────────────────────────────────────
   {
     name: 'get_voices',
@@ -268,7 +250,7 @@ const TOOLS: Anthropic.Tool[] = [
 const SYSTEM: Anthropic.TextBlockParam[] = [
   {
     type: 'text',
-    text: `You are a voice assistant built into Thomas's apartment. You control the lights, music, TV, and plants. You have access to recent conversation history and can reference it naturally.
+    text: `You are a voice assistant built into Thomas's apartment. You control the lights, music, and TV. You have access to recent conversation history and can reference it naturally.
 
 Each message begins with a [Context: ...] line showing the current time, weather, and what's playing. Use it to be contextually aware — greet appropriately, make time-sensitive suggestions, etc.
 
@@ -284,7 +266,7 @@ For voices: ask what vibe they want → call get_voices, read ALL descriptions, 
 
 When to speak:
 - Non-obvious results: one casual line. "Threw on Chill Vibes." "Netflix is up." "Timer's set."
-- Questions: answer in one phrase. "The Weeknd." "Monstera's overdue."
+- Questions: answer in one phrase. "The Weeknd." "72 and sunny."
 - Clarification: one short question. "Which room?" "What kind of mood?"
 - Errors: one line. "Couldn't find that one."
 
@@ -491,7 +473,6 @@ function wmoCondition(code: number | undefined | null): string {
 /** Input shape for each tool, matching its input_schema in TOOLS. */
 interface ToolInputs {
   get_home_state:   Record<string, never>;
-  get_plants_due:   Record<string, never>;
   remember:         { label: string; value: string };
   get_memories:     Record<string, never>;
   forget:           { label: string };
@@ -510,7 +491,6 @@ interface ToolInputs {
   set_repeat:       { state: 'off' | 'context' | 'track' };
   control_tv:       { key: string };
   launch_tv_app:    { app_name: string };
-  water_plant:      { plant_name: string };
 }
 
 type ToolHandlers = { [K in keyof ToolInputs]: (input: ToolInputs[K], base: string) => Promise<unknown> };
@@ -520,16 +500,14 @@ type ToolHandlers = { [K in keyof ToolInputs]: (input: ToolInputs[K], base: stri
 // stay a thin, uniform dispatcher.
 const toolHandlers: ToolHandlers = {
   async get_home_state(_input, base) {
-    const [lightsRes, spotifyRes, tvRes, plantsRes] = await Promise.all([
+    const [lightsRes, spotifyRes, tvRes] = await Promise.all([
       fetch(`${base}/lighting/state`),
       fetch(`${base}/spotify/now-playing`),
       fetch(`${base}/tv/status`),
-      fetch(`${base}/plants`),
     ]);
     const lights  = await lightsRes.json().catch(() => null)  as LightingState | null;
     const spotify = await spotifyRes.json().catch(() => null) as NowPlayingLite | null;
     const tv      = await tvRes.json().catch(() => null)      as TvStatusLite | null;
-    const plants  = await plantsRes.json().catch(() => [])    as Plant[];
     const playing = spotify?.item ?? spotify?.track;
 
     return {
@@ -550,17 +528,7 @@ const toolHandlers: ToolHandlers = {
         repeat:    spotify.repeat,
       } : null,
       tv: tv ? { app: tv.appName, state: tv.playerState } : null,
-      plants: plants.map((p) => ({ name: p.name, status: plantStatus(daysUntil(p)) })),
     };
-  },
-
-  async get_plants_due(_input, base) {
-    const plants = await getJson<Plant[]>(`${base}/plants`);
-    const all = plants.map((p) => {
-      const days = daysUntil(p);
-      return { name: p.name, status: plantStatus(days), urgent: days === null || days <= 0 };
-    });
-    return { plants: all, anyDue: all.some((p) => p.urgent) };
   },
 
   async remember(input) {
@@ -727,15 +695,6 @@ const toolHandlers: ToolHandlers = {
     await post(`${base}/tv/launch/${app.id}`);
     return { ok: true, launched: app.name };
   },
-
-  async water_plant(input, base) {
-    const plants = await getJson<Plant[]>(`${base}/plants`);
-    const plant  = fuzzyMatch(plants, input.plant_name);
-    if (!plant) return { error: `Plant "${input.plant_name}" not found. Available: ${plants.map((p) => p.name).join(', ')}` };
-    const today = new Date().toISOString().slice(0, 10);
-    await put(`${base}/plants/${plant.id}`, { lastWatered: today });
-    return { ok: true, watered: plant.name };
-  },
 };
 
 function isToolName(name: string): name is keyof ToolInputs {
@@ -786,23 +745,6 @@ function activeRoutine(now: Date): string | null {
   return null;
 }
 
-function daysUntil(plant: Plant): number | null {
-  if (!plant.lastWatered) return null;
-  const next = new Date(plant.lastWatered);
-  next.setDate(next.getDate() + plant.intervalDays);
-  next.setHours(0, 0, 0, 0);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return Math.ceil((next.getTime() - now.getTime()) / 86400000);
-}
-
-function plantStatus(days: number | null): string {
-  if (days === null) return 'never watered';
-  if (days < 0)      return `${Math.abs(days)}d overdue`;
-  if (days === 0)    return 'due today';
-  return `due in ${days}d`;
-}
-
 function fuzzyMatch<T extends NamedItem>(items: T[], query: string): T | undefined {
   const q = query.toLowerCase().trim();
   return items.find((i) => i.name.toLowerCase() === q)
@@ -820,14 +762,6 @@ function post(url: string, body?: unknown): Promise<globalThis.Response> {
     method:  'POST',
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body:    body ? JSON.stringify(body) : undefined,
-  });
-}
-
-function put(url: string, body: unknown): Promise<globalThis.Response> {
-  return fetch(url, {
-    method:  'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
   });
 }
 

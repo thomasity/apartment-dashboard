@@ -127,14 +127,7 @@ export interface PresenceEntry extends PresenceConfigEntry {
   vacancyTimerActive: boolean;
 }
 
-// ── Plants / voice ──────────────────────────────────────────────────────────
-
-export interface Plant {
-  id:           string;
-  name:         string;
-  intervalDays: number;
-  lastWatered:  string | null; // "YYYY-MM-DD"
-}
+// ── Voice ──────────────────────────────────────────────────────────
 
 export interface Voice {
   id:          string;
@@ -156,7 +149,6 @@ export interface ConfigSchema {
   bulbDesiredStates: Record<string, DesiredState>;
   rules:             Rule[];
   presence:          PresenceConfigMap;
-  plants:            Plant[];
   active_voice:      string;
   voices:            Record<string, Voice>;
   memories:          Record<string, string>;

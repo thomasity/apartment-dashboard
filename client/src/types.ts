@@ -157,13 +157,3 @@ export interface DeviceExpose {
   value_step?: number;
   values?: (string | number)[];
 }
-
-// ── Plants ────────────────────────────────────────────────────────────────────
-
-export interface Plant {
-  id: string;
-  name: string;
-  intervalDays: number;
-  /** ISO date "YYYY-MM-DD", or null if never watered */
-  lastWatered: string | null;
-}

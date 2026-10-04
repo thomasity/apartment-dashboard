@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useClock }   from '../../hooks/useClock';
 import { useWeather } from '../../hooks/useWeather';
 import { useSpotify } from '../../hooks/useSpotify';
-import { usePlants }  from '../../hooks/usePlants';
 import { wmo }        from '../../lib/wmo';
 import type { VoiceStatus } from '../../hooks/useVoice';
 import ClockDisplay   from './ClockDisplay';
 import SpotifyStrip   from './SpotifyStrip';
 import WeatherStrip   from './WeatherStrip';
-import PlantsStrip    from './PlantsStrip';
 import { MicrophoneIcon } from '../icons';
 
 const ROTATION_MS  = 30 * 60 * 1000;
@@ -26,7 +24,6 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
   const now                 = useClock();
   const { data: weather }   = useWeather();
   const { state: spotify, control, setVolume } = useSpotify();
-  const plants                                  = usePlants();
   const preDuckVolume = useRef<number | null>(null);
 
   useEffect(() => {
@@ -107,11 +104,6 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
         low={todayLow}
         precip={precip}
         onNavigate={() => onNavigate?.('weather')}
-      />
-
-      <PlantsStrip
-        plants={plants}
-        onNavigate={() => onNavigate?.('plants')}
       />
 
       <button

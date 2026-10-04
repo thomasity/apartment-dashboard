@@ -19,7 +19,6 @@ import spotifyRouter from './routes/spotify';
 import bluetoothRouter from './routes/bluetooth';
 import tvRouter from './routes/tv';
 import voiceRouter from './routes/voice';
-import plantsRouter from './routes/plants';
 import type { AppServer, Rule } from './types';
 
 const IS_DEV = process.env.PROD === 'false';
@@ -44,7 +43,6 @@ app.use('/api/spotify',   spotifyRouter);
 app.use('/api/bluetooth', bluetoothRouter);
 app.use('/api/tv',        tvRouter);
 app.use('/api/voice',     voiceRouter);
-app.use('/api/plants',    plantsRouter);
 
 if (process.env.NODE_ENV === 'production') {
   const clientBuild = path.join(__dirname, '../client/dist');

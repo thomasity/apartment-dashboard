@@ -1,12 +1,11 @@
 # Apartment Dashboard
 
-A fullscreen ambient dashboard for a Raspberry Pi Zero 2 W + Android tablet running Fully Kiosk Browser. Dark-themed, always-on display showing clock, weather, stocks, and living-room lighting controls.
+A fullscreen ambient dashboard for a Raspberry Pi Zero 2 W + Android tablet running Fully Kiosk Browser. Dark-themed, always-on display showing clock, weather, and living-room lighting controls.
 
 ## Widgets
 
 - **Clock** — large always-visible time and date
 - **Weather** — current conditions + 5-day forecast via [Open-Meteo](https://open-meteo.com/) (no API key)
-- **Stocks** — configurable ticker list with price and daily % change via Alpaca Markets
 - **Lighting** — brightness and color-temp sliders per bulb group, plus mood presets (Relax / Focus / Movie / Bright) via Zigbee2MQTT over MQTT. Gracefully degrades to local-only mode when the broker is unavailable.
 
 ## Tech Stack
@@ -22,7 +21,6 @@ A fullscreen ambient dashboard for a Raspberry Pi Zero 2 W + Android tablet runn
 - Node.js 18+
 - npm 9+
 - Mosquitto MQTT broker (optional — lighting works without it)
-- Alpaca Markets free account (optional — stocks widget requires API keys)
 
 ---
 
@@ -53,11 +51,6 @@ Open `http://localhost:5173` in your browser.
 |---|---|---|
 | `PORT` | No | Express port (default: 3001) |
 | `MQTT_BROKER_URL` | No | e.g. `mqtt://localhost:1883` |
-| `ALPACA_KEY_ID` | Yes for stocks | Alpaca paper or live key |
-| `ALPACA_SECRET_KEY` | Yes for stocks | Alpaca secret key |
-| `STOCK_SYMBOLS` | No | Comma-separated tickers (default: AAPL,MSFT,GOOGL,AMZN,NVDA) |
-
-Get Alpaca API keys at https://alpaca.markets/ (free paper trading account works).
 
 ---
 
@@ -145,7 +138,7 @@ apartment-dashboard/
 │   ├── tsconfig.json     # strict; `npm --prefix server run typecheck`
 │   ├── mqtt/client.ts    # MQTT manager (publishes/subscribes Zigbee state)
 │   ├── services/         # circadian, rooms, override, rules, presence
-│   └── routes/           # weather, lighting, spotify, tv, bluetooth, voice, plants
+│   └── routes/           # weather, lighting, spotify, tv, bluetooth, voice
 └── client/
     ├── vite.config.js    # Dev proxy → :3001
     └── src/
@@ -153,6 +146,5 @@ apartment-dashboard/
         └── components/
             ├── Clock.jsx
             ├── Weather.jsx
-            ├── Stocks.jsx
             └── Lighting.jsx
 ```
