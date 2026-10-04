@@ -1,15 +1,35 @@
 const config = require('../config');
 
+/**
+ * @typedef {Object.<string, string[]>} RoomsMap
+ * Map of room name -> list of device/group names assigned to that room.
+ */
+
+/** @returns {RoomsMap} */
 function get() { return config.get('rooms') ?? {}; }
+
+/** @param {RoomsMap} rooms @returns {void} */
 function save(rooms) { config.set('rooms', rooms); }
 
+/**
+ * @param {string} roomName
+ * @returns {string[]}
+ */
 function getDevices(roomName) { return get()[roomName] ?? []; }
 
+/**
+ * @param {string} deviceName
+ * @returns {string|null}
+ */
 function getRoomForDevice(deviceName) {
   const rooms = get();
   return Object.keys(rooms).find((r) => rooms[r].includes(deviceName)) ?? null;
 }
 
+/**
+ * @param {string} name
+ * @returns {void}
+ */
 function create(name) {
   if (!name) throw Object.assign(new Error('name required'), { code: 'INVALID' });
   const rooms = get();
@@ -18,6 +38,11 @@ function create(name) {
   save(rooms);
 }
 
+/**
+ * @param {string} oldName
+ * @param {string} newName
+ * @returns {void}
+ */
 function rename(oldName, newName) {
   if (!newName) throw Object.assign(new Error('newName required'), { code: 'INVALID' });
   const rooms = get();
@@ -28,13 +53,22 @@ function rename(oldName, newName) {
   save(rooms);
 }
 
+/**
+ * @param {string} name
+ * @returns {void}
+ */
 function remove(name) {
   const rooms = get();
   delete rooms[name];
   save(rooms);
 }
 
-// Assign device to a room (or pass null to unassign from all rooms)
+/**
+ * Assign device to a room (or pass null to unassign from all rooms)
+ * @param {string} deviceName
+ * @param {string|null} roomName
+ * @returns {void}
+ */
 function assignDevice(deviceName, roomName) {
   const rooms = get();
   for (const r of Object.keys(rooms)) rooms[r] = rooms[r].filter((d) => d !== deviceName);
