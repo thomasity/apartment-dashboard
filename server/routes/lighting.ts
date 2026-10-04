@@ -1,33 +1,42 @@
-const express      = require('express');
-const circadian    = require('../services/circadian');
-const roomsSvc     = require('../services/rooms');
-const overrideSvc  = require('../services/override');
-const rulesSvc     = require('../services/rules');
-const presenceSvc  = require('../services/presence');
+import express from 'express';
+import * as circadian from '../services/circadian';
+import * as roomsSvc from '../services/rooms';
+import overrideSvc from '../services/override';
+import * as rulesSvc from '../services/rules';
+import * as presenceSvc from '../services/presence';
+import { errorCode, errorMessage } from '../util';
+import type { MqttManager } from '../mqtt/client';
+import type { AppServer, LightValues, PresenceConfigEntry, Rule } from '../types';
 
-module.exports = (io, mqttManager) => {
+// Request bodies as the client sends them. Express doesn't validate these — they
+// document the expected shape and give the handlers typed access.
+interface LightBody      { group?: string; brightness?: number | string; colorTemp?: number | string }
+interface PowerBody      { group?: string; on: boolean }
+interface CircadianBody  { group?: string; enabled: boolean }
+
+export default function lightingRouter(io: AppServer, mqttManager: MqttManager) {
   const router = express.Router();
 
   const emitRooms = () => io.emit('lighting:rooms', roomsSvc.get());
 
-  function setOverride(groups) {
+  function setOverride(groups: string[]): void {
     groups.forEach((g) => overrideSvc.set(g));
   }
 
-  // Maps a list of device/group names back to their rooms and tells presence.js
+  // Maps a list of device/group names back to their rooms and tells presence
   // about the manual power change, so it can suppress or clear auto-on suppression.
-  function recordManualPowerForGroups(groups, on) {
-    const rooms = new Set(groups.map((g) => roomsSvc.getRoomForDevice(g)).filter(Boolean));
+  function recordManualPowerForGroups(groups: string[], on: boolean): void {
+    const rooms = new Set(groups.map((g) => roomsSvc.getRoomForDevice(g)).filter((r): r is string => r !== null));
     rooms.forEach((room) => presenceSvc.recordManualPower(room, on));
   }
 
   // "all" (or no group) expands to every configured group; otherwise just the one named.
-  function resolveGroups(group) {
+  function resolveGroups(group: string | undefined): string[] {
     return (!group || group === 'all') ? Object.keys(mqttManager.groups) : [group];
   }
 
   // Only pass through brightness/colorTemp fields that were actually provided.
-  function buildLightPayload({ brightness, colorTemp }) {
+  function buildLightPayload({ brightness, colorTemp }: LightBody): Partial<LightValues> {
     return {
       brightness: brightness !== undefined ? Number(brightness) : undefined,
       colorTemp:  colorTemp  !== undefined ? Number(colorTemp)  : undefined,
@@ -54,19 +63,17 @@ module.exports = (io, mqttManager) => {
 
   router.post('/rules', (req, res) => {
     try {
-      const rule = rulesSvc.create(req.body);
-      res.json(rule);
+      res.json(rulesSvc.create(req.body as rulesSvc.NewRule));
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: errorMessage(err) });
     }
   });
 
   router.patch('/rules/:id', (req, res) => {
     try {
-      const rule = rulesSvc.update(req.params.id, req.body);
-      res.json(rule);
+      res.json(rulesSvc.update(req.params.id, req.body as Partial<Rule>));
     } catch (err) {
-      res.status(err.code === 'NOT_FOUND' ? 404 : 400).json({ error: err.message });
+      res.status(errorCode(err) === 'NOT_FOUND' ? 404 : 400).json({ error: errorMessage(err) });
     }
   });
 
@@ -81,17 +88,17 @@ module.exports = (io, mqttManager) => {
 
   router.post('/presence', (req, res) => {
     try {
-      res.json(presenceSvc.create(req.body));
+      res.json(presenceSvc.create(req.body as presenceSvc.CreateParams));
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: errorMessage(err) });
     }
   });
 
   router.patch('/presence/:sensor', (req, res) => {
     try {
-      res.json(presenceSvc.update(req.params.sensor, req.body));
+      res.json(presenceSvc.update(req.params.sensor, req.body as Partial<PresenceConfigEntry>));
     } catch (err) {
-      res.status(err.code === 'NOT_FOUND' ? 404 : 400).json({ error: err.message });
+      res.status(errorCode(err) === 'NOT_FOUND' ? 404 : 400).json({ error: errorMessage(err) });
     }
   });
 
@@ -106,17 +113,18 @@ module.exports = (io, mqttManager) => {
 
   router.post('/rooms', (req, res) => {
     try {
-      roomsSvc.create(req.body.name ?? '');
+      const { name } = req.body as { name?: string };
+      roomsSvc.create(name ?? '');
       emitRooms();
       res.json({ ok: true });
     } catch (err) {
-      res.status(err.code === 'EXISTS' ? 409 : 400).json({ error: err.message });
+      res.status(errorCode(err) === 'EXISTS' ? 409 : 400).json({ error: errorMessage(err) });
     }
   });
 
   // Must come before /:name routes so Express doesn't treat "assign" as a :name
   router.post('/rooms/assign', (req, res) => {
-    const { device, room } = req.body;
+    const { device, room } = req.body as { device?: string; room?: string | null };
     if (!device) return res.status(400).json({ error: 'device required' });
     roomsSvc.assignDevice(device, room ?? null);
     emitRooms();
@@ -125,12 +133,14 @@ module.exports = (io, mqttManager) => {
 
   router.patch('/rooms/:name', (req, res) => {
     try {
-      roomsSvc.rename(req.params.name, req.body.newName ?? '');
+      const { newName } = req.body as { newName?: string };
+      roomsSvc.rename(req.params.name, newName ?? '');
       emitRooms();
       res.json({ ok: true });
     } catch (err) {
-      const code = err.code === 'NOT_FOUND' ? 404 : err.code === 'EXISTS' ? 409 : 400;
-      res.status(code).json({ error: err.message });
+      const code = errorCode(err);
+      const status = code === 'NOT_FOUND' ? 404 : code === 'EXISTS' ? 409 : 400;
+      res.status(status).json({ error: errorMessage(err) });
     }
   });
 
@@ -143,7 +153,7 @@ module.exports = (io, mqttManager) => {
   // ── Room-level actions (fan out to member devices) ───────────────────────
 
   router.post('/rooms/:name/set', (req, res) => {
-    const payload = buildLightPayload(req.body);
+    const payload = buildLightPayload(req.body as LightBody);
     const groups  = roomsSvc.getDevices(req.params.name);
     groups.forEach((g) => mqttManager.setGroup(g, payload));
     setOverride(groups);
@@ -151,7 +161,7 @@ module.exports = (io, mqttManager) => {
   });
 
   router.post('/rooms/:name/power', (req, res) => {
-    const { on } = req.body;
+    const { on } = req.body as PowerBody;
     const groups = roomsSvc.getDevices(req.params.name);
     groups.forEach((g) => mqttManager.setPower(g, on));
     presenceSvc.recordManualPower(req.params.name, on);
@@ -159,7 +169,7 @@ module.exports = (io, mqttManager) => {
   });
 
   router.post('/rooms/:name/circadian', (req, res) => {
-    const { enabled } = req.body;
+    const { enabled } = req.body as CircadianBody;
     const groups = roomsSvc.getDevices(req.params.name);
     // Clear overrides BEFORE enabling so apply() inside enable() sees no active overrides
     groups.forEach((g) => overrideSvc.clear(g));
@@ -194,24 +204,25 @@ module.exports = (io, mqttManager) => {
   });
 
   router.post('/sensors/:name/set', (req, res) => {
-    mqttManager.setSensorProperty(req.params.name, req.body);
+    mqttManager.setSensorProperty(req.params.name, req.body as Record<string, unknown>);
     res.json({ ok: true });
   });
 
   router.post('/pair', (req, res) => {
-    mqttManager.permitJoin(!!req.body.enable);
+    const { enable } = req.body as { enable?: boolean };
+    mqttManager.permitJoin(!!enable);
     res.json({ ok: true });
   });
 
   router.post('/devices/rename', (req, res) => {
-    const { from, to } = req.body;
+    const { from, to } = req.body as { from?: string; to?: string };
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
     mqttManager.renameDevice(from, to);
     res.json({ ok: true });
   });
 
   router.post('/devices/remove', (req, res) => {
-    const { id } = req.body;
+    const { id } = req.body as { id?: string };
     if (!id) return res.status(400).json({ error: 'id required' });
     mqttManager.removeDevice(id);
     res.json({ ok: true });
@@ -220,15 +231,16 @@ module.exports = (io, mqttManager) => {
   // ── Global set / power ───────────────────────────────────────────────────
 
   router.post('/set', (req, res) => {
-    const payload = buildLightPayload(req.body);
-    const groups  = resolveGroups(req.body.group);
+    const body    = req.body as LightBody;
+    const payload = buildLightPayload(body);
+    const groups  = resolveGroups(body.group);
     groups.forEach((g) => mqttManager.setGroup(g, payload));
     setOverride(groups);
     res.json({ ok: true });
   });
 
   router.post('/power', (req, res) => {
-    const { group = 'all', on } = req.body;
+    const { group = 'all', on } = req.body as PowerBody;
     mqttManager.setPower(group, on);
     recordManualPowerForGroups(resolveGroups(group), on);
     res.json({ ok: true });
@@ -241,7 +253,7 @@ module.exports = (io, mqttManager) => {
   });
 
   router.post('/circadian', (req, res) => {
-    const { group = 'all', enabled } = req.body;
+    const { group = 'all', enabled } = req.body as CircadianBody;
     if (enabled) {
       // Clear overrides BEFORE enabling so apply() sees no active overrides
       resolveGroups(group).forEach((g) => overrideSvc.clear(g));
@@ -253,4 +265,4 @@ module.exports = (io, mqttManager) => {
   });
 
   return router;
-};
+}

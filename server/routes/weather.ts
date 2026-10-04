@@ -1,21 +1,25 @@
-const express = require('express');
-const axios = require('axios');
+import express from 'express';
+import axios from 'axios';
+import { errorMessage } from '../util';
 
 const router = express.Router();
 
 const CACHE_TTL   = 10 * 60 * 1000;
-const DEFAULT_LAT = parseFloat(process.env.LATITUDE)  || 38.627;
-const DEFAULT_LON = parseFloat(process.env.LONGITUDE) || -90.1994;
-let cache = {};
+const DEFAULT_LAT = parseFloat(process.env.LATITUDE ?? '')  || 38.627;
+const DEFAULT_LON = parseFloat(process.env.LONGITUDE ?? '') || -90.1994;
+
+// Open-Meteo's response is passed straight through to the client, so it stays untyped here.
+const cache: Record<string, { data: unknown; at: number }> = {};
 
 router.get('/', async (req, res) => {
-  const lat = parseFloat(req.query.lat) || DEFAULT_LAT;
-  const lon = parseFloat(req.query.lon) || DEFAULT_LON;
+  const lat = parseFloat(String(req.query.lat ?? '')) || DEFAULT_LAT;
+  const lon = parseFloat(String(req.query.lon ?? '')) || DEFAULT_LON;
   // Round coords into the cache key so nearby requests (e.g. GPS jitter) share a cache entry.
   const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  const cached = cache[key];
 
-  if (cache[key] && Date.now() - cache[key].at < CACHE_TTL) {
-    return res.json(cache[key].data);
+  if (cached && Date.now() - cached.at < CACHE_TTL) {
+    return res.json(cached.data);
   }
 
   try {
@@ -37,11 +41,11 @@ router.get('/', async (req, res) => {
     cache[key] = { data: response.data, at: Date.now() };
     res.json(response.data);
   } catch (err) {
-    console.error('Weather fetch failed:', err.message);
+    console.error('Weather fetch failed:', errorMessage(err));
     // Prefer serving a stale forecast over an error screen on the dashboard.
-    if (cache[key]) return res.json(cache[key].data);
+    if (cached) return res.json(cached.data);
     res.status(503).json({ error: 'Weather data unavailable' });
   }
 });
 
-module.exports = router;
+export default router;

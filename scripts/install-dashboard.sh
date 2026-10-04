@@ -29,12 +29,10 @@ sudo -u "$PI_USER" bash -c "cd '$PROJECT_DIR' && npm install --prefix server"
 log "Installing client dependencies and building..."
 sudo -u "$PI_USER" bash -c "cd '$PROJECT_DIR/client' && npm install && npm run build"
 
-# Systemd service
-if [[ -f "$SERVICE_FILE" ]]; then
-    log "Dashboard service already registered, skipping."
-else
-    log "Creating systemd service..."
-    cat > "$SERVICE_FILE" <<EOF
+# Systemd service — always (re)written so changes to ExecStart reach existing installs.
+# The server is TypeScript, run directly by tsx (a server dependency) — no build step.
+log "Writing systemd service..."
+cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Apartment Dashboard Server
 After=network.target mosquitto.service zigbee2mqtt.service raspotify.service bluetooth.service
@@ -43,7 +41,7 @@ After=network.target mosquitto.service zigbee2mqtt.service raspotify.service blu
 Type=simple
 User=$PI_USER
 WorkingDirectory=$PROJECT_DIR
-ExecStart=$(which node) server/index.js
+ExecStart=$(which node) server/node_modules/tsx/dist/cli.mjs server/index.ts
 Restart=on-failure
 RestartSec=10s
 Environment=NODE_ENV=production
@@ -53,10 +51,9 @@ EnvironmentFile=$PROJECT_DIR/.env
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload
-    systemctl enable apartment-dashboard
-    log "Dashboard service registered and enabled."
-fi
+systemctl daemon-reload
+systemctl enable apartment-dashboard
+log "Dashboard service registered and enabled."
 
 if ! systemctl is-active --quiet apartment-dashboard; then
     systemctl start apartment-dashboard

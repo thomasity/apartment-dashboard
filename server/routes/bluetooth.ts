@@ -1,11 +1,15 @@
-const express = require('express');
-const { spawn, execFile } = require('child_process');
-const router  = express.Router();
+import express from 'express';
+import { spawn, execFile } from 'child_process';
+import { errorMessage } from '../util';
+
+const router = express.Router();
+
+interface BtDevice { mac: string; name: string }
 
 let scanInProgress = false;
 
 // Run bluetoothctl as a single command invocation (blocks until done)
-function btCmd(args, timeoutMs = 8000) {
+function btCmd(args: string[], timeoutMs = 8000): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile('bluetoothctl', args, { timeout: timeoutMs }, (err, stdout, stderr) => {
       const out = stdout + stderr;
@@ -15,15 +19,13 @@ function btCmd(args, timeoutMs = 8000) {
   });
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function parseDeviceLines(stdout) {
-  return stdout.split('\n')
-    .map((line) => {
-      const match = line.match(/Device\s+([0-9A-Fa-f:]{17})\s+(.+)/);
-      return match ? { mac: match[1], name: match[2].trim() } : null;
-    })
-    .filter(Boolean);
+function parseDeviceLines(stdout: string): BtDevice[] {
+  return stdout.split('\n').flatMap((line) => {
+    const match = line.match(/Device\s+([0-9A-Fa-f:]{17})\s+(.+)/);
+    return match?.[1] && match[2] ? [{ mac: match[1], name: match[2].trim() }] : [];
+  });
 }
 
 // Paired devices with connected status
@@ -41,8 +43,8 @@ router.get('/devices', async (_req, res) => {
       .map((d) => ({ ...d, connected: connectedMacs.has(d.mac) }));
     res.json(devices);
   } catch (err) {
-    console.error('[bluetooth] /devices error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[bluetooth] /devices error:', errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -55,12 +57,11 @@ router.get('/scan', async (_req, res) => {
 
   try {
     // Power on then scan for 8 seconds via stdin
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
-      let out = '';
 
-      proc.stdout.on('data', (d) => { out += d.toString(); });
-      proc.stderr.on('data', (d) => console.error('[bluetooth] scan:', d.toString().trim()));
+      proc.stdout.on('data', () => {}); // drain so the pipe never blocks
+      proc.stderr.on('data', (d: Buffer) => console.error('[bluetooth] scan:', d.toString().trim()));
       proc.on('error', reject);
 
       proc.stdin.write('power on\n');
@@ -73,7 +74,7 @@ router.get('/scan', async (_req, res) => {
         proc.stdin.end();
       }, 8000);
 
-      proc.on('close', resolve);
+      proc.on('close', () => resolve());
     });
 
     const [allOut, pairedOut] = await Promise.all([
@@ -87,8 +88,8 @@ router.get('/scan', async (_req, res) => {
     console.log(`[bluetooth] scan found ${discovered.length} unpaired device(s)`);
     res.json(discovered);
   } catch (err) {
-    console.error('[bluetooth] scan error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[bluetooth] scan error:', errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
   } finally {
     clearTimeout(safetyTimer);
     scanInProgress = false;
@@ -97,7 +98,7 @@ router.get('/scan', async (_req, res) => {
 
 // Pair + trust + connect and set as audio output
 router.post('/pair', async (req, res) => {
-  const { mac } = req.body;
+  const { mac } = req.body as { mac?: string };
   if (!mac) return res.status(400).json({ error: 'mac required' });
   try {
     await btCmd(['pair',  mac], 20000);
@@ -111,13 +112,13 @@ router.post('/pair', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error('[bluetooth] pair error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[bluetooth] pair error:', errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
 // Find the PipeWire sink index for a Bluetooth device by MAC, retrying for up to 5s
-function findBluetoothSink(mac, retries = 10, delayMs = 500) {
+function findBluetoothSink(mac: string, retries = 10, delayMs = 500): Promise<string | null> {
   const sinkKey = 'bluez_output.' + mac.replace(/:/g, '_');
   return new Promise((resolve) => {
     let attempts = 0;
@@ -125,7 +126,8 @@ function findBluetoothSink(mac, retries = 10, delayMs = 500) {
       execFile('pactl', ['list', 'sinks', 'short'], (err, stdout) => {
         if (!err) {
           const line = stdout.split('\n').find((l) => l.includes(sinkKey));
-          if (line) { resolve(line.trim().split(/\s+/)[0]); return; }
+          const id   = line?.trim().split(/\s+/)[0];
+          if (id) { resolve(id); return; }
         }
         if (++attempts < retries) setTimeout(attempt, delayMs);
         else resolve(null);
@@ -135,22 +137,22 @@ function findBluetoothSink(mac, retries = 10, delayMs = 500) {
   });
 }
 
-function wpctlSetDefault(sinkId) {
+function wpctlSetDefault(sinkId: string): Promise<boolean> {
   return new Promise((resolve) => {
-    execFile('wpctl', ['set-default', String(sinkId)], (err) => {
+    execFile('wpctl', ['set-default', sinkId], (err) => {
       if (err) console.warn('[bluetooth] wpctl set-default failed:', err.message);
       resolve(!err);
     });
   });
 }
 
-function wpctlSetDefaultAlsa() {
+function wpctlSetDefaultAlsa(): Promise<void> {
   return new Promise((resolve) => {
     execFile('pactl', ['list', 'sinks', 'short'], (err, stdout) => {
       if (err) { resolve(); return; }
       const line = stdout.split('\n').find((l) => l.includes('alsa_output'));
-      if (line) {
-        const id = line.trim().split(/\s+/)[0];
+      const id   = line?.trim().split(/\s+/)[0];
+      if (id) {
         execFile('wpctl', ['set-default', id], () => resolve());
       } else {
         resolve();
@@ -161,7 +163,7 @@ function wpctlSetDefaultAlsa() {
 
 // Connect an already-paired device and set it as audio output
 router.post('/connect', async (req, res) => {
-  const { mac } = req.body;
+  const { mac } = req.body as { mac?: string };
   if (!mac) return res.status(400).json({ error: 'mac required' });
   try {
     await btCmd(['connect', mac], 20000);
@@ -174,22 +176,22 @@ router.post('/connect', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error('[bluetooth] connect error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[bluetooth] connect error:', errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
 // Disconnect and revert audio to ALSA
 router.post('/disconnect', async (req, res) => {
-  const { mac } = req.body;
+  const { mac } = req.body as { mac?: string };
   if (!mac) return res.status(400).json({ error: 'mac required' });
   try {
     await btCmd(['disconnect', mac]);
     await wpctlSetDefaultAlsa();
     res.json({ ok: true });
   } catch (err) {
-    console.error('[bluetooth] disconnect error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[bluetooth] disconnect error:', errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -199,8 +201,8 @@ router.delete('/device/:mac', async (req, res) => {
     await btCmd(['remove', req.params.mac]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
-module.exports = router;
+export default router;

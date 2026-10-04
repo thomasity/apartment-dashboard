@@ -12,7 +12,7 @@ A fullscreen ambient dashboard for a Raspberry Pi Zero 2 W + Android tablet runn
 ## Tech Stack
 
 - **Frontend**: React 18 + Vite + Tailwind CSS
-- **Backend**: Node.js + Express + Socket.io
+- **Backend**: TypeScript (run directly via `tsx`) + Express + Socket.io
 - **Lighting**: MQTT.js → Mosquitto → Zigbee2MQTT → Zigbee bulbs
 
 ---
@@ -108,7 +108,7 @@ After=network.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/dashboard
-ExecStart=/usr/bin/node server/index.js
+ExecStart=/usr/bin/node server/node_modules/tsx/dist/cli.mjs server/index.ts
 Environment=NODE_ENV=production
 Restart=on-failure
 
@@ -140,12 +140,12 @@ apartment-dashboard/
 ├── .env.example
 ├── package.json          # root — runs both servers via concurrently
 ├── server/
-│   ├── index.js          # Express + Socket.io
-│   ├── mqtt/client.js    # MQTT manager (publishes/subscribes Zigbee state)
-│   └── routes/
-│       ├── weather.js    # Proxies Open-Meteo (10-min cache)
-│       ├── stocks.js     # Proxies Alpaca Markets (10-min cache)
-│       └── lighting.js   # REST endpoints for lighting commands
+│   ├── index.ts          # Express + Socket.io
+│   ├── types.ts          # Shared domain types (config.json, socket events, …)
+│   ├── tsconfig.json     # strict; `npm --prefix server run typecheck`
+│   ├── mqtt/client.ts    # MQTT manager (publishes/subscribes Zigbee state)
+│   ├── services/         # circadian, rooms, override, rules, presence
+│   └── routes/           # weather, lighting, spotify, tv, bluetooth, voice, plants
 └── client/
     ├── vite.config.js    # Dev proxy → :3001
     └── src/

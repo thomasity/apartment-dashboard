@@ -1,10 +1,10 @@
 // One-time Spotify OAuth setup.
-// Run with: node server/scripts/spotify-auth.js
+// Run with: npm --prefix server run spotify-auth
 // Works from any machine — no local server required.
 
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
-const axios    = require('axios');
-const readline = require('readline');
+import '../env';
+import axios from 'axios';
+import readline from 'readline';
 
 const CLIENT_ID     = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
@@ -37,7 +37,7 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 rl.question('4. Paste the full redirect URL here: ', async (input) => {
   rl.close();
 
-  let code;
+  let code: string | null;
   try {
     code = new URL(input.trim()).searchParams.get('code');
   } catch {
@@ -51,7 +51,7 @@ rl.question('4. Paste the full redirect URL here: ', async (input) => {
   }
 
   try {
-    const { data } = await axios.post(
+    const { data } = await axios.post<{ refresh_token: string }>(
       'https://accounts.spotify.com/api/token',
       new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }),
       {
@@ -65,7 +65,8 @@ rl.question('4. Paste the full redirect URL here: ', async (input) => {
     console.log('\n✅  Success! Add this to your .env:\n');
     console.log(`SPOTIFY_REFRESH_TOKEN=${data.refresh_token}\n`);
   } catch (err) {
-    console.error('\nToken exchange failed:', err.response?.data ?? err.message, '\n');
+    const detail = axios.isAxiosError(err) ? (err.response?.data ?? err.message) : String(err);
+    console.error('\nToken exchange failed:', detail, '\n');
     process.exit(1);
   }
 });

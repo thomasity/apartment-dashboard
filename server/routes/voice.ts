@@ -1,36 +1,43 @@
-const express  = require('express');
-const Anthropic = require('@anthropic-ai/sdk');
-const crypto   = require('crypto');
-const config   = require('../config');
+import express from 'express';
+import Anthropic from '@anthropic-ai/sdk';
+import crypto from 'crypto';
+import * as config from '../config';
+import { apiBase, errorMessage, toHHMM } from '../util';
+import type { LightingState, Plant } from '../types';
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+type DayName = typeof DAY_NAMES[number];
 
 // ── In-memory timer store (lost on restart — acceptable) ──────────────────────
+interface PendingTimer { handle: NodeJS.Timeout; description: string; firesAt: Date }
 let timerSeq = 0;
-const timerMap = new Map(); // id → { handle, description, firesAt }
+const timerMap = new Map<number, PendingTimer>();
 
 // ── TTS LRU cache ─────────────────────────────────────────────────────────────
 const TTS_CACHE_MAX = 60;
-const ttsCache      = new Map(); // key → Buffer  (Map preserves insertion order for LRU)
+const ttsCache      = new Map<string, Buffer>(); // Map preserves insertion order for LRU
 
-function getTts(key) {
-  if (!ttsCache.has(key)) return null;
-  const buf = ttsCache.get(key); // promote to most-recent
-  ttsCache.delete(key);
+function getTts(key: string): Buffer | null {
+  const buf = ttsCache.get(key);
+  if (!buf) return null;
+  ttsCache.delete(key); // promote to most-recent
   ttsCache.set(key, buf);
   return buf;
 }
 
-function setTts(key, buf) {
-  if (ttsCache.has(key)) ttsCache.delete(key);
+function setTts(key: string, buf: Buffer): void {
+  ttsCache.delete(key);
   ttsCache.set(key, buf);
-  if (ttsCache.size > TTS_CACHE_MAX) ttsCache.delete(ttsCache.keys().next().value);
+  if (ttsCache.size > TTS_CACHE_MAX) {
+    const oldest = ttsCache.keys().next().value;
+    if (oldest !== undefined) ttsCache.delete(oldest);
+  }
 }
 
-const TOOLS = [
+const TOOLS: Anthropic.Tool[] = [
   // ── Read ──────────────────────────────────────────────────────────────────
   {
     name: 'get_home_state',
@@ -81,7 +88,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         label:       { type: 'string', description: 'Short key for this routine, e.g. "weekday mornings", "sunday wind-down".' },
-        days:        { type: 'array', items: { type: 'string', enum: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] }, description: 'Days this routine applies on.' },
+        days:        { type: 'array', items: { type: 'string', enum: [...DAY_NAMES] }, description: 'Days this routine applies on.' },
         start_time:  { type: 'string', description: '24-hour "HH:MM" — start of the window, e.g. "07:00".' },
         end_time:    { type: 'string', description: '24-hour "HH:MM" — end of the window, e.g. "08:30".' },
         description: { type: 'string', description: 'What\'s going on and how to behave, e.g. "getting ready for work — keep responses terse, skip small talk."' },
@@ -258,7 +265,7 @@ const TOOLS = [
   },
 ];
 
-const SYSTEM = [
+const SYSTEM: Anthropic.TextBlockParam[] = [
   {
     type: 'text',
     text: `You are a voice assistant built into Thomas's apartment. You control the lights, music, TV, and plants. You have access to recent conversation history and can reference it naturally.
@@ -297,6 +304,11 @@ Tools:
   },
 ];
 
+interface AgentLoopOptions {
+  maxTokens:             number;
+  watchEndConversation?: boolean;
+}
+
 // Drives the Claude tool-use loop: send messages, execute any requested tools, feed the
 // results back, and repeat until the model stops asking for tools. `messages` is mutated
 // in place so callers can inspect the final transcript if they need to.
@@ -304,7 +316,11 @@ Tools:
 // When `watchEndConversation` is set, an `end_conversation` tool call is intercepted here
 // (rather than dispatched to executeTool) and flips the returned `keepListening` to false —
 // used by /chat to tell the client whether to keep the mic open.
-async function runAgentLoop(messages, base, { maxTokens, watchEndConversation = false } = {}) {
+async function runAgentLoop(
+  messages: Anthropic.MessageParam[],
+  base: string,
+  { maxTokens, watchEndConversation = false }: AgentLoopOptions,
+): Promise<{ reply: string; keepListening: boolean }> {
   let reply         = '';
   let keepListening = true; // default: stay open; AI calls end_conversation to close
 
@@ -323,7 +339,7 @@ async function runAgentLoop(messages, base, { maxTokens, watchEndConversation = 
 
     if (response.stop_reason !== 'tool_use') break;
 
-    const toolResults = [];
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue;
       if (watchEndConversation && block.name === 'end_conversation') {
@@ -342,16 +358,22 @@ async function runAgentLoop(messages, base, { maxTokens, watchEndConversation = 
   return { reply, keepListening };
 }
 
+interface ChatBody {
+  message?: string;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  room?:    string | null;
+}
+
 router.post('/chat', async (req, res) => {
-  const { message, history = [], room = null } = req.body;
+  const { message, history = [], room = null } = req.body as ChatBody;
   if (!message?.trim()) return res.status(400).json({ error: 'No message provided' });
 
   try {
-    const base    = `http://localhost:${process.env.PORT || 3001}/api`;
+    const base    = apiBase();
     const context = await buildContext(base, room);
     const firstMessage = context ? `${context}\n\n${message}` : message;
 
-    const messages = [
+    const messages: Anthropic.MessageParam[] = [
       ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: firstMessage },
     ];
@@ -363,26 +385,50 @@ router.post('/chat', async (req, res) => {
 
     res.json({ reply, keepListening });
   } catch (err) {
-    console.error('[voice] error:', err.message);
+    console.error('[voice] error:', errorMessage(err));
     res.status(500).json({ error: 'Voice request failed' });
   }
 });
 
-router.get('/voices', (req, res) => {
-  const voices      = config.get('voices') || {};
+function voicesSummary() {
+  const voices      = config.get('voices') ?? {};
   const activeVoice = config.get('active_voice') || null;
-  res.json({
+  return {
     active: activeVoice,
     voices: Object.entries(voices).map(([n, v]) => ({ name: n, description: v.description, active: n === activeVoice })),
-  });
+  };
+}
+
+router.get('/voices', (_req, res) => {
+  res.json(voicesSummary());
 });
+
+// ── Internal API response shapes (what our own routes return) ─────────────────
+
+interface NowPlayingLite {
+  isPlaying: boolean;
+  shuffle:   boolean;
+  repeat:    string;
+  item?:     { name?: string; artist?: string | null } | null;
+  track?:    { name?: string; artist?: string | null } | null; // mock-data shape
+  device?:   { volume?: number };
+}
+interface WeatherLite { current?: { temperature_2m?: number; weather_code?: number } }
+interface TvStatusLite { appName: string | null; playerState: string }
+interface NamedItem { name: string }
+interface PlaylistLite extends NamedItem { id: string; uri: string; total: number }
+interface TvAppLite extends NamedItem { id: string }
+interface SearchLite {
+  tracks?:    Array<{ uri: string; name: string; artist: string }>;
+  playlists?: Array<{ uri: string; name: string }>;
+}
 
 // ── Context injection ─────────────────────────────────────────────────────────
 
-let spotifyContextCache = { data: null, at: 0 };
+let spotifyContextCache: { data: NowPlayingLite | null; at: number } = { data: null, at: 0 };
 const SPOTIFY_CACHE_TTL = 30_000;
 
-async function buildContext(base, room = null) {
+async function buildContext(base: string, room: string | null = null): Promise<string> {
   const now = new Date();
   const timeStr = now.toLocaleString('en-US', {
     weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: true,
@@ -395,15 +441,15 @@ async function buildContext(base, room = null) {
   if (routine) parts.push(`Routine: ${routine}`);
 
   const activeName = config.get('active_voice');
-  const voices     = config.get('voices') || {};
-  if (activeName && voices[activeName]?.description) {
-    parts.push(`Voice: ${activeName} — ${voices[activeName].description}`);
+  const voice      = activeName ? config.get('voices')?.[activeName] : undefined;
+  if (voice?.description) {
+    parts.push(`Voice: ${activeName} — ${voice.description}`);
   }
 
   try {
     const wRes = await fetch(`${base}/weather`);
     if (wRes.ok) {
-      const w    = await wRes.json();
+      const w    = await wRes.json() as WeatherLite;
       const temp = w.current?.temperature_2m;
       const code = w.current?.weather_code;
       if (temp !== undefined) {
@@ -416,7 +462,7 @@ async function buildContext(base, room = null) {
   try {
     if (Date.now() - spotifyContextCache.at > SPOTIFY_CACHE_TTL) {
       const spRes = await fetch(`${base}/spotify/now-playing`);
-      if (spRes.ok) spotifyContextCache = { data: await spRes.json(), at: Date.now() };
+      if (spRes.ok) spotifyContextCache = { data: await spRes.json() as NowPlayingLite | null, at: Date.now() };
     }
     const sp    = spotifyContextCache.data;
     const track = (sp?.item ?? sp?.track)?.name;
@@ -426,7 +472,7 @@ async function buildContext(base, room = null) {
   return `[Context: ${parts.join(' · ')}]`;
 }
 
-function wmoCondition(code) {
+function wmoCondition(code: number | undefined | null): string {
   if (code === undefined || code === null) return '';
   if (code === 0)              return 'clear';
   if (code <= 3)               return 'partly cloudy';
@@ -442,21 +488,49 @@ function wmoCondition(code) {
 
 // ── Tool execution ────────────────────────────────────────────────────────────
 
+/** Input shape for each tool, matching its input_schema in TOOLS. */
+interface ToolInputs {
+  get_home_state:   Record<string, never>;
+  get_plants_due:   Record<string, never>;
+  remember:         { label: string; value: string };
+  get_memories:     Record<string, never>;
+  forget:           { label: string };
+  remember_routine: { label: string; days: DayName[]; start_time: string; end_time: string; description: string };
+  get_routines:     Record<string, never>;
+  forget_routine:   { label: string };
+  set_timer:        { description: string; delay_minutes: number };
+  cancel_timers:    Record<string, never>;
+  control_lights:   { group: string; power?: boolean; brightness?: number; colorTemp?: number };
+  control_music:    { action: 'play' | 'pause' | 'next' | 'previous'; volume?: number };
+  get_voices:       Record<string, never>;
+  set_voice:        { name: string };
+  get_playlists:    Record<string, never>;
+  play_spotify:     { query: string; type: 'my_playlist' | 'search' };
+  set_shuffle:      { state: boolean };
+  set_repeat:       { state: 'off' | 'context' | 'track' };
+  control_tv:       { key: string };
+  launch_tv_app:    { app_name: string };
+  water_plant:      { plant_name: string };
+}
+
+type ToolHandlers = { [K in keyof ToolInputs]: (input: ToolInputs[K], base: string) => Promise<unknown> };
+
 // One handler per entry in TOOLS, keyed by tool name — keeps each tool's implementation
 // next to its neighbors instead of buried in a long if/else chain, and lets executeTool
 // stay a thin, uniform dispatcher.
-const toolHandlers = {
-  async get_home_state(input, base) {
+const toolHandlers: ToolHandlers = {
+  async get_home_state(_input, base) {
     const [lightsRes, spotifyRes, tvRes, plantsRes] = await Promise.all([
       fetch(`${base}/lighting/state`),
       fetch(`${base}/spotify/now-playing`),
       fetch(`${base}/tv/status`),
       fetch(`${base}/plants`),
     ]);
-    const lights  = await lightsRes.json().catch(() => null);
-    const spotify = await spotifyRes.json().catch(() => null);
-    const tv      = await tvRes.json().catch(() => null);
-    const plants  = await plantsRes.json().catch(() => []);
+    const lights  = await lightsRes.json().catch(() => null)  as LightingState | null;
+    const spotify = await spotifyRes.json().catch(() => null) as NowPlayingLite | null;
+    const tv      = await tvRes.json().catch(() => null)      as TvStatusLite | null;
+    const plants  = await plantsRes.json().catch(() => [])    as Plant[];
+    const playing = spotify?.item ?? spotify?.track;
 
     return {
       lights: lights ? {
@@ -469,23 +543,19 @@ const toolHandlers = {
       } : null,
       music: spotify ? {
         isPlaying: spotify.isPlaying,
-        track:     (spotify.item ?? spotify.track)?.name   ?? null,
-        artist:    (spotify.item ?? spotify.track)?.artist ?? null,
+        track:     playing?.name   ?? null,
+        artist:    playing?.artist ?? null,
         volume:    spotify.device?.volume ?? null,
         shuffle:   spotify.shuffle,
         repeat:    spotify.repeat,
       } : null,
       tv: tv ? { app: tv.appName, state: tv.playerState } : null,
-      plants: plants.map((p) => {
-        const days = daysUntil(p);
-        return { name: p.name, status: plantStatus(days) };
-      }),
+      plants: plants.map((p) => ({ name: p.name, status: plantStatus(daysUntil(p)) })),
     };
   },
 
-  async get_plants_due(input, base) {
-    const plantsRes = await fetch(`${base}/plants`);
-    const plants    = await plantsRes.json();
+  async get_plants_due(_input, base) {
+    const plants = await getJson<Plant[]>(`${base}/plants`);
     const all = plants.map((p) => {
       const days = daysUntil(p);
       return { name: p.name, status: plantStatus(days), urgent: days === null || days <= 0 };
@@ -494,21 +564,20 @@ const toolHandlers = {
   },
 
   async remember(input) {
-    const memories = config.get('memories') || {};
+    const memories = config.get('memories') ?? {};
     memories[input.label] = input.value;
     config.set('memories', memories);
     return { ok: true, stored: input.label };
   },
 
   async get_memories() {
-    const memories = config.get('memories') || {};
-    const entries  = Object.entries(memories);
+    const entries = Object.entries(config.get('memories') ?? {});
     if (!entries.length) return { memories: [], empty: true };
     return { memories: entries.map(([label, value]) => ({ label, value })) };
   },
 
   async forget(input) {
-    const memories = config.get('memories') || {};
+    const memories = config.get('memories') ?? {};
     if (!(input.label in memories)) return { error: `No memory found with label "${input.label}".` };
     delete memories[input.label];
     config.set('memories', memories);
@@ -517,16 +586,17 @@ const toolHandlers = {
 
   async remember_routine(input) {
     const { label, days, start_time, end_time, description } = input;
-    const dayIndices = days.map((d) => DAY_NAMES.indexOf(d.toLowerCase())).filter((i) => i !== -1);
-    const routines = config.get('routines') || {};
+    const dayIndices = days
+      .map((d) => DAY_NAMES.indexOf(d.toLowerCase() as DayName))
+      .filter((i) => i !== -1);
+    const routines = config.get('routines') ?? {};
     routines[label] = { days: dayIndices, start: start_time, end: end_time, description };
     config.set('routines', routines);
     return { ok: true, stored: label };
   },
 
   async get_routines() {
-    const routines = config.get('routines') || {};
-    const entries  = Object.entries(routines);
+    const entries = Object.entries(config.get('routines') ?? {});
     if (!entries.length) return { routines: [], empty: true };
     return {
       routines: entries.map(([label, r]) => ({
@@ -539,7 +609,7 @@ const toolHandlers = {
   },
 
   async forget_routine(input) {
-    const routines = config.get('routines') || {};
+    const routines = config.get('routines') ?? {};
     if (!(input.label in routines)) return { error: `No routine found with label "${input.label}".` };
     delete routines[input.label];
     config.set('routines', routines);
@@ -553,7 +623,7 @@ const toolHandlers = {
     const handle  = setTimeout(() => {
       timerMap.delete(id);
       runTimerAction(input.description).catch((err) =>
-        console.error('[voice] timer action failed:', err.message)
+        console.error('[voice] timer action failed:', errorMessage(err)),
       );
     }, ms);
     timerMap.set(id, { handle, description: input.description, firesAt });
@@ -561,7 +631,7 @@ const toolHandlers = {
   },
 
   async cancel_timers() {
-    const cancelled = [];
+    const cancelled: string[] = [];
     for (const [id, t] of timerMap) {
       clearTimeout(t.handle);
       cancelled.push(t.description);
@@ -593,42 +663,34 @@ const toolHandlers = {
   },
 
   async get_voices() {
-    const voices      = config.get('voices') || {};
-    const activeVoice = config.get('active_voice') || null;
-    return {
-      active: activeVoice,
-      voices: Object.entries(voices).map(([n, v]) => ({ name: n, description: v.description, active: n === activeVoice })),
-    };
+    return voicesSummary();
   },
 
   async set_voice(input) {
-    const voices = config.get('voices') || {};
+    const voices = config.get('voices') ?? {};
     const match  = Object.keys(voices).find((n) => n.toLowerCase() === input.name.toLowerCase());
     if (!match) return { error: `Voice "${input.name}" not found. Available: ${Object.keys(voices).join(', ')}` };
     config.set('active_voice', match);
     return { ok: true, active: match };
   },
 
-  async get_playlists(input, base) {
-    const plRes     = await fetch(`${base}/spotify/playlists`);
-    const playlists = await plRes.json();
+  async get_playlists(_input, base) {
+    const playlists = await getJson<PlaylistLite[]>(`${base}/spotify/playlists`);
     return { playlists: playlists.map((p) => ({ name: p.name, id: p.id, tracks: p.total })) };
   },
 
   async play_spotify(input, base) {
     if (input.type === 'my_playlist') {
-      const plRes     = await fetch(`${base}/spotify/playlists`);
-      const playlists = await plRes.json();
+      const playlists = await getJson<PlaylistLite[]>(`${base}/spotify/playlists`);
       const pl        = fuzzyMatch(playlists, input.query);
       if (!pl) return { error: `Playlist "${input.query}" not found.` };
       await post(`${base}/spotify/play`, { context_uri: pl.uri });
       return { ok: true, playing: pl.name };
     }
     if (input.type === 'search') {
-      const searchRes = await fetch(`${base}/spotify/search?q=${encodeURIComponent(input.query)}`);
-      const results   = await searchRes.json();
-      const track     = results.tracks?.[0];
-      const playlist  = results.playlists?.[0];
+      const results  = await getJson<SearchLite>(`${base}/spotify/search?q=${encodeURIComponent(input.query)}`);
+      const track    = results.tracks?.[0];
+      const playlist = results.playlists?.[0];
       if (track) {
         await post(`${base}/spotify/play`, { uris: [track.uri] });
         return { ok: true, playing: `${track.name} by ${track.artist}` };
@@ -659,18 +721,16 @@ const toolHandlers = {
   },
 
   async launch_tv_app(input, base) {
-    const appsRes = await fetch(`${base}/tv/apps`);
-    const apps    = await appsRes.json();
-    const app     = fuzzyMatch(apps, input.app_name);
+    const apps = await getJson<TvAppLite[]>(`${base}/tv/apps`);
+    const app  = fuzzyMatch(apps, input.app_name);
     if (!app) return { error: `App "${input.app_name}" not found. Available: ${apps.map((a) => a.name).join(', ')}` };
     await post(`${base}/tv/launch/${app.id}`);
     return { ok: true, launched: app.name };
   },
 
   async water_plant(input, base) {
-    const plantsRes = await fetch(`${base}/plants`);
-    const plants    = await plantsRes.json();
-    const plant     = fuzzyMatch(plants, input.plant_name);
+    const plants = await getJson<Plant[]>(`${base}/plants`);
+    const plant  = fuzzyMatch(plants, input.plant_name);
     if (!plant) return { error: `Plant "${input.plant_name}" not found. Available: ${plants.map((p) => p.name).join(', ')}` };
     const today = new Date().toISOString().slice(0, 10);
     await put(`${base}/plants/${plant.id}`, { lastWatered: today });
@@ -678,40 +738,45 @@ const toolHandlers = {
   },
 };
 
-async function executeTool(name, input, base) {
-  base = base || `http://localhost:${process.env.PORT || 3001}/api`;
+function isToolName(name: string): name is keyof ToolInputs {
+  return Object.hasOwn(toolHandlers, name);
+}
+
+async function executeTool(name: string, input: unknown, base = apiBase()): Promise<unknown> {
   console.log(`[voice] tool → ${name}`, JSON.stringify(input));
 
-  const handler = toolHandlers[name];
-  if (!handler) return { error: 'Unknown tool' };
+  if (!isToolName(name)) return { error: 'Unknown tool' };
+  // The model's input is validated against the tool's input_schema by the API,
+  // so it's safe to treat it as that tool's input type here.
+  const handler = toolHandlers[name] as (input: unknown, base: string) => Promise<unknown>;
 
   try {
     return await handler(input, base);
   } catch (err) {
-    console.error(`[voice] tool ${name} failed:`, err.message);
-    return { error: err.message };
+    console.error(`[voice] tool ${name} failed:`, errorMessage(err));
+    return { error: errorMessage(err) };
   }
 }
 
 // ── Timer execution ───────────────────────────────────────────────────────────
 
-async function runTimerAction(description) {
-  const base = `http://localhost:${process.env.PORT || 3001}/api`;
+async function runTimerAction(description: string): Promise<void> {
   console.log(`[voice] timer fired: ${description}`);
-  const messages = [{ role: 'user', content: `Timer fired. Execute this action now: ${description}` }];
-  await runAgentLoop(messages, base, { maxTokens: 100 });
+  const messages: Anthropic.MessageParam[] = [
+    { role: 'user', content: `Timer fired. Execute this action now: ${description}` },
+  ];
+  await runAgentLoop(messages, apiBase(), { maxTokens: 100 });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Returns the description of the first stored routine whose day+time window contains `now`,
 // or null if none match. Windows that cross midnight (start > end) wrap correctly.
-function activeRoutine(now) {
+function activeRoutine(now: Date): string | null {
   const day  = now.getDay();
-  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const routines = config.get('routines') || {};
+  const hhmm = toHHMM(now);
 
-  for (const r of Object.values(routines)) {
+  for (const r of Object.values(config.get('routines') ?? {})) {
     if (!r.days.includes(day)) continue;
     const inWindow = r.start <= r.end
       ? hhmm >= r.start && hhmm <= r.end
@@ -721,31 +786,36 @@ function activeRoutine(now) {
   return null;
 }
 
-function daysUntil(plant) {
+function daysUntil(plant: Plant): number | null {
   if (!plant.lastWatered) return null;
   const next = new Date(plant.lastWatered);
   next.setDate(next.getDate() + plant.intervalDays);
   next.setHours(0, 0, 0, 0);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  return Math.ceil((next - now) / 86400000);
+  return Math.ceil((next.getTime() - now.getTime()) / 86400000);
 }
 
-function plantStatus(days) {
+function plantStatus(days: number | null): string {
   if (days === null) return 'never watered';
   if (days < 0)      return `${Math.abs(days)}d overdue`;
   if (days === 0)    return 'due today';
   return `due in ${days}d`;
 }
 
-function fuzzyMatch(items, query) {
+function fuzzyMatch<T extends NamedItem>(items: T[], query: string): T | undefined {
   const q = query.toLowerCase().trim();
   return items.find((i) => i.name.toLowerCase() === q)
-      || items.find((i) => i.name.toLowerCase().includes(q))
-      || items.find((i) => q.includes(i.name.toLowerCase()));
+      ?? items.find((i) => i.name.toLowerCase().includes(q))
+      ?? items.find((i) => q.includes(i.name.toLowerCase()));
 }
 
-function post(url, body) {
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  return await res.json() as T;
+}
+
+function post(url: string, body?: unknown): Promise<globalThis.Response> {
   return fetch(url, {
     method:  'POST',
     headers: body ? { 'Content-Type': 'application/json' } : {},
@@ -753,7 +823,7 @@ function post(url, body) {
   });
 }
 
-function put(url, body) {
+function put(url: string, body: unknown): Promise<globalThis.Response> {
   return fetch(url, {
     method:  'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -764,11 +834,11 @@ function put(url, body) {
 // ── TTS proxy ─────────────────────────────────────────────────────────────────
 
 router.post('/speak', async (req, res) => {
-  const { text } = req.body;
+  const { text } = req.body as { text?: string };
   if (!text?.trim()) return res.status(400).json({ error: 'No text provided' });
 
   const activeName = config.get('active_voice');
-  const voices     = config.get('voices') || {};
+  const voices     = config.get('voices') ?? {};
   const voiceId    = (activeName && voices[activeName]?.id)
     || process.env.ELEVENLABS_VOICE_ID
     || 'pNInz6obpgDQGcFmaJgB';
@@ -785,13 +855,13 @@ router.post('/speak', async (req, res) => {
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
         method:  'POST',
-        headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+        headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY ?? '', 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
           model_id: 'eleven_turbo_v2_5',
           voice_settings: { stability: 0.5, similarity_boost: 0.75 },
         }),
-      }
+      },
     );
 
     if (!upstream.ok) {
@@ -804,9 +874,9 @@ router.post('/speak', async (req, res) => {
     res.set('Content-Type', 'audio/mpeg');
     res.send(buffer);
   } catch (err) {
-    console.error('[voice] elevenlabs error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[voice] elevenlabs error:', errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
-module.exports = router;
+export default router;

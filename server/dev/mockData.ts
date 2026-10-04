@@ -1,15 +1,18 @@
 // Mock data for local development (PROD=false).
 // Shapes must exactly match what each real route returns.
 
-const lightingState = {
+import type { CircadianPoint, CircadianState, DevicesState, LightingState, Plant } from '../types';
+
+export const lightingState: LightingState = {
   connected: true,
   groups: {
     'Living Room': { label: 'Living Room', brightness: 70, colorTemp: 30 },
     'Bedroom':     { label: 'Bedroom',     brightness: 45, colorTemp: 60 },
   },
+  poweredOff: [],
 };
 
-const devicesState = {
+export const devicesState: DevicesState = {
   bridgeOnline: true,
   pairing: false,
   devices: [
@@ -20,7 +23,7 @@ const devicesState = {
   availability: { 'Living Room': true, 'Bedroom': false },
 };
 
-const circadianState = {
+export const circadianState: CircadianState & { timeline: CircadianPoint[] } = {
   enabledGroups: [],
   brightness: 65,
   colorTemp: 45,
@@ -28,7 +31,7 @@ const circadianState = {
   timeline: [],
 };
 
-const nowPlaying = {
+export const nowPlaying = {
   isPlaying: true,
   shuffle: false,
   repeat: 'off',
@@ -45,18 +48,18 @@ const nowPlaying = {
   device: { name: 'Apartment Hub', volume: 80 },
 };
 
-const spotifyDevices = [
+export const spotifyDevices = [
   { id: 'dev-pi-001',   name: 'Apartment Hub', type: 'speaker',  isActive: true,  volume: 80 },
   { id: 'dev-comp-001', name: 'Dev Computer',  type: 'computer', isActive: false, volume: 100 },
 ];
 
-const playlists = [
+export const playlists = [
   { id: 'dev-pl-1', uri: 'spotify:playlist:dev-pl-1', name: 'My Playlist', image: null, total: 12 },
   { id: 'dev-pl-2', uri: 'spotify:playlist:dev-pl-2', name: 'Chill Vibes', image: null, total: 24 },
   { id: 'dev-pl-3', uri: 'spotify:playlist:dev-pl-3', name: 'Work Focus',  image: null, total: 30 },
 ];
 
-const playlistTracks = Array.from({ length: 8 }, (_, i) => ({
+export const playlistTracks = Array.from({ length: 8 }, (_, i) => ({
   id:       `dev-t${i + 1}`,
   uri:      `spotify:track:dev-t${i + 1}`,
   name:     `Track ${i + 1}`,
@@ -65,13 +68,13 @@ const playlistTracks = Array.from({ length: 8 }, (_, i) => ({
   art:      null,
 }));
 
-const bluetoothDevices = [
+export const bluetoothDevices = [
   { mac: 'AA:BB:CC:DD:EE:01', name: 'Dev Speaker', connected: false },
 ];
 
-const tvStatus = { appId: '12', appName: 'Netflix', playerState: 'play' };
+export const tvStatus = { appId: '12', appName: 'Netflix', playerState: 'play' };
 
-const tvApps = [
+export const tvApps = [
   { id: '12',    name: 'Netflix' },
   { id: '2285',  name: 'YouTube' },
   { id: '13',    name: 'Prime Video' },
@@ -81,7 +84,7 @@ const tvApps = [
   { id: '61322', name: 'Max' },
 ];
 
-const searchResults = {
+export const searchResults = {
   tracks: [
     { uri: 'spotify:track:dev-search-1', name: 'Blinding Lights', artist: 'The Weeknd' },
     { uri: 'spotify:track:dev-search-2', name: 'Upbeat Track',     artist: 'Dev Artist' },
@@ -91,23 +94,8 @@ const searchResults = {
   ],
 };
 
-const plants = [
+export const plants: Plant[] = [
   { id: 'plant-1', name: 'Monstera',  intervalDays: 7,  lastWatered: '2026-06-20' },
   { id: 'plant-2', name: 'Pothos',    intervalDays: 5,  lastWatered: '2026-06-26' },
   { id: 'plant-3', name: 'Cactus',    intervalDays: 14, lastWatered: null },
 ];
-
-module.exports = {
-  lightingState,
-  devicesState,
-  circadianState,
-  nowPlaying,
-  spotifyDevices,
-  playlists,
-  playlistTracks,
-  searchResults,
-  bluetoothDevices,
-  tvStatus,
-  tvApps,
-  plants,
-};

@@ -1,11 +1,12 @@
 // Mock Express router — mounted before real routes when PROD=false.
 // All POST/PUT control endpoints return { ok: true } so UI interactions work.
 
-const express = require('express');
-const router  = express.Router();
-const mock    = require('./mockData');
+import express, { type Request, type Response } from 'express';
+import * as mock from './mockData';
 
-const ok = (_req, res) => res.json({ ok: true });
+const router = express.Router();
+
+const ok = (_req: Request, res: Response) => res.json({ ok: true });
 
 // ── Lighting ──────────────────────────────────────────────────────────────────
 router.get('/lighting/state',   (_req, res) => res.json(mock.lightingState));
@@ -62,4 +63,4 @@ router.post('/plants',    ok);
 router.put('/plants/:id', ok);
 router.delete('/plants/:id', ok);
 
-module.exports = router;
+export default router;
