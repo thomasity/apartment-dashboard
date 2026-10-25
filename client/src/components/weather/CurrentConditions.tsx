@@ -1,4 +1,4 @@
-import type { WeatherCurrent } from '../../hooks/useWeather';
+import type { WeatherCurrent } from '../../context/weatherContext';
 
 interface Props {
   current: WeatherCurrent;

@@ -37,7 +37,8 @@ export function mockAxios(routes: Record<string, Handler>): Call[] {
     const response = {
       status: reply.status ?? 200, data: reply.data, headers: reply.headers ?? {}, statusText: '', config,
     } as AxiosResponse;
-    if (response.status >= 400) {
+    const ok = config.validateStatus ? config.validateStatus(response.status) : response.status < 400;
+    if (!ok) {
       throw new AxiosError(`Request failed with status code ${response.status}`, 'ERR_BAD_RESPONSE', undefined, undefined, response);
     }
     return response;
@@ -45,6 +46,8 @@ export function mockAxios(routes: Record<string, Handler>): Call[] {
 
   vi.spyOn(axios, 'get').mockImplementation(((url: string, config?: AxiosRequestConfig) =>
     handle('GET', url, undefined, config)) as never);
+  vi.spyOn(axios, 'head').mockImplementation(((url: string, config?: AxiosRequestConfig) =>
+    handle('HEAD', url, undefined, config)) as never);
   vi.spyOn(axios, 'post').mockImplementation(((url: string, data?: unknown, config?: AxiosRequestConfig) =>
     handle('POST', url, data, config)) as never);
   vi.spyOn(axios, 'request').mockImplementation(((config: AxiosRequestConfig) =>

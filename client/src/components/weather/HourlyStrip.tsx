@@ -1,6 +1,6 @@
 import { wmo }  from '../../lib/wmo';
 import { DAYS } from './utils';
-import type { WeatherHourly, WeatherDaily } from '../../hooks/useWeather';
+import type { WeatherHourly, WeatherDaily } from '../../context/weatherContext';
 
 interface Props {
   hourly: WeatherHourly;

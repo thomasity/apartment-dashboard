@@ -1,46 +1,56 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Header  from './components/Header';
-import Home    from './components/home';
-import Weather from './components/weather';
-import Lighting from './components/lighting';
-import Spotify from './components/spotify';
-import TV from './components/tv';
-import VoiceOverlay from './components/voice/VoiceOverlay';
-import { useVoice } from './hooks/useVoice';
+import { useState, useEffect, useRef, useCallback } from "react";
+import Header from "./components/Header";
+import Home from "./components/home";
+import Weather from "./components/weather";
+import Lighting from "./components/lighting";
+import Spotify from "./components/spotify";
+import TV from "./components/tv";
+import VoiceOverlay from "./components/voice/VoiceOverlay";
+import { useVoice } from "./hooks/useVoice";
 
-const TABS      = [
-  { id: 'home',    label: 'Home'    },
-  { id: 'weather', label: 'Weather' },
-  { id: 'lights',  label: 'Lights'  },
-  { id: 'spotify', label: 'Music'   },
-  { id: 'tv',      label: 'TV'      },
+const TABS = [
+  { id: "home", label: "Home" },
+  { id: "weather", label: "Weather" },
+  { id: "lights", label: "Lights" },
+  { id: "spotify", label: "Music" },
+  { id: "tv", label: "TV" },
 ];
 const TAB_ORDER = TABS.map((t) => t.id);
 
-const INACTIVITY_MS  = 5 * 60 * 1000;
-const NAV_HIDE_MS    = 10 * 1000;
+const INACTIVITY_MS = 5 * 60 * 1000;
+const NAV_HIDE_MS = 10 * 1000;
 
 export default function App() {
-  const [tab,             setTab]             = useState('home');
-  const [navVisible,      setNavVisible]      = useState(true);
-  const [spotifyMounted,  setSpotifyMounted]  = useState(false);
-  const { status, transcript, response, start, stop, cancel, interrupt, clearHistory, activeVoice } = useVoice();
+  const [tab, setTab] = useState("home");
+  const [navVisible, setNavVisible] = useState(true);
+  const [spotifyMounted, setSpotifyMounted] = useState(false);
+  const {
+    status,
+    transcript,
+    response,
+    start,
+    stop,
+    cancel,
+    interrupt,
+    clearHistory,
+    activeVoice,
+  } = useVoice();
 
   function handleMicClick() {
-    if (status === 'idle')           start();
-    else if (status === 'listening') stop();
-    else if (status === 'speaking')  interrupt();
-    else                             cancel();
+    if (status === "idle") start();
+    else if (status === "listening") stop();
+    else if (status === "speaking") interrupt();
+    else cancel();
   }
 
-  const touchStart    = useRef<{ x: number; y: number } | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const inactivityRef = useRef<number | null>(null);
-  const navHideRef    = useRef<number | null>(null);
-  const tabRef        = useRef(tab);
+  const navHideRef = useRef<number | null>(null);
+  const tabRef = useRef(tab);
 
   useEffect(() => {
     tabRef.current = tab;
-    if (tab === 'spotify') setSpotifyMounted(true);
+    if (tab === "spotify") setSpotifyMounted(true);
   }, [tab]);
 
   // ── Nav auto-hide: fades out after X s on Home, always visible elsewhere ──
@@ -51,7 +61,7 @@ export default function App() {
 
   useEffect(() => {
     clearTimeout(navHideRef.current ?? undefined);
-    if (tab === 'home') {
+    if (tab === "home") {
       scheduleNavHide();
     } else {
       setNavVisible(true);
@@ -62,12 +72,15 @@ export default function App() {
   // ── Inactivity: reset timer on every touch, return to home on expiry ──
   const resetInactivity = useCallback(() => {
     clearTimeout(inactivityRef.current ?? undefined);
-    inactivityRef.current = setTimeout(() => { setTab('home'); clearHistory(); }, INACTIVITY_MS);
+    inactivityRef.current = setTimeout(() => {
+      setTab("home");
+      clearHistory();
+    }, INACTIVITY_MS);
 
     // Any touch shows the nav; if already on Home, restart the hide countdown
     setNavVisible(true);
     clearTimeout(navHideRef.current ?? undefined);
-    if (tabRef.current === 'home') {
+    if (tabRef.current === "home") {
       navHideRef.current = setTimeout(() => setNavVisible(false), NAV_HIDE_MS);
     }
   }, []);
@@ -79,14 +92,14 @@ export default function App() {
 
   // ── Swipe detection ─────────────────────────────────────────────────
   const handleTouchStart = (e: React.TouchEvent) => {
-    if ((e.target as Element).closest('[data-no-swipe]')) return;
+    if ((e.target as Element).closest("[data-no-swipe]")) return;
     const t = e.touches[0];
     touchStart.current = { x: t.clientX, y: t.clientY };
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return;
-    const t  = e.changedTouches[0];
+    const t = e.changedTouches[0];
     const dx = t.clientX - touchStart.current.x;
     const dy = t.clientY - touchStart.current.y;
     touchStart.current = null;
@@ -95,13 +108,13 @@ export default function App() {
 
     const idx = TAB_ORDER.indexOf(tab);
     if (dx < 0 && idx < TAB_ORDER.length - 1) setTab(TAB_ORDER[idx + 1]);
-    if (dx > 0 && idx > 0)                    setTab(TAB_ORDER[idx - 1]);
+    if (dx > 0 && idx > 0) setTab(TAB_ORDER[idx - 1]);
   };
 
   return (
     <div
       className="relative w-screen overflow-hidden bg-app-bg"
-      style={{ height: '100dvh' }}
+      style={{ height: "100dvh" }}
       onTouchStart={resetInactivity}
     >
       {/* ── Tab content — fills full viewport ── */}
@@ -114,20 +127,26 @@ export default function App() {
           <div
             key={id}
             className={`absolute inset-0 overflow-hidden transition-opacity duration-200 ${
-              tab === id ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            } ${id !== 'home' ? 'pt-[52px] pb-14' : ''}`}
+              tab === id ? "opacity-100" : "opacity-0 pointer-events-none"
+            } ${id !== "home" ? "pt-[52px] pb-14" : ""}`}
           >
-            {id === 'home'    && <Home onNavigate={setTab} micStatus={status} onMicClick={handleMicClick} />}
-            {id === 'weather' && <Weather />}
-            {id === 'lights'  && <Lighting />}
-            {id === 'spotify' && spotifyMounted && <Spotify />}
-            {id === 'tv'      && <TV />}
+            {id === "home" && (
+              <Home
+                onNavigate={setTab}
+                micStatus={status}
+                onMicClick={handleMicClick}
+              />
+            )}
+            {id === "weather" && <Weather />}
+            {id === "lights" && <Lighting />}
+            {id === "spotify" && spotifyMounted && <Spotify />}
+            {id === "tv" && <TV />}
           </div>
         ))}
       </div>
 
       {/* ── Header overlay (non-home tabs only) ── */}
-      {tab !== 'home' && (
+      {tab !== "home" && (
         <div className="absolute top-0 inset-x-0 z-20">
           <Header micStatus={status} onMicClick={handleMicClick} />
         </div>
@@ -135,8 +154,8 @@ export default function App() {
 
       {/* ── Nav overlay — frosted glass, auto-hides on Home ── */}
       <nav
-        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-6 border-t border-muted backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
-          navVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-muted backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
+          navVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
         {TABS.map(({ id, label }) => (
@@ -150,7 +169,9 @@ export default function App() {
             )}
             <span
               className={`text-[11px] font-medium tracking-widest uppercase transition-colors ${
-                tab === id ? 'text-[--color-text]' : 'text-[--color-subtle-text]'
+                tab === id
+                  ? "text-[--color-text]"
+                  : "text-[--color-subtle-text]"
               }`}
             >
               {label}
@@ -159,7 +180,14 @@ export default function App() {
         ))}
       </nav>
 
-      <VoiceOverlay status={status} transcript={transcript} response={response} onCancel={cancel} onInterrupt={interrupt} activeVoice={activeVoice} />
+      <VoiceOverlay
+        status={status}
+        transcript={transcript}
+        response={response}
+        onCancel={cancel}
+        onInterrupt={interrupt}
+        activeVoice={activeVoice}
+      />
     </div>
   );
 }

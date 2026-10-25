@@ -1,118 +1,23 @@
 import express, { type Response } from 'express';
-import axios, { type Method } from 'axios';
+import axios from 'axios';
+import {
+  spotify, fetchAllPages, artistNames,
+  type SpAlbum, type SpDevice, type SpEpisode, type SpPage, type SpPlaylist, type SpSearch, type SpShow, type SpTrack,
+} from '../services/spotifyApi';
+import * as player from '../services/spotifyPlayer';
 
 const router = express.Router();
 
-const CLIENT_ID     = process.env.SPOTIFY_CLIENT_ID;
-const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-
-// ── Spotify Web API shapes (only the fields this file reads) ──────────────────
-
-interface SpImage   { url: string }
-interface SpArtist  { name: string }
-interface SpAlbum   { id: string; uri: string; name: string; artists: SpArtist[]; images?: SpImage[] }
-interface SpShow    { id: string; uri: string; name: string; publisher: string; images?: SpImage[]; total_episodes: number }
-interface SpTrack   { type: 'track'; id: string; uri: string; name: string; artists: SpArtist[]; album?: SpAlbum; duration_ms: number }
-interface SpEpisode { type: 'episode'; id: string; uri: string; name: string; show?: SpShow; images?: SpImage[]; duration_ms: number }
-interface SpPlaylist {
-  id: string; uri: string; name: string; images?: SpImage[] | null;
-  owner: { id: string }; collaborative: boolean; tracks?: { total: number };
-}
-interface SpDevice  { id: string; name: string; type: string; is_active: boolean; volume_percent: number }
-interface SpPlayer {
-  is_playing:     boolean;
-  shuffle_state?: boolean;
-  repeat_state?:  string;
-  progress_ms?:   number;
-  context?:       { type: string; uri: string } | null;
-  item?:          SpTrack | SpEpisode | null;
-  device?:        { name: string; volume_percent: number | null };
-}
-interface SpPage<T> { items: T[]; next: string | null; total: number }
-interface SpSearch {
-  tracks?:    SpPage<SpTrack>;
-  albums?:    SpPage<SpAlbum>;
-  playlists?: SpPage<SpPlaylist | null>;
-  shows?:     SpPage<SpShow | null>;
-  episodes?:  SpPage<SpEpisode | null>;
-}
-
 // ── Payloads sent to the client ───────────────────────────────────────────────
-
-interface NowPlaying {
-  isPlaying: boolean;
-  shuffle:   boolean;
-  repeat:    string;
-  context:   { type: string; uri: string } | null;
-  item: {
-    uri:      string | null;
-    name:     string | undefined;
-    artist:   string | null;
-    album:    string | null;
-    art:      string | null;
-    duration: number;
-    progress: number;
-    type:     string;
-  };
-  device: { name: string | undefined; volume: number };
-}
 
 interface PlaylistSummary { id: string; uri: string; name: string; image: string | null; total: number }
 interface AlbumSummary    { id: string; uri: string; name: string; artist: string; image: string | null }
 
 interface Cache<T> { data: T | null; at: number }
 
-let accessToken: string | null = null;
-let tokenExpiresAt = 0;
-
-let nowPlayingCache: Cache<NowPlaying> = { data: null, at: 0 };
-let nowPlayingBackoff  = 0;
-const NOW_PLAYING_TTL  = 4_000;
-const BACKOFF_DURATION = 30_000;
-
 let playlistsCache: Cache<PlaylistSummary[]> = { data: null, at: 0 };
 let albumsCache:    Cache<AlbumSummary[]>    = { data: null, at: 0 };
 const LIBRARY_TTL  = 10 * 60 * 1000; // 10 minutes
-
-const artistNames = (artists: SpArtist[]) => artists.map((a) => a.name).join(', ');
-
-async function getAccessToken(): Promise<string> {
-  if (Date.now() < tokenExpiresAt && accessToken) return accessToken;
-
-  const { data } = await axios.post<{ access_token: string; expires_in: number }>(
-    'https://accounts.spotify.com/api/token',
-    new URLSearchParams({ grant_type: 'refresh_token', refresh_token: process.env.SPOTIFY_REFRESH_TOKEN ?? '' }),
-    {
-      headers: {
-        'Content-Type':  'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`,
-      },
-    },
-  );
-
-  accessToken    = data.access_token;
-  tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
-  return accessToken;
-}
-
-async function spotify<T = unknown>(method: Method, path: string, data?: unknown) {
-  const token = await getAccessToken();
-  return axios.request<T>({ method, url: `https://api.spotify.com/v1${path}`, data,
-    headers: { Authorization: `Bearer ${token}` } });
-}
-
-// Spotify's Web API paginates list endpoints via a "next" URL — follow it until
-// exhausted and return every item collected along the way.
-async function fetchAllPages<T>(path: string): Promise<T[]> {
-  const items: T[] = [];
-  let url: string | null = path;
-  while (url) {
-    const { data }: { data: SpPage<T> } = await spotify<SpPage<T>>('GET', url);
-    items.push(...data.items);
-    url = data.next ? data.next.replace('https://api.spotify.com/v1', '') : null;
-  }
-  return items;
-}
 
 function spotifyError(label: string, err: unknown, res: Response): void {
   const response   = axios.isAxiosError(err) ? err.response : undefined;
@@ -130,59 +35,8 @@ function spotifyError(label: string, err: unknown, res: Response): void {
 }
 
 router.get('/now-playing', async (_req, res) => {
-  const now = Date.now();
-
-  // Serve cached data during back-off or within TTL
-  if (now < nowPlayingBackoff || now - nowPlayingCache.at < NOW_PLAYING_TTL) {
-    return res.json(nowPlayingCache.data);
-  }
-
-  try {
-    const { data } = await spotify<SpPlayer | ''>('GET', '/me/player?additional_types=track,episode');
-    if (!data) {
-      nowPlayingCache = { data: null, at: now };
-      return res.json(null);
-    }
-    const item    = data.item;
-    const episode = item?.type === 'episode' ? item : undefined;
-    const track   = item?.type === 'track'   ? item : undefined;
-    const payload: NowPlaying = {
-      isPlaying: data.is_playing,
-      shuffle:   data.shuffle_state ?? false,
-      repeat:    data.repeat_state  ?? 'off',
-      context: data.context ? { type: data.context.type, uri: data.context.uri } : null,
-      item: {
-        uri:      item?.uri ?? null,
-        name:     item?.name,
-        artist:   episode ? (episode.show?.name ?? null)          : (track ? artistNames(track.artists) : null),
-        album:    episode ? (episode.show?.publisher ?? null)     : (track?.album?.name ?? null),
-        art:      episode ? (episode.images?.[0]?.url ?? null)    : (track?.album?.images?.[0]?.url ?? null),
-        duration: item?.duration_ms ?? 0,
-        progress: data.progress_ms ?? 0,
-        type:     item?.type ?? 'track',
-      },
-      device: {
-        name:   data.device?.name,
-        volume: data.device?.volume_percent ?? 100,
-      },
-    };
-    nowPlayingCache = { data: payload, at: now };
-    res.json(payload);
-  } catch (err) {
-    const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-    if (status === 204) {
-      nowPlayingCache = { data: null, at: now };
-      return res.json(null);
-    }
-    if (status === 429 && axios.isAxiosError(err)) {
-      const retryAfter = err.response?.headers?.['retry-after'];
-      const backoffMs  = retryAfter ? Number(retryAfter) * 1000 : BACKOFF_DURATION;
-      nowPlayingBackoff = now + backoffMs;
-      console.warn(`[spotify] now-playing: rate limited — Retry-After: ${retryAfter ?? '?'}s (backing off ${backoffMs / 1000}s)`);
-      return res.json(nowPlayingCache.data);
-    }
-    spotifyError('now-playing', err, res);
-  }
+  try { res.json(await player.getNowPlaying()); }
+  catch (err) { spotifyError('now-playing', err, res); }
 });
 
 async function getPlayDeviceId(): Promise<string | null> {
@@ -219,7 +73,7 @@ router.post('/play', async (req, res) => {
     const deviceId = await getPlayDeviceId();
     const params = deviceId ? `?device_id=${deviceId}` : '';
     await spotify('PUT', `/me/player/play${params}`, Object.keys(body).length ? body : undefined);
-    res.json({ ok: true });
+    player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('play', err, res); }
 });
 
@@ -245,17 +99,17 @@ router.get('/playlists', async (_req, res) => {
 });
 
 router.post('/pause',    async (_req, res) => {
-  try { await spotify('PUT',  '/me/player/pause');    res.json({ ok: true }); }
+  try { await spotify('PUT',  '/me/player/pause');    player.refreshSoon(); res.json({ ok: true }); }
   catch (err) { spotifyError('pause', err, res); }
 });
 
 router.post('/next',     async (_req, res) => {
-  try { await spotify('POST', '/me/player/next');     res.json({ ok: true }); }
+  try { await spotify('POST', '/me/player/next');     player.refreshSoon(); res.json({ ok: true }); }
   catch (err) { spotifyError('next', err, res); }
 });
 
 router.post('/previous', async (_req, res) => {
-  try { await spotify('POST', '/me/player/previous'); res.json({ ok: true }); }
+  try { await spotify('POST', '/me/player/previous'); player.refreshSoon(); res.json({ ok: true }); }
   catch (err) { spotifyError('previous', err, res); }
 });
 
@@ -263,7 +117,7 @@ router.post('/seek', async (req, res) => {
   try {
     const { position } = req.body as { position: number };
     await spotify('PUT', `/me/player/seek?position_ms=${position}`);
-    res.json({ ok: true });
+    player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('seek', err, res); }
 });
 
@@ -271,7 +125,7 @@ router.post('/volume', async (req, res) => {
   try {
     const { volume } = req.body as { volume: number };
     await spotify('PUT', `/me/player/volume?volume_percent=${volume}`);
-    res.json({ ok: true });
+    player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('volume', err, res); }
 });
 
@@ -292,7 +146,7 @@ router.post('/shuffle', async (req, res) => {
   try {
     const { state } = req.body as { state: boolean };
     await spotify('PUT', `/me/player/shuffle?state=${state ? 'true' : 'false'}`);
-    res.json({ ok: true });
+    player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('shuffle', err, res); }
 });
 
@@ -300,7 +154,7 @@ router.post('/repeat', async (req, res) => {
   try {
     const { state } = req.body as { state: 'off' | 'context' | 'track' };
     await spotify('PUT', `/me/player/repeat?state=${state}`);
-    res.json({ ok: true });
+    player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('repeat', err, res); }
 });
 
@@ -466,7 +320,7 @@ router.post('/transfer', async (req, res) => {
   try {
     const { deviceId, play } = req.body as { deviceId: string; play?: boolean };
     await spotify('PUT', '/me/player', { device_ids: [deviceId], play: play ?? false });
-    res.json({ ok: true });
+    player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('transfer', err, res); }
 });
 

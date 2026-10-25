@@ -141,6 +141,27 @@ export interface Routine {
   description: string;
 }
 
+// ── Spotify ─────────────────────────────────────────────────────────────────
+
+/** Flattened player state sent to dashboards (GET /api/spotify/now-playing and 'spotify:state'). */
+export interface NowPlaying {
+  isPlaying: boolean;
+  shuffle:   boolean;
+  repeat:    string;
+  context:   { type: string; uri: string } | null;
+  item: {
+    uri:      string | null;
+    name:     string | undefined;
+    artist:   string | null;
+    album:    string | null;
+    art:      string | null;
+    duration: number;
+    progress: number;
+    type:     string;
+  };
+  device: { name: string | undefined; volume: number };
+}
+
 // ── Persisted config (config.json) ──────────────────────────────────────────
 
 export interface ConfigSchema {
@@ -167,6 +188,8 @@ export interface ServerToClientEvents {
   'lighting:rooms':        (rooms: RoomsMap) => void;
   'lighting:override':     (overrides: OverridesMap) => void;
   'lighting:bridge_event': (event: unknown) => void;
+  'spotify:state':         (state: NowPlaying | null) => void;
+  'connectivity':          (state: { online: boolean }) => void;
 }
 
 // The client never emits anything to the server.

@@ -8,14 +8,17 @@ import * as roomsSvc from './services/rooms';
 import overrideSvc from './services/override';
 import * as rulesSvc from './services/rules';
 import * as presenceSvc from './services/presence';
+import * as spotifyPlayer from './services/spotifyPlayer';
+import * as connectivity from './services/connectivity';
 import mockRoutes from './dev/mockRoutes';
-import { lightingState, devicesState, circadianState } from './dev/mockData';
+import { lightingState, devicesState, circadianState, nowPlaying } from './dev/mockData';
 import weatherRouter from './routes/weather';
 import lightingRouter from './routes/lighting';
 import spotifyRouter from './routes/spotify';
 import bluetoothRouter from './routes/bluetooth';
 import tvRouter from './routes/tv';
 import voiceRouter from './routes/voice';
+import connectivityRouter from './routes/connectivity';
 import type { MqttManager } from './mqtt/client';
 import type { AppServer, Rule } from './types';
 
@@ -44,6 +47,7 @@ export function createApp(mqttManager: MqttManager) {
   app.use('/api/bluetooth', bluetoothRouter);
   app.use('/api/tv',        tvRouter);
   app.use('/api/voice',     voiceRouter);
+  app.use('/api/connectivity', connectivityRouter);
 
   if (process.env.NODE_ENV === 'production') {
     const clientBuild = path.join(__dirname, '../client/dist');
@@ -58,14 +62,23 @@ export function createApp(mqttManager: MqttManager) {
       socket.emit('lighting:state', lightingState);
       socket.emit('lighting:devices', devicesState);
       socket.emit('lighting:circadian', circadianState);
+      socket.emit('spotify:state', nowPlaying as never); // mock uses the older `track` shape
     } else {
       socket.emit('lighting:state', mqttManager.getState());
       socket.emit('lighting:devices', mqttManager.getDevicesState());
       socket.emit('lighting:circadian', circadian.getState());
       socket.emit('lighting:rooms', roomsSvc.get());
       socket.emit('lighting:override', overrideSvc.getState());
+      const online = connectivity.lastKnown();
+      if (online !== null) socket.emit('connectivity', { online });
     }
   });
+
+  connectivity.events.on('change', (online) => {
+    io.emit('connectivity', { online });
+  });
+
+  if (!IS_DEV) spotifyPlayer.attach(io);
 
   mqttManager.on('stateChange', (state) => {
     io.emit('lighting:state', state);

@@ -8,6 +8,7 @@ import ClockDisplay   from './ClockDisplay';
 import SpotifyStrip   from './SpotifyStrip';
 import WeatherStrip   from './WeatherStrip';
 import { MicrophoneIcon } from '../icons';
+import { useConnectivity } from '../../hooks/useConnectivity';
 
 const ROTATION_MS  = 30 * 60 * 1000;
 const currentEpoch = () => Math.floor(Date.now() / ROTATION_MS);
@@ -24,6 +25,8 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
   const now                 = useClock();
   const { data: weather }   = useWeather();
   const { state: spotify, control, setVolume } = useSpotify();
+  const { online }          = useConnectivity();
+  const micDisabled         = !online && micStatus === 'idle';
   const preDuckVolume = useRef<number | null>(null);
 
   useEffect(() => {
@@ -108,11 +111,15 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
 
       <button
         onClick={onMicClick}
+        disabled={micDisabled}
+        title={micDisabled ? 'Voice needs an internet connection' : undefined}
         data-no-swipe
         className={`absolute bottom-20 right-5 flex items-center justify-center w-14 h-14 rounded-full border backdrop-blur-sm transition-colors touch-manipulation ${
           micStatus !== 'idle'
             ? 'bg-red-500/20 border-red-500/50 text-red-400'
-            : 'bg-black/30 border-white/15 text-white/40'
+            : micDisabled
+              ? 'bg-black/30 border-white/10 text-white/15'
+              : 'bg-black/30 border-white/15 text-white/40'
         }`}
       >
         <MicrophoneIcon />

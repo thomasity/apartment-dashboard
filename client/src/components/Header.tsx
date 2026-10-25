@@ -1,6 +1,7 @@
 import { useClock }   from '../hooks/useClock';
 import { useWeather } from '../hooks/useWeather';
 import { useSpotify } from '../hooks/useSpotify';
+import { useConnectivity } from '../hooks/useConnectivity';
 import { wmo }        from '../lib/wmo';
 import type { VoiceStatus } from '../hooks/useVoice';
 import { MicrophoneIcon } from './icons';
@@ -14,7 +15,10 @@ export default function Header({ micStatus, onMicClick }: Props) {
   const now             = useClock();
   const { data }        = useWeather();
   const { state: spot } = useSpotify();
+  const { online }      = useConnectivity();
   const current         = data?.current ?? null;
+  // Voice needs Claude + ElevenLabs. Only block starting — an in-progress session can still be stopped.
+  const micDisabled     = !online && micStatus === 'idle';
 
   const h      = now.getHours();
   const m      = String(now.getMinutes()).padStart(2, '0');
@@ -48,6 +52,12 @@ export default function Header({ micStatus, onMicClick }: Props) {
       )}
 
       <div className="flex items-center gap-3">
+        {!online && (
+          <div className="flex items-center gap-1.5 select-none" title="The hub can't reach the internet — music, weather and voice are paused">
+            <span className="w-2 h-2 rounded-full bg-white/20" />
+            <span className="text-xs text-white/40">Offline</span>
+          </div>
+        )}
         {current && (
           <div className="flex items-center gap-2 select-none">
             <span className="text-lg leading-none">{wmo(current.weather_code).icon}</span>
@@ -58,11 +68,15 @@ export default function Header({ micStatus, onMicClick }: Props) {
         )}
         <button
           onClick={onMicClick}
+          disabled={micDisabled}
+          title={micDisabled ? 'Voice needs an internet connection' : undefined}
           data-no-swipe
           className={`flex items-center justify-center w-8 h-8 rounded-full border transition-colors touch-manipulation ${
             micStatus !== 'idle'
               ? 'bg-red-500/20 border-red-500/50 text-red-400'
-              : 'bg-white/5 border-white/15 text-white/40 hover:text-white/60 hover:border-white/25'
+              : micDisabled
+                ? 'bg-white/5 border-white/10 text-white/15'
+                : 'bg-white/5 border-white/15 text-white/40 hover:text-white/60 hover:border-white/25'
           }`}
         >
           <MicrophoneIcon size={16} />

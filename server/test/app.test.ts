@@ -2,6 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connectSocket, type Socket } from 'socket.io-client';
+import request from 'supertest';
+import { mockAxios } from './helpers/http';
 import { bulb } from './helpers/fakeMqtt';
 import { writeConfig } from './helpers/config';
 import { startApp } from './helpers/app';
@@ -48,6 +50,38 @@ describe('socket.io', () => {
     ctx.client.deliver('zigbee2mqtt/Lamp', { brightness: 254 });
 
     expect(await update).toMatchObject({ groups: { Lamp: { brightness: 100 } } });
+  });
+});
+
+describe('spotify over socket.io', () => {
+  let socket: Socket;
+  afterEach(() => { socket?.disconnect(); });
+
+  it('pushes now-playing on connect, and again after a control command', async () => {
+    let playing = true;
+    mockAxios({
+      'POST https://accounts.spotify.com/api/token': () => ({ access_token: 't', expires_in: 3600 }),
+      'PUT https://api.spotify.com/v1/me/player/pause': () => { playing = false; return { status: 204 }; },
+      'GET https://api.spotify.com/v1/me/player': () => ({
+        is_playing: playing, progress_ms: 0,
+        item: { type: 'track', id: 't', uri: 'spotify:track:t', name: 'Song', duration_ms: 200_000, artists: [] },
+      }),
+    });
+    writeConfig();
+    ctx = await startApp();
+    const url = await ctx.listen();
+    socket = connectSocket(url, { transports: ['websocket'] });
+
+    const states: Array<{ isPlaying: boolean } | null> = [];
+    const next = () => new Promise<void>((resolve) => socket.once('spotify:state', (s) => { states.push(s); resolve(); }));
+
+    await next();
+    expect(states[0]).toMatchObject({ isPlaying: true, item: { name: 'Song' } });
+
+    const paused = next();
+    await request(ctx.app).post('/api/spotify/pause').expect(200);
+    await paused;
+    expect(states[1]).toMatchObject({ isPlaying: false });
   });
 });
 
