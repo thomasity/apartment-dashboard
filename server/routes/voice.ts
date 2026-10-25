@@ -392,7 +392,6 @@ interface NowPlayingLite {
   shuffle:   boolean;
   repeat:    string;
   item?:     { name?: string; artist?: string | null } | null;
-  track?:    { name?: string; artist?: string | null } | null; // mock-data shape
   device?:   { volume?: number };
 }
 interface WeatherLite { current?: { temperature_2m?: number; weather_code?: number } }
@@ -447,7 +446,7 @@ async function buildContext(base: string, room: string | null = null): Promise<s
       if (spRes.ok) spotifyContextCache = { data: await spRes.json() as NowPlayingLite | null, at: Date.now() };
     }
     const sp    = spotifyContextCache.data;
-    const track = (sp?.item ?? sp?.track)?.name;
+    const track = sp?.item?.name;
     if (sp?.isPlaying && track) parts.push(`Spotify: ${track} playing`);
   } catch {}
 
@@ -508,7 +507,7 @@ const toolHandlers: ToolHandlers = {
     const lights  = await lightsRes.json().catch(() => null)  as LightingState | null;
     const spotify = await spotifyRes.json().catch(() => null) as NowPlayingLite | null;
     const tv      = await tvRes.json().catch(() => null)      as TvStatusLite | null;
-    const playing = spotify?.item ?? spotify?.track;
+    const playing = spotify?.item;
 
     return {
       lights: lights ? {

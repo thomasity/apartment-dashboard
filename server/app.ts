@@ -10,8 +10,8 @@ import * as rulesSvc from './services/rules';
 import * as presenceSvc from './services/presence';
 import * as spotifyPlayer from './services/spotifyPlayer';
 import * as connectivity from './services/connectivity';
-import mockRoutes from './dev/mockRoutes';
-import { lightingState, devicesState, circadianState, nowPlaying } from './dev/mockData';
+import { MOCK } from './dev/mock';
+import { createMockRouter } from './dev/mockRoutes';
 import weatherRouter from './routes/weather';
 import lightingRouter from './routes/lighting';
 import spotifyRouter from './routes/spotify';
@@ -25,8 +25,6 @@ import type { AppServer, Rule } from './types';
 // Builds the Express app, socket.io server and service wiring without listening or
 // connecting to MQTT — index.ts does those, and tests pass in a manager with a fake client.
 export function createApp(mqttManager: MqttManager) {
-  const IS_DEV = process.env.PROD === 'false';
-
   const app = express();
   const server = http.createServer(app);
   const io: AppServer = new Server(server, {
@@ -36,10 +34,9 @@ export function createApp(mqttManager: MqttManager) {
   app.use(cors());
   app.use(express.json());
 
-  if (IS_DEV) {
-    console.log('[dev] PROD=false — serving mock data');
-    app.use('/api', mockRoutes);
-  }
+  // Mock mode replaces the external services; lighting stays real (on a fake Zigbee bridge).
+  const mock = MOCK ? createMockRouter(io) : null;
+  if (mock) app.use('/api', mock.router);
 
   app.use('/api/weather',   weatherRouter);
   app.use('/api/lighting',  lightingRouter(io, mqttManager));
@@ -58,27 +55,26 @@ export function createApp(mqttManager: MqttManager) {
   }
 
   io.on('connection', (socket) => {
-    if (IS_DEV) {
-      socket.emit('lighting:state', lightingState);
-      socket.emit('lighting:devices', devicesState);
-      socket.emit('lighting:circadian', circadianState);
-      socket.emit('spotify:state', nowPlaying as never); // mock uses the older `track` shape
+    socket.emit('lighting:state', mqttManager.getState());
+    socket.emit('lighting:devices', mqttManager.getDevicesState());
+    socket.emit('lighting:circadian', circadian.getState());
+    socket.emit('lighting:rooms', roomsSvc.get());
+    socket.emit('lighting:override', overrideSvc.getState());
+    if (mock) {
+      socket.emit('spotify:state', mock.spotifySnapshot());
+      socket.emit('connectivity', { online: true });
     } else {
-      socket.emit('lighting:state', mqttManager.getState());
-      socket.emit('lighting:devices', mqttManager.getDevicesState());
-      socket.emit('lighting:circadian', circadian.getState());
-      socket.emit('lighting:rooms', roomsSvc.get());
-      socket.emit('lighting:override', overrideSvc.getState());
       const online = connectivity.lastKnown();
       if (online !== null) socket.emit('connectivity', { online });
     }
   });
 
-  connectivity.events.on('change', (online) => {
-    io.emit('connectivity', { online });
-  });
-
-  if (!IS_DEV) spotifyPlayer.attach(io);
+  if (!mock) {
+    connectivity.events.on('change', (online) => {
+      io.emit('connectivity', { online });
+    });
+    spotifyPlayer.attach(io);
+  }
 
   mqttManager.on('stateChange', (state) => {
     io.emit('lighting:state', state);

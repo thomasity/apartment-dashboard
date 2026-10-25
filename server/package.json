@@ -4,6 +4,7 @@
   "main": "index.ts",
   "scripts": {
     "dev": "tsx watch index.ts",
+    "dev:mock": "MOCK=true tsx watch index.ts",
     "start": "tsx index.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p test",
     "test": "vitest run",

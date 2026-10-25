@@ -43,6 +43,19 @@ npm run dev
 
 Open `http://localhost:5173` in your browser.
 
+### Mock mode (no hardware or API keys)
+
+```bash
+npm run dev:mock
+```
+
+Runs the same dev servers with `MOCK=true`. Spotify, the Roku, Bluetooth, weather, voice and
+the connectivity check are replaced by stateful fakes (`server/dev/mockRoutes.ts`), and the
+lighting stack runs for real against a simulated Zigbee2MQTT bridge (`server/dev/fakeZigbee.ts`)
+with a handful of bulbs, one offline bulb and a presence sensor. Rooms, rules and presence
+config are seeded into a temp file, so your `server/config.json` is never touched — restart to
+reset. Seed data lives in `server/dev/mockData.ts`. You can also set `MOCK=true` in `.env`.
+
 ---
 
 ## Configuration (`.env`)

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev:mock": "MOCK=true npm run dev",
     "build": "npm --prefix client run build",
     "start": "NODE_ENV=production npm --prefix server start",
     "test": "npm --prefix server test",
