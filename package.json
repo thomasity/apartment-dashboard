@@ -6,6 +6,8 @@
     "dev": "concurrently -n server,client -c cyan,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "build": "npm --prefix client run build",
     "start": "NODE_ENV=production npm --prefix server start",
+    "test": "npm --prefix server test",
+    "check": "npm --prefix server run typecheck && npm --prefix server test",
     "install:all": "npm install && npm --prefix server install && npm --prefix client install"
   },
   "devDependencies": {

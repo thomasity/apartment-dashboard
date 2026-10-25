@@ -91,10 +91,14 @@ export class MqttManager extends EventEmitter<MqttEvents> {
     const brokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883';
     console.log(`Connecting to MQTT at ${brokerUrl}...`);
 
-    const client = mqtt.connect(brokerUrl, {
+    this.attach(mqtt.connect(brokerUrl, {
       connectTimeout: 5000,
       reconnectPeriod: 30000,
-    });
+    }));
+  }
+
+  // Wires up an already-created client. Split from connect() so tests can hand in a fake.
+  attach(client: MqttClient): void {
     this.client = client;
 
     client.on('connect', () => {
@@ -378,6 +382,5 @@ export class MqttManager extends EventEmitter<MqttEvents> {
   }
 }
 
-const manager = new MqttManager();
-manager.connect();
-export default manager;
+// Not connected on import — the entry point calls connect() so tests can import freely.
+export default new MqttManager();

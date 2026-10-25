@@ -66,6 +66,22 @@ When the MQTT broker is unreachable, lighting controls still work visually (stat
 
 ---
 
+## Testing
+
+```bash
+npm test              # run the server test suite once (~6s)
+npm run check         # typecheck + tests — run before pushing to the Pi
+npm --prefix server run test:watch   # re-run on save while developing
+```
+
+The tests need no hardware: `server/test/helpers/fakeMqtt.ts` plays the part of
+Zigbee2MQTT, Roku/Spotify/Open-Meteo are mocked at the axios layer, `bluetoothctl`
+and UDP (Wake-on-LAN, SSDP) are stubbed, and Claude's replies are scripted. Tests use a
+temp config file and refuse unmocked network requests, so they never touch
+`server/config.json` or real devices.
+
+---
+
 ## Production Build (Raspberry Pi Zero 2 W)
 
 ```bash

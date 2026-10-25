@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "tsx watch index.ts",
     "start": "tsx index.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "spotify-auth": "tsx scripts/spotify-auth.ts"
   },
   "dependencies": {
@@ -24,6 +26,10 @@
     "@types/express": "^4.17.25",
     "@types/node": "^20.19.43",
     "@types/suncalc": "^1.9.2",
-    "typescript": "^5.9.3"
+    "@types/supertest": "^7.2.1",
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.3.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
   }
 }
