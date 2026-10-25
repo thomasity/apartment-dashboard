@@ -7,6 +7,7 @@ import Spotify from "./components/spotify";
 import TV from "./components/tv";
 import VoiceOverlay from "./components/voice/VoiceOverlay";
 import { useVoice } from "./hooks/useVoice";
+import styles from './App.module.css';
 
 const TABS = [
   { id: "home", label: "Home" },
@@ -94,12 +95,13 @@ export default function App() {
   const handleTouchStart = (e: React.TouchEvent) => {
     if ((e.target as Element).closest("[data-no-swipe]")) return;
     const t = e.touches[0];
+    if (!t) return;
     touchStart.current = { x: t.clientX, y: t.clientY };
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart.current) return;
     const t = e.changedTouches[0];
+    if (!touchStart.current || !t) return;
     const dx = t.clientX - touchStart.current.x;
     const dy = t.clientY - touchStart.current.y;
     touchStart.current = null;
@@ -107,28 +109,27 @@ export default function App() {
     if (Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.65) return;
 
     const idx = TAB_ORDER.indexOf(tab);
-    if (dx < 0 && idx < TAB_ORDER.length - 1) setTab(TAB_ORDER[idx + 1]);
-    if (dx > 0 && idx > 0) setTab(TAB_ORDER[idx - 1]);
+    const next = TAB_ORDER[dx < 0 ? idx + 1 : idx - 1];
+    if (next) setTab(next);
   };
 
   return (
     <div
-      className="relative w-screen overflow-hidden bg-app-bg"
-      style={{ height: "100dvh" }}
+      className={styles.root}
       onTouchStart={resetInactivity}
     >
       {/* ── Tab content — fills full viewport ── */}
       <div
-        className="absolute inset-0"
+        className={styles.tabs}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         {TABS.map(({ id }) => (
           <div
             key={id}
-            className={`absolute inset-0 overflow-hidden transition-opacity duration-200 ${
-              tab === id ? "opacity-100" : "opacity-0 pointer-events-none"
-            } ${id !== "home" ? "pt-[52px] pb-14" : ""}`}
+            className={`${styles.panel} ${
+              tab === id ? styles.visible : styles.hidden
+            } ${id !== "home" ? styles.panelInset : ""}`}
           >
             {id === "home" && (
               <Home
@@ -147,31 +148,31 @@ export default function App() {
 
       {/* ── Header overlay (non-home tabs only) ── */}
       {tab !== "home" && (
-        <div className="absolute top-0 inset-x-0 z-20">
+        <div className={styles.header}>
           <Header micStatus={status} onMicClick={handleMicClick} />
         </div>
       )}
 
       {/* ── Nav overlay — frosted glass, auto-hides on Home ── */}
       <nav
-        className={`absolute bottom-0 inset-x-0 z-20 grid grid-cols-5 border-t border-muted backdrop-blur-xl bg-black/30 transition-opacity duration-700 ${
-          navVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        className={`${styles.nav} ${
+          navVisible ? styles.visible : styles.hidden
         }`}
       >
         {TABS.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className="relative flex items-center justify-center h-14 touch-manipulation"
+            className={styles.navButton}
           >
             {tab === id && (
-              <span className="absolute top-0 left-8 right-8 h-px bg-white/40 rounded-full" />
+              <span className={styles.navIndicator} />
             )}
             <span
-              className={`text-[11px] font-medium tracking-widest uppercase transition-colors ${
+              className={`${styles.navLabel} ${
                 tab === id
-                  ? "text-[--color-text]"
-                  : "text-[--color-subtle-text]"
+                  ? styles.navLabelActive
+                  : styles.navLabelIdle
               }`}
             >
               {label}

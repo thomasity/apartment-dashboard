@@ -1,4 +1,5 @@
-import type { VoiceStatus } from '../../hooks/useVoice';
+import type { VoiceStatus } from '../../types';
+import styles from './VoiceOverlay.module.css';
 
 interface Props {
   status: VoiceStatus;
@@ -25,25 +26,25 @@ export default function VoiceOverlay({ status, transcript, response, onCancel, o
 
   return (
     <div
-      className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center"
+      className={styles.backdrop}
       onClick={status === 'speaking' ? onInterrupt : onCancel}
     >
       <div
-        className="bg-black/60 border border-white/10 rounded-2xl px-6 py-5 max-w-xs w-[85%] flex flex-col gap-3"
+        className={styles.panel}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-[11px] font-medium tracking-widest uppercase text-[--color-subtle-text]">
+        <p className={styles.status}>
           {STATUS_LABEL[status]}
         </p>
         {bodyText && (
-          <p className="text-sm text-[--color-text] leading-relaxed">{bodyText}</p>
+          <p className={styles.transcript}>{bodyText}</p>
         )}
         {status === 'processing' && (
-          <div className="flex gap-1.5 mt-1">
+          <div className={styles.dots}>
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce"
+                className={styles.dot}
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { PencilIcon, TrashIcon, CheckIcon } from '../icons';
-import type { Socket } from 'socket.io-client';
 import type { RoomsMap, PresenceEntry, SensorsMap, DeviceExpose } from '../../types';
+import styles from './DevicesView.module.css';
 
 const SCAN_DURATION = 254;
 
@@ -28,9 +28,7 @@ function getRoomForDevice(name: string, rooms: RoomsMap): string | null {
 }
 
 interface Props {
-  socket: Socket | null;
   devState: DevicesState;
-  setDevState: React.Dispatch<React.SetStateAction<DevicesState>>;
   rooms: RoomsMap;
   onCreateRoom: (name: string) => void;
   onRenameRoom: (oldName: string, newName: string) => void;
@@ -38,7 +36,7 @@ interface Props {
   onAssignDevice: (deviceName: string, roomName: string | null) => void;
 }
 
-export default function DevicesView({ socket, devState, setDevState, rooms, onCreateRoom, onRenameRoom, onDeleteRoom, onAssignDevice }: Props) {
+export default function DevicesView({ devState, rooms, onCreateRoom, onRenameRoom, onDeleteRoom, onAssignDevice }: Props) {
   // Scan state
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [draftName, setDraftName]       = useState('');
@@ -184,26 +182,26 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
   const visible = devState.devices.filter((d) => d.type !== 'Coordinator');
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-8 py-6 gap-6 relative">
+    <div className={styles.root}>
 
       {/* ── Room Management ── */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] uppercase tracking-widest text-white/30 font-medium">Rooms</span>
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <span className={styles.sectionTitle}>Rooms</span>
           <button
             onClick={() => { setAddingRoom(true); setNewRoomName(''); }}
-            className="text-xs text-white/30 hover:text-white/60 touch-manipulation transition-colors"
+            className={styles.textButton}
           >
             + Add Room
           </button>
         </div>
 
         {Object.keys(rooms).length === 0 && !addingRoom ? (
-          <p className="text-[11px] text-white/15 italic">No rooms yet — create one to group your lights</p>
+          <p className={styles.emptyNote}>No rooms yet — create one to group your lights</p>
         ) : (
-          <div className="flex flex-col gap-1">
+          <div className={styles.roomList}>
             {Object.keys(rooms).map((name) => (
-              <div key={name} className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-white/[0.04]">
+              <div key={name} className={styles.roomRow}>
                 {editingRoom === name ? (
                   <input
                     autoFocus
@@ -214,31 +212,31 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                       if (e.key === 'Enter') submitRenameRoom(name);
                       if (e.key === 'Escape') setEditingRoom(null);
                     }}
-                    className="flex-1 bg-white/[0.08] text-white/80 text-sm rounded px-2 py-0.5 outline-none ring-1 ring-strong"
+                    className={styles.roomRenameInput}
                   />
                 ) : (
                   <>
-                    <span className="flex-1 text-sm text-white/60">{name}</span>
-                    <span className="text-[10px] text-white/20">{(rooms[name] ?? []).length} lights</span>
+                    <span className={styles.roomName}>{name}</span>
+                    <span className={styles.roomCount}>{(rooms[name] ?? []).length} lights</span>
                   </>
                 )}
                 {/* Add devices to room */}
                 <button
                   onClick={() => setPickerRoom(name)}
-                  className="p-1.5 text-white/25 hover:text-white/60 touch-manipulation transition-colors text-base leading-none"
+                  className={styles.roomAddDevices}
                   title="Add devices"
                 >
                   +
                 </button>
                 <button
                   onClick={() => { setEditingRoom(name); setDraftRoomName(name); }}
-                  className="p-1.5 text-white/20 hover:text-white/50 touch-manipulation transition-colors"
+                  className={styles.roomRename}
                 >
                   <PencilIcon />
                 </button>
                 <button
                   onClick={() => onDeleteRoom(name)}
-                  className="p-1.5 text-white/20 hover:text-danger/60 touch-manipulation transition-colors"
+                  className={styles.roomDelete}
                 >
                   <TrashIcon />
                 </button>
@@ -256,7 +254,7 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                   if (e.key === 'Escape') setAddingRoom(false);
                 }}
                 placeholder="Room name…"
-                className="px-3 py-2 bg-white/[0.06] text-white/80 placeholder-white/20 text-sm rounded-lg outline-none ring-1 ring-strong"
+                className={styles.newRoomInput}
               />
             )}
           </div>
@@ -264,11 +262,11 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
       </div>
 
       {/* ── Devices ── */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${devState.bridgeOnline ? 'bg-online' : 'bg-white/20'}`} />
-            <span className="text-[11px] uppercase tracking-widest text-white/40">
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <div className={styles.bridgeStatus}>
+            <span className={`${styles.statusDot} ${devState.bridgeOnline ? styles.statusDotOnline : styles.statusDotOffline}`} />
+            <span className={styles.bridgeLabel}>
               {devState.bridgeOnline
                 ? `${visible.length} device${visible.length !== 1 ? 's' : ''}`
                 : 'Bridge offline'}
@@ -277,25 +275,25 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
           <button
             onClick={toggleScan}
             disabled={!devState.bridgeOnline}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
+            className={`${styles.scanButton} ${
               devState.pairing
-                ? 'bg-accent/15 text-accent ring-1 ring-accent/30'
-                : 'bg-white/[0.06] text-white/40 hover:bg-white/[0.10] disabled:opacity-30'
+                ? styles.scanning
+                : styles.scanIdle
             }`}
           >
-            {devState.pairing && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
+            {devState.pairing && <span className={styles.scanDot} />}
             {devState.pairing ? `Stop  ${fmt(countdown)}` : 'Scan'}
           </button>
         </div>
 
         {devState.pairing && (
-          <p className="text-center text-[11px] text-white/25">Power-cycle your bulb to pair it</p>
+          <p className={styles.pairHint}>Power-cycle your bulb to pair it</p>
         )}
 
         {visible.length === 0 ? (
-          <p className="text-center text-[11px] text-white/20 uppercase tracking-widest pt-4">No devices paired</p>
+          <p className={styles.emptyDevices}>No devices paired</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className={styles.deviceList}>
             {visible.map((d) => {
               const isNew      = newDeviceIds.has(d.ieee_address);
               const avail      = devState.availability ?? {};
@@ -306,11 +304,11 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
               return (
                 <div
                   key={d.ieee_address}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-card transition-colors ${
-                    isNew ? 'bg-accent/10 ring-1 ring-accent/20' : 'bg-white/[0.04]'
+                  className={`${styles.deviceCard} ${
+                    isNew ? styles.deviceCardNew : styles.deviceCardIdle
                   }`}
                 >
-                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <div className={styles.deviceInfo}>
                     {editingId === d.ieee_address ? (
                       <input
                         autoFocus
@@ -321,43 +319,43 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                           if (e.key === 'Enter')  submitRename(d.friendly_name);
                           if (e.key === 'Escape') setEditingId(null);
                         }}
-                        className="bg-white/[0.08] text-white/80 text-sm rounded-lg px-2 py-0.5 outline-none ring-1 ring-strong w-full"
+                        className={styles.deviceRenameInput}
                       />
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className={styles.deviceNameRow}>
                         {knowsAvail && (
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOffline ? 'bg-danger/60' : 'bg-online/60'}`} />
+                          <span className={`${styles.availDot} ${isOffline ? styles.availDotOffline : styles.availDotOnline}`} />
                         )}
-                        <span className={`text-sm truncate ${isOffline ? 'text-white/30' : 'text-white/70'}`}>{d.friendly_name}</span>
-                        {isNew && <span className="text-[10px] text-accent uppercase tracking-wider">New</span>}
-                        {isOffline && <span className="text-[10px] text-white/25 uppercase tracking-wider">Offline</span>}
+                        <span className={`${styles.deviceName} ${isOffline ? styles.deviceNameOffline : styles.deviceNameOnline}`}>{d.friendly_name}</span>
+                        {isNew && <span className={styles.newTag}>New</span>}
+                        {isOffline && <span className={styles.offlineTag}>Offline</span>}
                       </div>
                     )}
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-white/20">
+                    <div className={styles.deviceMeta}>
+                      <span className={styles.deviceType}>
                         {d.definition?.description ?? (d.type === 'Router' ? 'Router' : 'Device')}
                       </span>
                       {deviceRoom && (
-                        <span className="text-[10px] text-white/25">· {deviceRoom}</span>
+                        <span className={styles.deviceRoom}>· {deviceRoom}</span>
                       )}
                     </div>
                     {d.friendly_name in sensors && (() => {
                       const occ   = sensors[d.friendly_name]?.occupancy ?? null;
                       const entry = presence.find((p) => p.sensor === d.friendly_name);
                       return (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${occ ? 'bg-online' : 'bg-white/20'}`} />
-                          <span className="text-[10px] text-white/25">
+                        <div className={styles.presenceRow}>
+                          <span className={`${styles.presenceDot} ${occ ? styles.presenceDotOccupied : styles.presenceDotIdle}`} />
+                          <span className={styles.presenceLabel}>
                             {occ === null ? 'Presence unknown' : occ ? 'Occupied' : 'Vacant'}
                           </span>
                           {entry && (
-                            <span className="text-[10px] text-white/20">
+                            <span className={styles.presenceEntry}>
                               · {entry.room} · {entry.vacantAfterMinutes}m off / {(entry.manualOffCooldownMinutes / 60).toFixed(1)}h cooldown{!entry.enabled ? ' · disabled' : ''}
                             </span>
                           )}
                           <button
                             onClick={() => openPresenceConfig(d.friendly_name)}
-                            className="text-[10px] text-accent/70 hover:text-accent touch-manipulation transition-colors"
+                            className={styles.presenceSetup}
                           >
                             {entry ? 'Edit' : 'Set up as trigger'}
                           </button>
@@ -365,10 +363,10 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                       );
                     })()}
                   </div>
-                  <button onClick={() => startEdit(d)} className="p-2 text-white/20 hover:text-white/50 touch-manipulation transition-colors">
+                  <button onClick={() => startEdit(d)} className={styles.deviceEdit}>
                     <PencilIcon />
                   </button>
-                  <button onClick={() => removeDevice(d.friendly_name)} className="p-2 text-white/20 hover:text-danger/60 touch-manipulation transition-colors">
+                  <button onClick={() => removeDevice(d.friendly_name)} className={styles.deviceRemove}>
                     <TrashIcon />
                   </button>
                 </div>
@@ -380,13 +378,13 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
 
       {/* ── Room device picker ── */}
       {pickerRoom && (
-        <div className="absolute inset-0 z-30 flex flex-col justify-end" onClick={() => setPickerRoom(null)}>
-          <div className="bg-zinc-900 border-t border-white/10 px-4 pt-4 pb-6 rounded-t-2xl" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm font-medium text-white/60 mb-1">{pickerRoom}</p>
-            <p className="text-[11px] text-white/25 mb-4">Tap a device to add or remove it from this room</p>
-            <div className="flex flex-col gap-1">
+        <div className={styles.sheetBackdrop} onClick={() => setPickerRoom(null)}>
+          <div className={styles.pickerSheet} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.sheetTitle}>{pickerRoom}</p>
+            <p className={styles.sheetHint}>Tap a device to add or remove it from this room</p>
+            <div className={styles.pickerList}>
               {visible.length === 0 ? (
-                <p className="text-center text-white/20 text-xs py-4">No devices paired</p>
+                <p className={styles.pickerEmpty}>No devices paired</p>
               ) : visible.map((d) => {
                 const inThisRoom = (rooms[pickerRoom] ?? []).includes(d.friendly_name);
                 const otherRoom  = !inThisRoom ? getRoomForDevice(d.friendly_name, rooms) : null;
@@ -394,12 +392,12 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                   <button
                     key={d.ieee_address}
                     onClick={() => toggleDeviceInRoom(d.friendly_name, pickerRoom)}
-                    className="flex items-center justify-between px-3 py-3 rounded-lg hover:bg-white/[0.06] touch-manipulation transition-colors"
+                    className={styles.pickerItem}
                   >
-                    <div className="flex flex-col items-start gap-0.5">
-                      <span className={`text-sm ${inThisRoom ? 'text-white/80' : 'text-white/45'}`}>{d.friendly_name}</span>
+                    <div className={styles.pickerItemText}>
+                      <span className={`${styles.pickerItemName} ${inThisRoom ? styles.pickerItemNameIn : styles.pickerItemNameOut}`}>{d.friendly_name}</span>
                       {otherRoom && (
-                        <span className="text-[10px] text-white/25">Currently in {otherRoom}</span>
+                        <span className={styles.pickerItemRoom}>Currently in {otherRoom}</span>
                       )}
                     </div>
                     {inThisRoom && <CheckIcon size={16} />}
@@ -413,32 +411,32 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
 
       {/* ── Presence trigger config ── */}
       {presenceSheetFor && (
-        <div className="absolute inset-0 z-30 flex flex-col justify-end" onClick={() => setPresenceSheetFor(null)}>
+        <div className={styles.sheetBackdrop} onClick={() => setPresenceSheetFor(null)}>
           <div
-            className="bg-zinc-900 border-t border-white/10 px-5 pt-5 pb-8 rounded-t-2xl flex flex-col gap-5 max-h-[85%] overflow-y-auto"
+            className={styles.presenceSheet}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-white/60">Presence Trigger</span>
-              <button onClick={() => setPresenceSheetFor(null)} className="text-white/30 hover:text-white/60 text-xl leading-none touch-manipulation">✕</button>
+            <div className={styles.sheetHeader}>
+              <span className={styles.presenceSheetTitle}>Presence Trigger</span>
+              <button onClick={() => setPresenceSheetFor(null)} className={styles.sheetClose}>✕</button>
             </div>
-            <p className="text-[11px] text-white/25 -mt-3">{presenceSheetFor}</p>
+            <p className={styles.presenceSheetSubtitle}>{presenceSheetFor}</p>
 
             {/* Room */}
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] uppercase tracking-widest text-white/30">Room</label>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>Room</label>
               {Object.keys(rooms).length === 0 ? (
-                <p className="text-[11px] text-white/20 italic">No rooms yet — create one above first.</p>
+                <p className={styles.fieldEmpty}>No rooms yet — create one above first.</p>
               ) : (
-                <div className="flex flex-wrap gap-2">
+                <div className={styles.chips}>
                   {Object.keys(rooms).map((r) => (
                     <button
                       key={r}
                       onClick={() => setPresenceForm((f) => ({ ...f, room: r }))}
-                      className={`px-3 py-1.5 rounded-full text-xs touch-manipulation transition-colors ${
+                      className={`${styles.chip} ${
                         presenceForm.room === r
-                          ? 'bg-white/[0.15] text-white/80'
-                          : 'bg-white/[0.05] text-white/35 hover:bg-white/[0.10]'
+                          ? styles.chipSelected
+                          : styles.chipIdle
                       }`}
                     >
                       {r}
@@ -449,45 +447,45 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
             </div>
 
             {/* Vacancy timeout */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] uppercase tracking-widest text-white/30">Turn off after vacant</label>
-                <span className="text-[10px] text-white/40">{presenceForm.vacantAfterMinutes} min</span>
+            <div className={styles.sliderField}>
+              <div className={styles.fieldHeader}>
+                <label className={styles.fieldLabel}>Turn off after vacant</label>
+                <span className={styles.fieldValue}>{presenceForm.vacantAfterMinutes} min</span>
               </div>
               <input
                 type="range" min="1" max="60"
                 value={presenceForm.vacantAfterMinutes}
                 onChange={(e) => setPresenceForm((f) => ({ ...f, vacantAfterMinutes: Number(e.target.value) }))}
-                className="w-full accent-white/60"
+                className={styles.rangeInput}
               />
             </div>
 
             {/* Manual-off cooldown */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] uppercase tracking-widest text-white/30">Manual-off cooldown</label>
-                <span className="text-[10px] text-white/40">{(presenceForm.manualOffCooldownMinutes / 60).toFixed(1)} hr</span>
+            <div className={styles.sliderField}>
+              <div className={styles.fieldHeader}>
+                <label className={styles.fieldLabel}>Manual-off cooldown</label>
+                <span className={styles.fieldValue}>{(presenceForm.manualOffCooldownMinutes / 60).toFixed(1)} hr</span>
               </div>
               <input
                 type="range" min="5" max="480" step="5"
                 value={presenceForm.manualOffCooldownMinutes}
                 onChange={(e) => setPresenceForm((f) => ({ ...f, manualOffCooldownMinutes: Number(e.target.value) }))}
-                className="w-full accent-white/60"
+                className={styles.rangeInput}
               />
             </div>
 
             {/* Enabled toggle */}
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase tracking-widest text-white/30">Enabled</label>
+            <div className={styles.fieldHeader}>
+              <label className={styles.fieldLabel}>Enabled</label>
               <button
                 onClick={() => setPresenceForm((f) => ({ ...f, enabled: !f.enabled }))}
-                className={`w-10 h-6 rounded-full relative shrink-0 touch-manipulation transition-colors ${
-                  presenceForm.enabled ? 'bg-accent/40' : 'bg-white/[0.10]'
+                className={`${styles.switch} ${
+                  presenceForm.enabled ? styles.switchOn : styles.switchOff
                 }`}
               >
                 <span
-                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
-                    presenceForm.enabled ? 'left-5' : 'left-1'
+                  className={`${styles.switchKnob} ${
+                    presenceForm.enabled ? styles.switchKnobOn : styles.switchKnobOff
                   }`}
                 />
               </button>
@@ -499,10 +497,10 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
               const device = devState.devices.find((d) => d.friendly_name === presenceSheetFor);
               const settable = (device?.definition?.exposes || []).filter((e) => (e.access & 2) !== 0);
               if (!settable.length) return null;
-              const current = sensors[presenceSheetFor] ?? {};
+              const current: Record<string, unknown> = sensors[presenceSheetFor] ?? {};
               return (
-                <div className="flex flex-col gap-4">
-                  <label className="text-[10px] uppercase tracking-widest text-white/30">Sensor Settings</label>
+                <div className={styles.sensorSettings}>
+                  <label className={styles.fieldLabel}>Sensor Settings</label>
                   {settable.map((e) => {
                     const value = current[e.property];
                     if (e.type === 'numeric') {
@@ -511,33 +509,33 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
                       const step = e.value_step ?? 1;
                       const num  = typeof value === 'number' ? value : min;
                       return (
-                        <div key={e.property} className="flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-white/50">{e.description || e.name}</span>
-                            <span className="text-[10px] text-white/40">{num}{e.unit ? ` ${e.unit}` : ''}</span>
+                        <div key={e.property} className={styles.sliderField}>
+                          <div className={styles.fieldHeader}>
+                            <span className={styles.settingLabel}>{e.description || e.name}</span>
+                            <span className={styles.fieldValue}>{num}{e.unit ? ` ${e.unit}` : ''}</span>
                           </div>
                           <input
                             type="range" min={min} max={max} step={step}
                             value={num}
                             onChange={(ev) => setSensorProperty(presenceSheetFor, e.property, Number(ev.target.value), 300)}
-                            className="w-full accent-white/60"
+                            className={styles.rangeInput}
                           />
                         </div>
                       );
                     }
                     if (e.type === 'enum' && e.values) {
                       return (
-                        <div key={e.property} className="flex flex-col gap-2">
-                          <span className="text-xs text-white/50">{e.description || e.name}</span>
-                          <div className="flex flex-wrap gap-2">
+                        <div key={e.property} className={styles.field}>
+                          <span className={styles.settingLabel}>{e.description || e.name}</span>
+                          <div className={styles.chips}>
                             {e.values.map((v) => (
                               <button
                                 key={String(v)}
                                 onClick={() => setSensorProperty(presenceSheetFor, e.property, v)}
-                                className={`px-3 py-1.5 rounded-full text-xs touch-manipulation transition-colors ${
+                                className={`${styles.chip} ${
                                   value === v
-                                    ? 'bg-white/[0.15] text-white/80'
-                                    : 'bg-white/[0.05] text-white/35 hover:bg-white/[0.10]'
+                                    ? styles.chipSelected
+                                    : styles.chipIdle
                                 }`}
                               >
                                 {v}
@@ -553,11 +551,11 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
               );
             })()}
 
-            <div className="flex gap-3">
+            <div className={styles.sheetActions}>
               {presence.some((p) => p.sensor === presenceSheetFor) && (
                 <button
                   onClick={() => { removePresence(presenceSheetFor); setPresenceSheetFor(null); }}
-                  className="px-4 py-3 rounded-xl bg-danger/15 text-danger/70 font-medium text-sm touch-manipulation transition-colors hover:bg-danger/25"
+                  className={styles.removeTrigger}
                 >
                   Remove
                 </button>
@@ -565,7 +563,7 @@ export default function DevicesView({ socket, devState, setDevState, rooms, onCr
               <button
                 onClick={savePresence}
                 disabled={!presenceForm.room}
-                className="flex-1 py-3 rounded-xl bg-accent/25 text-accent font-semibold text-sm touch-manipulation transition-colors hover:bg-accent/35 disabled:opacity-30 disabled:pointer-events-none"
+                className={styles.saveTrigger}
               >
                 Save
               </button>

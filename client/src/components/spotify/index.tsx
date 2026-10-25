@@ -5,17 +5,9 @@ import NowPlaying from './NowPlaying';
 import TrackList from './TrackList';
 import Explorer from './Explorer';
 import DevicePicker from './DevicePicker';
-import type { SpotifyListItem, SpotifyPlaylist, SpotifyAlbum } from '../../types';
+import type { SpotifyListItem, SpotifyPlaylist, SpotifyAlbum, SelectionData, ExplorerSelection } from '../../types';
+import styles from './index.module.css';
 
-interface SelectionData {
-  id?: string;
-  uri?: string;
-  name?: string;
-  image?: string | null;
-  collectionUri?: string;
-  artist?: string | null;
-}
-interface ExplorerSelection { type: string; data?: SelectionData; }
 type SelectedSource = ExplorerSelection & { data: SelectionData & { name: string; image: string | null } };
 
 export default function Spotify() {
@@ -88,17 +80,17 @@ export default function Spotify() {
 
   const handlePlay = useCallback((trackUri: string) => {
     if (!selectedSource) return;
-    if (selectedSource.type === 'show')     return playUri(trackUri);
-    if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri, trackUri);
-    if (selectedSource.type === 'album')    return playContext(selectedSource.data.uri, trackUri);
-    if (selectedSource.type === 'liked')    return playContext(selectedSource.data.collectionUri, trackUri);
+    const { type, data } = selectedSource;
+    if (type === 'show')                          playUri(trackUri);
+    else if (type === 'playlist' || type === 'album') playContext(data.uri, trackUri);
+    else if (type === 'liked')                    playContext(data.collectionUri, trackUri);
   }, [selectedSource, playContext, playUri]);
 
   const handlePlayAll = useCallback(() => {
     if (!selectedSource) return;
-    if (selectedSource.type === 'playlist') return playContext(selectedSource.data.uri);
-    if (selectedSource.type === 'album')    return playContext(selectedSource.data.uri);
-    if (selectedSource.type === 'liked')    return playContext(selectedSource.data.collectionUri);
+    const { type, data } = selectedSource;
+    if (type === 'playlist' || type === 'album') playContext(data.uri);
+    else if (type === 'liked')                   playContext(data.collectionUri);
   }, [selectedSource, playContext]);
 
   const openPicker = useCallback(async () => {
@@ -124,10 +116,10 @@ export default function Spotify() {
     state?.context?.type === 'collection' ? 'library' : state?.context?.type ?? '';
 
   return (
-    <div className="relative h-full flex select-none">
+    <div className={styles.root}>
 
       {/* ── Left: Now Playing ── */}
-      <div className="w-2/5 flex flex-col items-center justify-center gap-5 px-8 border-r border-subtle">
+      <div className={styles.sidebar}>
         <NowPlaying
           item={item}
           isPlaying={isPlaying}
@@ -149,9 +141,9 @@ export default function Spotify() {
       </div>
 
       {/* ── Right: Explorer or Track List ── */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className={styles.main}>
         {selectedSource ? (
-          <div className="flex-1 overflow-y-auto" data-no-swipe>
+          <div className={styles.scroll} data-no-swipe>
             <TrackList
               playlist={selectedSource.data}
               tracks={tracks}

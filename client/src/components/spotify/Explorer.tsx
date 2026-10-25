@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { BackIcon } from '../icons';
 import PlayingBars from './PlayingBars';
-import type { SpotifyPlaylist, SpotifyAlbum, SpotifyShow, SpotifyListItem } from '../../types';
+import type { SpotifyPlaylist, SpotifyAlbum, SpotifyShow, SpotifyListItem, ExplorerSelection } from '../../types';
+import styles from './Explorer.module.css';
 
 interface GridItem {
   id: string;
@@ -10,11 +11,6 @@ interface GridItem {
   image: string | null;
   artist?: string | null;
   uri?: string;
-}
-
-interface ExplorerSelection {
-  type: string;
-  data?: GridItem | SpotifyListItem;
 }
 
 interface SearchResultsData {
@@ -29,27 +25,27 @@ function SquareItem({ item, onClick }: { item: GridItem; onClick: (item: GridIte
   return (
     <button
       onClick={() => onClick(item)}
-      className="text-left active:scale-95 transition-transform touch-manipulation flex-shrink-0 w-28"
+      className={styles.square}
     >
       {item.image ? (
-        <img src={item.image} alt={item.name} className="w-28 h-28 object-cover" />
+        <img src={item.image} alt={item.name} className={styles.squareImage} />
       ) : (
-        <div className="w-28 h-28 bg-white/5 flex items-center justify-center">
-          <span className="text-white/20 text-2xl">♪</span>
+        <div className={styles.squarePlaceholder}>
+          <span className={styles.squarePlaceholderIcon}>♪</span>
         </div>
       )}
-      <p className="text-xs text-white/60 mt-1.5 truncate">{item.name}</p>
-      {item.artist && <p className="text-xs text-white/30 truncate">{item.artist}</p>}
+      <p className={styles.itemTitle}>{item.name}</p>
+      {item.artist && <p className={styles.itemSubtitle}>{item.artist}</p>}
     </button>
   );
 }
 
 function SkeletonSquare() {
   return (
-    <div className="flex-shrink-0 w-28 animate-pulse">
-      <div className="w-28 h-28 bg-white/[0.06]" />
-      <div className="h-2.5 bg-white/[0.06] rounded-full mt-2 w-20" />
-      <div className="h-2 bg-white/[0.04] rounded-full mt-1.5 w-14" />
+    <div className={styles.skeleton}>
+      <div className={styles.skeletonArt} />
+      <div className={styles.skeletonTitle} />
+      <div className={styles.skeletonSubtitle} />
     </div>
   );
 }
@@ -70,10 +66,10 @@ function HorizontalRow({ title, items, loading, onSeeAll, onSelect }: Horizontal
 
   return (
     <div>
-      <div className="mb-2 px-4">
-        <span className="text-white/40 text-xs font-medium tracking-widest uppercase">{title}</span>
+      <div className={styles.rowHeader}>
+        <span className={styles.sectionTitle}>{title}</span>
       </div>
-      <div className="flex gap-3 px-4 overflow-x-auto pb-1 h-[154px]" style={{ scrollbarWidth: 'none' }}>
+      <div className={styles.rowItems}>
         {loading
           ? Array.from({ length: ROW_PREVIEW }).map((_, i) => <SkeletonSquare key={i} />)
           : (
@@ -82,10 +78,10 @@ function HorizontalRow({ title, items, loading, onSeeAll, onSelect }: Horizontal
               {hasMore && (
                 <button
                   onClick={onSeeAll}
-                  className="flex-shrink-0 w-28 flex flex-col items-center justify-center gap-1 text-white/30 active:text-white/60 touch-manipulation"
+                  className={styles.seeAll}
                 >
-                  <span className="text-2xl leading-none">›</span>
-                  <span className="text-[10px] tracking-widest uppercase">See all</span>
+                  <span className={styles.seeAllIcon}>›</span>
+                  <span className={styles.seeAllLabel}>See all</span>
                 </button>
               )}
             </>
@@ -99,28 +95,28 @@ function HorizontalRow({ title, items, loading, onSeeAll, onSelect }: Horizontal
 function GridView({ title, items, onBack, onSelect }: { title: string; items: GridItem[]; onBack: () => void; onSelect: (item: GridItem) => void }) {
   return (
     <div>
-      <div className="flex items-center gap-3 px-4 py-2 sticky top-0 bg-app-bg z-10">
-        <button onClick={onBack} className="text-white/40 active:text-white touch-manipulation">
+      <div className={styles.gridHeader}>
+        <button onClick={onBack} className={styles.backButton}>
           <BackIcon size={18} />
         </button>
-        <span className="text-white/60 text-sm font-medium">{title}</span>
+        <span className={styles.gridTitle}>{title}</span>
       </div>
-      <div className="grid grid-cols-3 gap-4 p-4 pt-2">
+      <div className={styles.grid}>
         {items.map((item) => (
           <button
             key={item.id}
             onClick={() => onSelect(item)}
-            className="text-left active:scale-95 transition-transform touch-manipulation"
+            className={styles.gridItem}
           >
             {item.image ? (
-              <img src={item.image} alt={item.name} className="w-full aspect-square object-cover" />
+              <img src={item.image} alt={item.name} className={styles.gridImage} />
             ) : (
-              <div className="w-full aspect-square bg-white/5 flex items-center justify-center">
-                <span className="text-white/20 text-3xl">♪</span>
+              <div className={styles.gridPlaceholder}>
+                <span className={styles.gridPlaceholderIcon}>♪</span>
               </div>
             )}
-            <p className="text-xs text-white/60 mt-1.5 truncate">{item.name}</p>
-            {item.artist && <p className="text-xs text-white/30 truncate">{item.artist}</p>}
+            <p className={styles.itemTitle}>{item.name}</p>
+            {item.artist && <p className={styles.itemSubtitle}>{item.artist}</p>}
           </button>
         ))}
       </div>
@@ -132,15 +128,15 @@ function RowItem({ item, active, isPlaying, onClick }: { item: SpotifyListItem; 
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-2 w-full active:bg-white/5 touch-manipulation text-left ${active ? 'bg-white/[0.04]' : ''}`}
+      className={`${styles.result} ${active ? styles.resultActive : ''}`}
     >
       {item.art
-        ? <img src={item.art} alt="" className="w-8 h-8 object-cover flex-shrink-0" />
-        : <div className="w-8 h-8 bg-white/5 flex-shrink-0" />
+        ? <img src={item.art} alt="" className={styles.resultArt} />
+        : <div className={styles.resultArtPlaceholder} />
       }
-      <div className="flex-1 min-w-0">
-        <div className={`text-sm truncate leading-tight ${active ? 'text-green-400' : 'text-white/80'}`}>{item.name}</div>
-        {item.artist && <div className="text-white/35 text-xs truncate">{item.artist}</div>}
+      <div className={styles.resultText}>
+        <div className={`${styles.resultTitle} ${active ? styles.titlePlaying : styles.titleIdle}`}>{item.name}</div>
+        {item.artist && <div className={styles.resultSubtitle}>{item.artist}</div>}
       </div>
       {active && isPlaying && <PlayingBars />}
     </button>
@@ -150,8 +146,8 @@ function RowItem({ item, active, isPlaying, onClick }: { item: SpotifyListItem; 
 function SearchResults({ results, onSelect, currentUri, isPlaying }: { results: SearchResultsData | null; onSelect: (s: ExplorerSelection) => void; currentUri: string | null | undefined; isPlaying: boolean }) {
   if (!results) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-white/20 text-sm tracking-widest uppercase">Searching…</p>
+      <div className={styles.status}>
+        <p className={styles.statusText}>Searching…</p>
       </div>
     );
   }
@@ -159,18 +155,18 @@ function SearchResults({ results, onSelect, currentUri, isPlaying }: { results: 
   const { tracks = [], albums = [], playlists = [], shows = [], episodes = [] } = results;
   if (!tracks.length && !albums.length && !playlists.length && !shows.length && !episodes.length) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-white/20 text-sm tracking-widest uppercase">No results</p>
+      <div className={styles.status}>
+        <p className={styles.statusText}>No results</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4 py-2">
+    <div className={styles.results}>
       {tracks.length > 0 && (
         <div>
-          <div className="px-4 mb-1">
-            <span className="text-white/40 text-xs font-medium tracking-widest uppercase">Tracks</span>
+          <div className={styles.resultsHeader}>
+            <span className={styles.sectionTitle}>Tracks</span>
           </div>
           {tracks.map((t) => (
             <RowItem
@@ -186,8 +182,8 @@ function SearchResults({ results, onSelect, currentUri, isPlaying }: { results: 
 
       {episodes.length > 0 && (
         <div>
-          <div className="px-4 mb-1">
-            <span className="text-white/40 text-xs font-medium tracking-widest uppercase">Episodes</span>
+          <div className={styles.resultsHeader}>
+            <span className={styles.sectionTitle}>Episodes</span>
           </div>
           {episodes.map((ep) => (
             <RowItem
@@ -273,19 +269,19 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
   const isSearching = query.trim().length > 0;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 pt-3 pb-2 flex-shrink-0">
+    <div className={styles.root}>
+      <div className={styles.searchBar}>
         <input
           type="text"
           placeholder="Search songs, albums, playlists…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-white/5 text-white/80 placeholder-white/20 text-sm rounded-lg px-3 py-2 outline-none border border-white/5 focus:border-white/20 transition-colors"
+          className={styles.searchInput}
           data-no-swipe
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto" data-no-swipe>
+      <div className={styles.body} data-no-swipe>
         {isSearching ? (
           <SearchResults
             results={searchResults}
@@ -315,19 +311,18 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
             onSelect={(s) => onSelect({ type: 'show', data: s })}
           />
         ) : (
-          <div className="flex flex-col gap-5 py-2">
-            <div className="px-4">
+          <div className={styles.home}>
+            <div className={styles.likedSection}>
               <button
                 onClick={() => onSelect({ type: 'liked' })}
-                className="w-full rounded-xl p-4 flex items-center gap-4 touch-manipulation active:scale-[0.98] transition-transform text-left"
-                style={{ background: 'linear-gradient(135deg, #4c0080 0%, #1a0040 100%)' }}
+                className={styles.likedCard}
               >
-                <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center text-xl select-none">
+                <div className={styles.likedIcon}>
                   ♥
                 </div>
                 <div>
-                  <div className="text-white font-semibold text-sm">Liked Songs</div>
-                  <div className="text-white/50 text-xs mt-0.5">
+                  <div className={styles.likedTitle}>Liked Songs</div>
+                  <div className={styles.likedSubtitle}>
                     {likedCount != null ? `${likedCount.toLocaleString()} songs` : ' '}
                   </div>
                 </div>
@@ -355,11 +350,11 @@ export default function Explorer({ playlists, albums, albumsError, onSelect, cur
             )}
 
             {albumsError ? (
-              <div className="px-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white/40 text-xs font-medium tracking-widest uppercase">Albums</span>
+              <div className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionTitle}>Albums</span>
                 </div>
-                <p className="text-white/25 text-xs px-0.5">
+                <p className={styles.sectionEmpty}>
                   {albumsError === 'scope'
                     ? 'Re-authorize Spotify with the user-library-read scope to enable albums.'
                     : 'Could not load albums.'}

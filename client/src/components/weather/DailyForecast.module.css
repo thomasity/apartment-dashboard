@@ -1,0 +1,76 @@
+.root {
+  display: flex;
+  min-height: 0px;
+  flex: 1 1 0%;
+  flex-direction: column;
+  overflow: hidden;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.heading {
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.list {
+  display: flex;
+  min-height: 0px;
+  flex: 1 1 0%;
+  flex-direction: column;
+  justify-content: space-evenly;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.day {
+  width: 3rem;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.condition {
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.high {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.low {
+  width: 2rem;
+  text-align: right;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.3);
+}

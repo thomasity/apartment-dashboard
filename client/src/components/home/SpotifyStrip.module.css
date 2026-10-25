@@ -1,0 +1,106 @@
+.root {
+  position: absolute;
+  left: 1.25rem;
+  top: 2.5rem;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 1rem;
+  border-width: 1px;
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: rgb(0 0 0 / 0.3);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+.nowPlaying {
+  display: flex;
+  touch-action: manipulation;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+  text-align: left;
+}
+
+.art {
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.artImage {
+  height: 2.5rem;
+  width: 2.5rem;
+  object-fit: cover;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.artPlaceholder {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(255 255 255 / 0.1);
+}
+
+.artPlaceholderIcon {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.text {
+  width: 120px;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 300;
+  line-height: 1.25;
+  color: rgb(255 255 255 / 0.8);
+  font-size: clamp(0.7rem, 1.3vw, 0.9rem);
+}
+
+.artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 300;
+  line-height: 1.25;
+  color: rgb(255 255 255 / 0.4);
+  font-size: clamp(0.55rem, 0.9vw, 0.75rem);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 0.25rem;
+  padding-right: 0.75rem;
+}
+
+.skipButton {
+  flex-shrink: 0;
+  touch-action: manipulation;
+  color: rgb(255 255 255 / 0.45);
+}
+.skipButton:active {
+  color: #fff;
+}
+
+.playButton {
+  flex-shrink: 0;
+  touch-action: manipulation;
+  color: rgb(255 255 255 / 0.7);
+}
+.playButton:active {
+  color: #fff;
+}

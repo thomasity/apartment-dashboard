@@ -1,4 +1,5 @@
 import type { CircadianState } from '../../types';
+import styles from './CircadianStrip.module.css';
 
 interface Props {
   circadian: CircadianState;
@@ -37,19 +38,19 @@ export default function CircadianStrip({ circadian }: Props) {
     : '#ffb300 0%, #fff4e0 45%, #a8c8ff 100%';
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={styles.root}>
       <div
-        className="relative h-2 rounded-full overflow-hidden"
+        className={styles.track}
         style={{ background: `linear-gradient(to right, ${stops})` }}
       >
         <div
-          className="absolute top-0 bottom-0 w-px bg-white/70"
-          style={{ left: `${nowPct}%`, boxShadow: '0 0 3px rgba(255,255,255,0.5)' }}
+          className={styles.nowMarker}
+          style={{ left: `${nowPct}%` }}
         />
       </div>
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] text-white/30">{brightness}% · {tempLabel}</span>
-        {nextMin !== null && <span className="text-[9px] text-white/20">~{nextMin}m</span>}
+      <div className={styles.labels}>
+        <span className={styles.summary}>{brightness}% · {tempLabel}</span>
+        {nextMin !== null && <span className={styles.countdown}>~{nextMin}m</span>}
       </div>
     </div>
   );

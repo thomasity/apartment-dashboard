@@ -1,6 +1,7 @@
 import { wmo }  from '../../lib/wmo';
 import { DAYS } from './utils';
-import type { WeatherDaily } from '../../context/weatherContext';
+import type { WeatherDaily } from '../../types';
+import styles from './DailyForecast.module.css';
 
 interface Props {
   daily: WeatherDaily;
@@ -8,26 +9,28 @@ interface Props {
 
 export default function DailyForecast({ daily }: Props) {
   return (
-    <div className="flex-1 min-h-0 flex flex-col px-8 py-4 overflow-hidden">
-      <div className="text-[10px] font-medium text-white/25 uppercase tracking-widest mb-3 shrink-0">
+    <div className={styles.root}>
+      <div className={styles.heading}>
         5-Day Forecast
       </div>
-      <div className="flex-1 min-h-0 flex flex-col justify-evenly overflow-hidden">
+      <div className={styles.list}>
         {daily.time.map((dateStr, i) => {
           const d = new Date(dateStr + 'T12:00:00');
-          const w = wmo(daily.weather_code[i]);
+          const w    = wmo(daily.weather_code[i]);
+          const high = daily.temperature_2m_max[i];
+          const low  = daily.temperature_2m_min[i];
           return (
-            <div key={dateStr} className="flex items-center gap-4">
-              <span className="text-sm text-white/40 w-12 shrink-0">
+            <div key={dateStr} className={styles.row}>
+              <span className={styles.day}>
                 {i === 0 ? 'Today' : DAYS[d.getDay()]}
               </span>
-              <span className="text-xl leading-none">{w.icon}</span>
-              <span className="text-sm text-white/30 flex-1 truncate">{w.label}</span>
-              <span className="text-sm font-medium text-white tabular-nums">
-                {Math.round(daily.temperature_2m_max[i])}°
+              <span className={styles.icon}>{w.icon}</span>
+              <span className={styles.condition}>{w.label}</span>
+              <span className={styles.high}>
+                {high !== undefined ? `${Math.round(high)}°` : '–'}
               </span>
-              <span className="text-sm text-white/30 tabular-nums w-8 text-right">
-                {Math.round(daily.temperature_2m_min[i])}°
+              <span className={styles.low}>
+                {low !== undefined ? `${Math.round(low)}°` : '–'}
               </span>
             </div>
           );

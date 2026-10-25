@@ -1,0 +1,286 @@
+.backdrop {
+  position: absolute;
+  inset: 0px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet {
+  display: flex;
+  max-height: 85%;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  border-top-width: 1px;
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: #18181b;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  padding-bottom: 2rem;
+  padding-top: 1.25rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.close {
+  touch-action: manipulation;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.3);
+}
+.close:hover {
+  color: rgb(255 255 255 / 0.6);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.nameInput {
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.06);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+.nameInput::placeholder {
+  color: rgb(255 255 255 / 0.2);
+}
+.nameInput:focus {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.2);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.option {
+  touch-action: manipulation;
+  border-radius: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.optionSelected {
+  background-color: rgb(var(--color-accent-rgb) / 0.25);
+  color: rgb(var(--color-accent-rgb) / 1);
+  box-shadow: 0 0 0 1px rgb(var(--color-accent-rgb) / 0.4);
+}
+
+.optionIdle {
+  background-color: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.4);
+}
+.optionIdle:hover {
+  background-color: rgb(255 255 255 / 0.10);
+}
+
+.timeInput {
+  width: 9rem;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.06);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+.timeInput:focus {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.2);
+}
+
+.day {
+  height: 2.25rem;
+  width: 2.25rem;
+  touch-action: manipulation;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.daySelected {
+  background-color: rgb(var(--color-accent-rgb) / 0.3);
+  color: rgb(var(--color-accent-rgb) / 1);
+  box-shadow: 0 0 0 1px rgb(var(--color-accent-rgb) / 0.4);
+}
+
+.dayIdle {
+  background-color: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.35);
+}
+.dayIdle:hover {
+  background-color: rgb(255 255 255 / 0.10);
+}
+
+.optionPlain {
+  touch-action: manipulation;
+  border-radius: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  touch-action: manipulation;
+  border-radius: 9999px;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.chipSelected {
+  background-color: rgb(255 255 255 / 0.15);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.chipIdle {
+  background-color: rgb(255 255 255 / 0.05);
+  color: rgb(255 255 255 / 0.35);
+}
+.chipIdle:hover {
+  background-color: rgb(255 255 255 / 0.10);
+}
+
+.powerOptions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.powerOption {
+  flex: 1 1 0%;
+  touch-action: manipulation;
+  border-radius: 0.5rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.sceneFields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.fieldHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fieldValue {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.brightnessInput {
+  width: 100%;
+  accent-color: rgb(255 255 255 / 0.6);
+}
+
+.colorTempInput {
+  width: 100%;
+  accent-color: #a8c8ff;
+}
+
+.save {
+  width: 100%;
+  touch-action: manipulation;
+  border-radius: 0.75rem;
+  background-color: rgb(var(--color-accent-rgb) / 0.25);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: rgb(var(--color-accent-rgb) / 1);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.save:hover {
+  background-color: rgb(var(--color-accent-rgb) / 0.35);
+}
+.save:disabled {
+  pointer-events: none;
+  opacity: 0.3;
+}

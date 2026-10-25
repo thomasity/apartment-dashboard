@@ -1,0 +1,747 @@
+.root {
+  position: relative;
+  display: flex;
+  min-height: 0px;
+  flex: 1 1 0%;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.textButton {
+  touch-action: manipulation;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.3);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.textButton:hover {
+  color: rgb(255 255 255 / 0.6);
+}
+
+.emptyNote {
+  font-size: 11px;
+  font-style: italic;
+  color: rgb(255 255 255 / 0.15);
+}
+
+.roomList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.roomRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.04);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.roomRenameInput {
+  flex: 1 1 0%;
+  border-radius: 0.25rem;
+  background-color: rgb(255 255 255 / 0.08);
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.roomName {
+  flex: 1 1 0%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.roomCount {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.roomAddDevices {
+  touch-action: manipulation;
+  padding: 0.375rem;
+  font-size: 1rem;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.25);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.roomAddDevices:hover {
+  color: rgb(255 255 255 / 0.6);
+}
+
+.roomRename {
+  touch-action: manipulation;
+  padding: 0.375rem;
+  color: rgb(255 255 255 / 0.2);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.roomRename:hover {
+  color: rgb(255 255 255 / 0.5);
+}
+
+.roomDelete {
+  touch-action: manipulation;
+  padding: 0.375rem;
+  color: rgb(255 255 255 / 0.2);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.roomDelete:hover {
+  color: rgb(var(--color-danger-rgb) / 0.6);
+}
+
+.newRoomInput {
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.06);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.newRoomInput::placeholder {
+  color: rgb(255 255 255 / 0.2);
+}
+
+.bridgeStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusDot {
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+}
+
+.statusDotOnline {
+  background-color: rgb(var(--color-online-rgb) / 1);
+}
+
+.statusDotOffline {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.bridgeLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.scanButton {
+  display: flex;
+  touch-action: manipulation;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.scanning {
+  background-color: rgb(var(--color-accent-rgb) / 0.15);
+  color: rgb(var(--color-accent-rgb) / 1);
+  box-shadow: 0 0 0 1px rgb(var(--color-accent-rgb) / 0.3);
+}
+
+.scanIdle {
+  background-color: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.4);
+}
+.scanIdle:hover {
+  background-color: rgb(255 255 255 / 0.10);
+}
+.scanIdle:disabled {
+  opacity: 0.3;
+}
+
+.scanDot {
+  height: 0.375rem;
+  width: 0.375rem;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-radius: 9999px;
+  background-color: rgb(var(--color-accent-rgb) / 1);
+}
+
+.pairHint {
+  text-align: center;
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.emptyDevices {
+  padding-top: 1rem;
+  text-align: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.deviceList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deviceCard {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-card);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.deviceCardNew {
+  background-color: rgb(var(--color-accent-rgb) / 0.1);
+  box-shadow: 0 0 0 1px rgb(var(--color-accent-rgb) / 0.2);
+}
+
+.deviceCardIdle {
+  background-color: rgb(255 255 255 / 0.04);
+}
+
+.deviceInfo {
+  display: flex;
+  min-width: 0px;
+  flex: 1 1 0%;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.deviceRenameInput {
+  width: 100%;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.08);
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.deviceNameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.availDot {
+  height: 0.375rem;
+  width: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+}
+
+.availDotOffline {
+  background-color: rgb(var(--color-danger-rgb) / 0.6);
+}
+
+.availDotOnline {
+  background-color: rgb(var(--color-online-rgb) / 0.6);
+}
+
+.deviceName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.deviceNameOffline {
+  color: rgb(255 255 255 / 0.3);
+}
+
+.deviceNameOnline {
+  color: rgb(255 255 255 / 0.7);
+}
+
+.newTag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgb(var(--color-accent-rgb) / 1);
+}
+
+.offlineTag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.deviceMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.deviceType {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.deviceRoom {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.presenceRow {
+  margin-top: 0.125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.presenceDot {
+  height: 0.375rem;
+  width: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+}
+
+.presenceDotOccupied {
+  background-color: rgb(var(--color-online-rgb) / 1);
+}
+
+.presenceDotIdle {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.presenceLabel {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.presenceEntry {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.presenceSetup {
+  touch-action: manipulation;
+  font-size: 10px;
+  color: rgb(var(--color-accent-rgb) / 0.7);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.presenceSetup:hover {
+  color: rgb(var(--color-accent-rgb) / 1);
+}
+
+.deviceEdit {
+  touch-action: manipulation;
+  padding: 0.5rem;
+  color: rgb(255 255 255 / 0.2);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.deviceEdit:hover {
+  color: rgb(255 255 255 / 0.5);
+}
+
+.deviceRemove {
+  touch-action: manipulation;
+  padding: 0.5rem;
+  color: rgb(255 255 255 / 0.2);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.deviceRemove:hover {
+  color: rgb(var(--color-danger-rgb) / 0.6);
+}
+
+.sheetBackdrop {
+  position: absolute;
+  inset: 0px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.pickerSheet {
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  border-top-width: 1px;
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: #18181b;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 1.5rem;
+  padding-top: 1rem;
+}
+
+.sheetTitle {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.sheetHint {
+  margin-bottom: 1rem;
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.pickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pickerEmpty {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.pickerItem {
+  display: flex;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.pickerItem:hover {
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+.pickerItemText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+}
+
+.pickerItemName {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.pickerItemNameIn {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.pickerItemNameOut {
+  color: rgb(255 255 255 / 0.45);
+}
+
+.pickerItemRoom {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.presenceSheet {
+  display: flex;
+  max-height: 85%;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  border-top-width: 1px;
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: #18181b;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  padding-bottom: 2rem;
+  padding-top: 1.25rem;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.presenceSheetTitle {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.sheetClose {
+  touch-action: manipulation;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.3);
+}
+.sheetClose:hover {
+  color: rgb(255 255 255 / 0.6);
+}
+
+.presenceSheetSubtitle {
+  margin-top: -0.75rem;
+  font-size: 11px;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fieldLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.fieldEmpty {
+  font-size: 11px;
+  font-style: italic;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  touch-action: manipulation;
+  border-radius: 9999px;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.chipSelected {
+  background-color: rgb(255 255 255 / 0.15);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.chipIdle {
+  background-color: rgb(255 255 255 / 0.05);
+  color: rgb(255 255 255 / 0.35);
+}
+.chipIdle:hover {
+  background-color: rgb(255 255 255 / 0.10);
+}
+
+.sliderField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.fieldHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fieldValue {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.rangeInput {
+  width: 100%;
+  accent-color: rgb(255 255 255 / 0.6);
+}
+
+.switch {
+  position: relative;
+  height: 1.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  border-radius: 9999px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.switchOn {
+  background-color: rgb(var(--color-accent-rgb) / 0.4);
+}
+
+.switchOff {
+  background-color: rgb(255 255 255 / 0.10);
+}
+
+.switchKnob {
+  position: absolute;
+  top: 0.25rem;
+  height: 1rem;
+  width: 1rem;
+  border-radius: 9999px;
+  background-color: #fff;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.switchKnobOn {
+  left: 1.25rem;
+}
+
+.switchKnobOff {
+  left: 0.25rem;
+}
+
+.sensorSettings {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settingLabel {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.sheetActions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.removeTrigger {
+  touch-action: manipulation;
+  border-radius: 0.75rem;
+  background-color: rgb(var(--color-danger-rgb) / 0.15);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: rgb(var(--color-danger-rgb) / 0.7);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.removeTrigger:hover {
+  background-color: rgb(var(--color-danger-rgb) / 0.25);
+}
+
+.saveTrigger {
+  flex: 1 1 0%;
+  touch-action: manipulation;
+  border-radius: 0.75rem;
+  background-color: rgb(var(--color-accent-rgb) / 0.25);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: rgb(var(--color-accent-rgb) / 1);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.saveTrigger:hover {
+  background-color: rgb(var(--color-accent-rgb) / 0.35);
+}
+.saveTrigger:disabled {
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: .5;
+  }
+}

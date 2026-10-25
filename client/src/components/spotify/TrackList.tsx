@@ -2,6 +2,7 @@ import PlayingBars from './PlayingBars';
 import { BackIcon, PlayIcon } from '../icons';
 import { fmtMs } from './utils';
 import type { SpotifyListItem } from '../../types';
+import styles from './TrackList.module.css';
 
 interface PlaylistLike { name: string; image: string | null }
 
@@ -18,25 +19,25 @@ interface Props {
 
 export default function TrackList({ playlist, tracks, loading, onBack, onPlay, onPlayAll, currentUri, isPlaying }: Props) {
   return (
-    <div className="flex flex-col m-4">
+    <div className={styles.root}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3 sticky top-0 bg-app-bg p-2 border-b-2 border-strong">
+      <div className={styles.header}>
         <button
           onClick={onBack}
-          className="text-white/40 active:text-white touch-manipulation flex-shrink-0"
+          className={styles.backButton}
         >
           <BackIcon />
         </button>
         {playlist.image && (
-          <img src={playlist.image} alt={playlist.name} className="w-10 h-10 object-cover flex-shrink-0" />
+          <img src={playlist.image} alt={playlist.name} className={styles.cover} />
         )}
-        <div className="flex-1 min-w-0">
-          <div className="text-white text-md font-medium truncate">{playlist.name}</div>
-          <div className="text-white/30 text-xs">{tracks.length} tracks</div>
+        <div className={styles.headerText}>
+          <div className={styles.title}>{playlist.name}</div>
+          <div className={styles.subtitle}>{tracks.length} tracks</div>
         </div>
         <button
           onClick={onPlayAll}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-xs active:bg-white/20 touch-manipulation flex-shrink-0"
+          className={styles.playAll}
         >
           <PlayIcon size={12} />
           Play All
@@ -45,30 +46,30 @@ export default function TrackList({ playlist, tracks, loading, onBack, onPlay, o
 
       {/* Tracks */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-white/20 text-sm tracking-widest uppercase">Loading…</p>
+        <div className={styles.empty}>
+          <p className={styles.emptyText}>Loading…</p>
         </div>
       ) : (
-        <div className="flex flex-col">
+        <div className={styles.list}>
           {tracks.map((t, i) => {
             const active = t.uri === currentUri;
             return (
               <button
                 key={t.id}
                 onClick={() => onPlay(t.uri)}
-                className={`flex items-center gap-3 px-1 py-2.5 rounded-item active:bg-white/5 touch-manipulation text-left ${active ? 'bg-white/[0.04]' : ''}`}
+                className={`${styles.track} ${active ? styles.trackActive : ''}`}
               >
-                <span className="w-5 flex-shrink-0 flex items-center justify-center">
+                <span className={styles.trackIndex}>
                   {active && isPlaying
                     ? <PlayingBars />
-                    : <span className={`text-xs tabular-nums ${active ? 'text-green-400' : 'text-white/20'}`}>{i + 1}</span>
+                    : <span className={`${styles.trackNumber} ${active ? styles.numberActive : styles.numberIdle}`}>{i + 1}</span>
                   }
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm truncate leading-tight ${active ? 'text-green-400' : 'text-white/80'}`}>{t.name}</div>
-                  <div className="text-white/35 text-xs truncate mt-0.5">{t.artist}</div>
+                <div className={styles.trackText}>
+                  <div className={`${styles.trackName} ${active ? styles.nameActive : styles.nameIdle}`}>{t.name}</div>
+                  <div className={styles.trackArtist}>{t.artist}</div>
                 </div>
-                <span className="text-white/25 text-xs tabular-nums flex-shrink-0">{fmtMs(t.duration)}</span>
+                <span className={styles.duration}>{fmtMs(t.duration)}</span>
               </button>
             );
           })}

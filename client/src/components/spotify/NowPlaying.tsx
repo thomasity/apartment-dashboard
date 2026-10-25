@@ -5,6 +5,7 @@ import {
 } from '../icons';
 import { fmtMs } from './utils';
 import type { SpotifyPlaybackItem, SpotifyPlaylist } from '../../types';
+import styles from './NowPlaying.module.css';
 
 interface Props {
   item: SpotifyPlaybackItem | null;
@@ -69,16 +70,16 @@ export default function NowPlaying({
   if (!item) {
     return (
       <>
-        <div className="text-center">
-          <p className="text-white/25 text-sm tracking-widest uppercase">Nothing playing</p>
-          <p className="text-white/15 text-xs mt-2">Tap a playlist to start</p>
+        <div className={styles.idle}>
+          <p className={styles.idleTitle}>Nothing playing</p>
+          <p className={styles.idleHint}>Tap a playlist to start</p>
         </div>
         <button
           onClick={onOpenPicker}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-muted text-white/30 active:border-strong active:text-white/60 touch-manipulation"
+          className={styles.deviceButton}
         >
           <CastIcon />
-          <span className="text-xs truncate max-w-[100px]">{deviceName ?? 'No device'}</span>
+          <span className={styles.deviceName}>{deviceName ?? 'No device'}</span>
         </button>
       </>
     );
@@ -86,14 +87,14 @@ export default function NowPlaying({
 
   return (
     <>
-      <div className="flex flex-col items-center gap-2">
+      <div className={styles.root}>
         {contextLabel && (
           <div
-            className={`text-center mb-4 ${contextPlaylist ? 'cursor-pointer' : ''}`}
+            className={`${styles.context} ${contextPlaylist ? styles.contextClickable : ''}`}
             onClick={contextPlaylist ? () => onSelectPlaylist(contextPlaylist) : undefined}
           >
-            <p className="text-white/20 text-[9px] tracking-widest uppercase">Playing from {contextTypeLabel}</p>
-            <p className="text-white/50 text-xs mt-0.5 truncate max-w-[160px] touch-manipulation">
+            <p className={styles.contextLabel}>Playing from {contextTypeLabel}</p>
+            <p className={styles.contextName}>
               {contextLabel}
             </p>
           </div>
@@ -102,26 +103,25 @@ export default function NowPlaying({
           <img
             src={item.art}
             alt={item.album ?? ''}
-            className="w-40 h-40 object-cover"
-            style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
+            className={styles.art}
           />
         ) : (
-          <div className="w-40 h-40 bg-white/5 flex items-center justify-center">
-            <span className="text-white/20 text-4xl">♪</span>
+          <div className={styles.artPlaceholder}>
+            <span className={styles.artPlaceholderIcon}>♪</span>
           </div>
         )}
       </div>
 
-      <div className="w-full text-center">
-        <div className="text-white font-medium text-lg leading-tight truncate">{item.name}</div>
-        <div className="text-white/50 text-sm mt-1 truncate">{item.artist}</div>
-        <div className="text-white/25 text-xs mt-0.5 truncate">{item.album}</div>
+      <div className={styles.meta}>
+        <div className={styles.title}>{item.name}</div>
+        <div className={styles.artist}>{item.artist}</div>
+        <div className={styles.album}>{item.album}</div>
 
-        <div className="mt-4">
-          <div className="relative h-4 flex items-center" data-no-swipe>
-            <div className="absolute w-full h-0.5 bg-white/10 rounded-full overflow-hidden pointer-events-none">
+        <div className={styles.progress}>
+          <div className={styles.progressTrack} data-no-swipe>
+            <div className={styles.progressBar}>
               <div
-                className="h-full bg-white/50 rounded-full"
+                className={styles.progressFill}
                 style={{ width: `${(seekValue != null ? seekValue : item.progress) / item.duration * 100}%` }}
               />
             </div>
@@ -133,67 +133,66 @@ export default function NowPlaying({
               onChange={(e) => setSeekValue(Number(e.target.value))}
               onMouseUp={handleSeekEnd}
               onTouchEnd={handleSeekEnd}
-              className="absolute w-full h-full cursor-pointer opacity-0"
+              className={styles.progressInput}
             />
           </div>
-          <div className="flex justify-between mt-1.5">
-            <span className="text-white/25 text-xs tabular-nums">{fmtMs(seekValue ?? item.progress)}</span>
-            <span className="text-white/25 text-xs tabular-nums">{fmtMs(item.duration)}</span>
+          <div className={styles.times}>
+            <span className={styles.time}>{fmtMs(seekValue ?? item.progress)}</span>
+            <span className={styles.time}>{fmtMs(item.duration)}</span>
           </div>
         </div>
       </div>
 
       {/* Controls: shuffle · prev · play/pause · next · repeat */}
-      <div className="flex items-center gap-5">
-        <button onClick={toggleShuffle} className="flex flex-col items-center gap-0.5 touch-manipulation">
-          <span className={shuffle ? 'text-white' : 'text-white/30 active:text-white/60'}>
+      <div className={styles.controls}>
+        <button onClick={toggleShuffle} className={styles.toggle}>
+          <span className={shuffle ? styles.toggleOn : styles.toggleOff}>
             <ShuffleIcon />
           </span>
-          <span className={`w-1 h-1 rounded-full ${shuffle ? 'bg-white' : 'bg-transparent'}`} />
+          <span className={`${styles.indicator} ${shuffle ? styles.indicatorOn : styles.indicatorOff}`} />
         </button>
 
-        <button onClick={() => control('previous')} className="text-white/50 active:text-white touch-manipulation pb-1.5">
+        <button onClick={() => control('previous')} className={styles.skip}>
           <PrevIcon />
         </button>
 
         <button
           onClick={() => control(isPlaying ? 'pause' : 'play')}
-          className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-black active:scale-95 transition-transform touch-manipulation"
+          className={styles.play}
         >
           {isPlaying ? <PauseIcon /> : <PlayIcon />}
         </button>
 
-        <button onClick={() => control('next')} className="text-white/50 active:text-white touch-manipulation pb-1.5">
+        <button onClick={() => control('next')} className={styles.skip}>
           <NextIcon />
         </button>
 
-        <button onClick={cycleRepeat} className="flex flex-col items-center gap-0.5 touch-manipulation">
-          <span className={repeat !== 'off' ? 'text-white' : 'text-white/30 active:text-white/60'}>
+        <button onClick={cycleRepeat} className={styles.toggle}>
+          <span className={repeat !== 'off' ? styles.toggleOn : styles.toggleOff}>
             <RepeatIcon one={repeat === 'track'} />
           </span>
-          <span className={`w-1 h-1 rounded-full ${repeat !== 'off' ? 'bg-white' : 'bg-transparent'}`} />
+          <span className={`${styles.indicator} ${repeat !== 'off' ? styles.indicatorOn : styles.indicatorOff}`} />
         </button>
       </div>
 
       {/* Utility strip: volume + device */}
-      <div className="w-full border-t border-subtle pt-4 flex items-center gap-3">
-        <span className="text-white/25 flex-shrink-0"><VolumeIcon /></span>
+      <div className={styles.volume}>
+        <span className={styles.volumeIcon}><VolumeIcon /></span>
         <input
           type="range"
           min="0"
           max="100"
           value={localVolume}
           onChange={handleVolumeChange}
-          className="flex-1 cursor-pointer touch-manipulation"
-          style={{ accentColor: 'rgba(255,255,255,0.4)' }}
+          className={styles.volumeInput}
           data-no-swipe
         />
         <button
           onClick={onOpenPicker}
-          className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-muted text-white/40 active:border-strong active:text-white/70 touch-manipulation"
+          className={styles.outputButton}
         >
           <CastIcon />
-          <span className="text-xs truncate max-w-[80px]">{deviceName ?? 'No device'}</span>
+          <span className={styles.outputName}>{deviceName ?? 'No device'}</span>
         </button>
       </div>
     </>

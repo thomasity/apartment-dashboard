@@ -1,0 +1,164 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom-width: 1px;
+  border-color: var(--border-subtle);
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  height: 52px;
+}
+
+.clock {
+  display: flex;
+  user-select: none;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.time {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 100;
+  letter-spacing: -0.025em;
+  color: #fff;
+}
+
+.ampm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 300;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.date {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 300;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.nowPlaying {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  max-width: 200px;
+  transform: translateX(-50%);
+  user-select: none;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.note {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.track {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.separator {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.offline {
+  display: flex;
+  user-select: none;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.offlineDot {
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.offlineLabel {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.weather {
+  display: flex;
+  user-select: none;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.weatherIcon {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.temperature {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 100;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.mic {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border-width: 1px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.micListening {
+  border-color: rgb(239 68 68 / 0.5);
+  background-color: rgb(239 68 68 / 0.2);
+  color: #f87171;
+}
+
+.micDisabled {
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: rgb(255 255 255 / 0.05);
+  color: rgb(255 255 255 / 0.15);
+}
+
+.micIdle {
+  border-color: rgb(255 255 255 / 0.15);
+  background-color: rgb(255 255 255 / 0.05);
+  color: rgb(255 255 255 / 0.4);
+}
+.micIdle:hover {
+  border-color: rgb(255 255 255 / 0.25);
+  color: rgb(255 255 255 / 0.6);
+}

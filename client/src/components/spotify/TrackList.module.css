@@ -1,0 +1,174 @@
+.root {
+  margin: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  position: sticky;
+  top: 0px;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom-width: 2px;
+  border-color: var(--border-strong);
+  background-color: var(--color-bg);
+  padding: 0.5rem;
+}
+
+.backButton {
+  flex-shrink: 0;
+  touch-action: manipulation;
+  color: rgb(255 255 255 / 0.4);
+}
+.backButton:active {
+  color: #fff;
+}
+
+.cover {
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.headerText {
+  min-width: 0px;
+  flex: 1 1 0%;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: #fff;
+}
+
+.subtitle {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.playAll {
+  display: flex;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  background-color: rgb(255 255 255 / 0.1);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.7);
+}
+.playAll:active {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.empty {
+  display: flex;
+  flex: 1 1 0%;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyText {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.track {
+  display: flex;
+  touch-action: manipulation;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-item);
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  text-align: left;
+}
+.track:active {
+  background-color: rgb(255 255 255 / 0.05);
+}
+
+.trackActive {
+  background-color: rgb(255 255 255 / 0.04);
+}
+
+.trackIndex {
+  display: flex;
+  width: 1.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.trackNumber {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.numberActive {
+  color: #4ade80;
+}
+
+.numberIdle {
+  color: rgb(255 255 255 / 0.2);
+}
+
+.trackText {
+  min-width: 0px;
+  flex: 1 1 0%;
+}
+
+.trackName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.nameActive {
+  color: #4ade80;
+}
+
+.nameIdle {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.trackArtist {
+  margin-top: 0.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.35);
+}
+
+.duration {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.25);
+}

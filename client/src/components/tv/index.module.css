@@ -1,0 +1,807 @@
+.appTile {
+  touch-action: manipulation;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.appTile:active {
+  transform: scale(.95);
+}
+
+.appTileFrame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.5rem;
+}
+
+.appTilePlaceholder {
+  display: flex;
+  height: 12rem;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(255 255 255 / 0.08);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.appTileIcon {
+  height: 12rem;
+  width: 100%;
+  background-color: rgb(255 255 255 / 0.06);
+  object-fit: contain;
+}
+
+.appTileCaption {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  background-image: linear-gradient(to top, rgb(0 0 0 / 0.75), transparent);
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-top: 2rem;
+}
+
+.appTileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.8);
+}
+
+.barButton {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.barButtonActive {
+  background-color: rgb(255 255 255 / 0.15);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.barButtonDanger {
+  color: rgb(255 255 255 / 0.35);
+}
+.barButtonDanger:hover {
+  background-color: rgb(var(--color-danger-rgb) / 0.1);
+  color: rgb(var(--color-danger-rgb) / 0.7);
+}
+
+.barButtonIdle {
+  color: rgb(255 255 255 / 0.35);
+}
+.barButtonIdle:hover {
+  background-color: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.7);
+}
+
+.flatButton {
+  display: flex;
+  height: 5rem;
+  width: 6rem;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-item);
+  background-color: #3f3f46;
+  color: rgb(255 255 255 / 0.7);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.flatButton:hover {
+  background-color: #52525b;
+}
+.flatButton:active {
+  background-color: #71717a;
+}
+
+.roundButtonLarge {
+  height: 7rem;
+  width: 7rem;
+}
+
+.roundButtonSmall {
+  height: 6rem;
+  width: 6rem;
+}
+
+.roundButton {
+  display: flex;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.roundButtonDim {
+  background-color: #3f3f46;
+  color: rgb(255 255 255 / 0.5);
+}
+.roundButtonDim:hover {
+  background-color: #52525b;
+}
+
+.roundButtonBright {
+  background-color: #52525b;
+  color: rgb(255 255 255 / 0.8);
+}
+.roundButtonBright:hover {
+  background-color: #71717a;
+}
+.roundButtonBright:active {
+  background-color: #a1a1aa;
+}
+
+.status {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding-bottom: 2rem;
+}
+
+.statusDot {
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.statusDotWaking {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background-color: rgb(251 191 36 / 0.6);
+}
+
+.statusDotIdle {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.statusTitle {
+  margin-top: 0.25rem;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.statusHint {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.15);
+}
+
+.statusAction {
+  margin-top: 0.5rem;
+  touch-action: manipulation;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.08);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.4);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.statusAction:hover {
+  background-color: rgb(255 255 255 / 0.14);
+}
+
+.root {
+  position: relative;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.topBar {
+  position: relative;
+  z-index: 30;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-bottom-width: 1px;
+  border-color: var(--border-subtle);
+}
+
+.nowPlayingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.nowPlaying {
+  display: flex;
+  min-width: 0px;
+  flex: 1 1 0%;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.appIcon {
+  height: 1.5rem;
+  width: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  object-fit: contain;
+}
+
+.appName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.playDot {
+  height: 0.375rem;
+  width: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+}
+
+.playDotPlaying {
+  background-color: rgb(var(--color-online-rgb) / 1);
+}
+
+.playDotIdle {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.playState {
+  flex-shrink: 0;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.playTime {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.topControls {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.powerSlot {
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+  border-left-width: 1px;
+  border-color: rgb(255 255 255 / 0.08);
+  padding-left: 1rem;
+}
+
+.progressTrack {
+  position: absolute;
+  bottom: 0px;
+  left: 0px;
+  right: 0px;
+  height: 2px;
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+.progressFill {
+  height: 100%;
+  background-color: rgb(255 255 255 / 0.3);
+  transition: width 1s linear;
+}
+
+.searchBar {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 0.25rem;
+  padding-top: 0.75rem;
+}
+
+.searchField {
+  position: relative;
+  flex: 1 1 0%;
+}
+
+.searchIcon {
+  pointer-events: none;
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgb(255 255 255 / 0.25);
+}
+
+.searchInput {
+  width: 100%;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.06);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 2.25rem;
+  padding-right: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.7);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.searchInput::placeholder {
+  color: rgb(255 255 255 / 0.2);
+}
+
+.searchButton {
+  touch-action: manipulation;
+  white-space: nowrap;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.08);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.5);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.searchButton:hover:enabled {
+  background-color: rgb(255 255 255 / 0.14);
+}
+.searchButton:disabled {
+  opacity: 0.3;
+}
+
+.body {
+  composes: app-scrollbar from global;
+  flex: 1 1 0%;
+  overflow-y: auto;
+}
+
+.emptyState {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.emptyTitle {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.emptyHint {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.15);
+}
+
+.emptyAction {
+  margin-top: 0.25rem;
+  touch-action: manipulation;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.08);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.4);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.emptyAction:hover {
+  background-color: rgb(255 255 255 / 0.14);
+}
+
+.loading {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.loadingText {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.apps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.remoteDismiss {
+  position: absolute;
+  inset: 0px;
+  z-index: 10;
+}
+
+.dpadPanel {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 20;
+  border-radius: 1rem;
+  background-color: #18181b;
+  padding: 1rem;
+}
+
+.dpad {
+  position: relative;
+  height: 312px;
+  width: 312px;
+}
+
+.dpadRing {
+  position: absolute;
+  inset: 0px;
+  border-radius: 9999px;
+  background-color: #27272a;
+}
+
+.dpadUp {
+  position: absolute;
+  left: 50%;
+  top: 0px;
+  display: flex;
+  height: 5rem;
+  width: 5rem;
+  transform: translateX(-50%);
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255 255 255 / 0.6);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.dpadUp:hover {
+  color: rgb(255 255 255 / 0.9);
+}
+
+.dpadDown {
+  position: absolute;
+  bottom: 0px;
+  left: 50%;
+  display: flex;
+  height: 5rem;
+  width: 5rem;
+  transform: translateX(-50%);
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255 255 255 / 0.6);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.dpadDown:hover {
+  color: rgb(255 255 255 / 0.9);
+}
+
+.dpadLeft {
+  position: absolute;
+  left: 0px;
+  top: 50%;
+  display: flex;
+  height: 5rem;
+  width: 5rem;
+  transform: translateY(-50%);
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255 255 255 / 0.6);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.dpadLeft:hover {
+  color: rgb(255 255 255 / 0.9);
+}
+
+.dpadRight {
+  position: absolute;
+  right: 0px;
+  top: 50%;
+  display: flex;
+  height: 5rem;
+  width: 5rem;
+  transform: translateY(-50%);
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255 255 255 / 0.6);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.dpadRight:hover {
+  color: rgb(255 255 255 / 0.9);
+}
+
+.dpadOk {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  height: 7rem;
+  width: 7rem;
+  transform: translate(-50%, -50%);
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: #52525b;
+  color: rgb(255 255 255 / 0.8);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.dpadOk:hover {
+  background-color: #71717a;
+}
+.dpadOk:active {
+  background-color: #a1a1aa;
+}
+
+.dpadOkLabel {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.keysPanel {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  background-color: #18181b;
+  padding: 1rem;
+}
+
+.keysRow {
+  display: flex;
+  justify-content: space-around;
+  gap: 0.75rem;
+}
+
+.keysGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.keyboardBackdrop {
+  position: absolute;
+  inset: 0px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.keyboardBar {
+  display: flex;
+  gap: 0.75rem;
+  border-top-width: 1px;
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: #111;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.keyboardInput {
+  flex: 1 1 0%;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.08);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.keyboardInput::placeholder {
+  color: rgb(255 255 255 / 0.2);
+}
+
+.keyboardSend {
+  touch-action: manipulation;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.10);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.6);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.keyboardSend:hover {
+  background-color: rgb(255 255 255 / 0.16);
+}
+
+.discoverBackdrop {
+  position: absolute;
+  inset: 0px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.discoverSheet {
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  border-top-width: 1px;
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: #18181b;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 1.5rem;
+  padding-top: 1rem;
+}
+
+.discoverHeader {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.discoverTitle {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.discoverRescan {
+  touch-action: manipulation;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.3);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.discoverRescan:hover {
+  color: rgb(255 255 255 / 0.6);
+}
+.discoverRescan:disabled {
+  opacity: 0.4;
+}
+
+.discoverStatus {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.discoverEmpty {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.discoverList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.discoverItem {
+  display: flex;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.discoverItem:hover {
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+.discoverItemText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+}
+
+.discoverItemName {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.discoverItemModel {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.25);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: .5;
+  }
+}

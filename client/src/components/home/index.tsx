@@ -3,12 +3,13 @@ import { useClock }   from '../../hooks/useClock';
 import { useWeather } from '../../hooks/useWeather';
 import { useSpotify } from '../../hooks/useSpotify';
 import { wmo }        from '../../lib/wmo';
-import type { VoiceStatus } from '../../hooks/useVoice';
+import type { VoiceStatus } from '../../types';
 import ClockDisplay   from './ClockDisplay';
 import SpotifyStrip   from './SpotifyStrip';
 import WeatherStrip   from './WeatherStrip';
 import { MicrophoneIcon } from '../icons';
 import { useConnectivity } from '../../hooks/useConnectivity';
+import styles from './index.module.css';
 
 const ROTATION_MS  = 30 * 60 * 1000;
 const currentEpoch = () => Math.floor(Date.now() / ROTATION_MS);
@@ -67,25 +68,25 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
   const current   = weather?.current ?? null;
   const cond      = current ? wmo(current.weather_code) : null;
   const daily     = weather?.daily ?? null;
-  const todayHigh = daily ? Math.round(daily.temperature_2m_max[0]) : null;
-  const todayLow  = daily ? Math.round(daily.temperature_2m_min[0]) : null;
+  const maxTemp   = daily?.temperature_2m_max[0];
+  const minTemp   = daily?.temperature_2m_min[0];
+  const todayHigh = maxTemp !== undefined ? Math.round(maxTemp) : null;
+  const todayLow  = minTemp !== undefined ? Math.round(minTemp) : null;
   const precip    = weather?.hourly?.precipitation_probability?.[h] ?? null;
 
   return (
-    <div className="relative h-full w-full overflow-hidden select-none">
+    <div className={styles.root}>
 
       {/* Background crossfade layers */}
-      <img src={picUrl(epochs.back)} className="absolute inset-0 w-full h-full object-cover" aria-hidden />
+      <img src={picUrl(epochs.back)} className={styles.background} aria-hidden />
       <img
         key={epochs.front}
         src={picUrl(epochs.front)}
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ animation: 'homeFadeIn 4s ease-in-out forwards' }}
+        className={styles.backgroundIncoming}
         aria-hidden
       />
       <div
-        className="absolute inset-0"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.55) 100%)' }}
+        className={styles.scrim}
         aria-hidden
       />
 
@@ -114,12 +115,12 @@ export default function Home({ onNavigate, micStatus, onMicClick }: Props) {
         disabled={micDisabled}
         title={micDisabled ? 'Voice needs an internet connection' : undefined}
         data-no-swipe
-        className={`absolute bottom-20 right-5 flex items-center justify-center w-14 h-14 rounded-full border backdrop-blur-sm transition-colors touch-manipulation ${
+        className={`${styles.mic} ${
           micStatus !== 'idle'
-            ? 'bg-red-500/20 border-red-500/50 text-red-400'
+            ? styles.micListening
             : micDisabled
-              ? 'bg-black/30 border-white/10 text-white/15'
-              : 'bg-black/30 border-white/15 text-white/40'
+              ? styles.micDisabled
+              : styles.micIdle
         }`}
       >
         <MicrophoneIcon />

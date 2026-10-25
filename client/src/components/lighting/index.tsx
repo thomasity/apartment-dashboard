@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 import axios from 'axios';
 import ControlsView  from './ControlsView';
 import PresetsView   from './PresetsView';
 import ScheduleView  from './ScheduleView';
 import DevicesView   from './DevicesView';
 import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap, DeviceExpose } from '../../types';
+import styles from './index.module.css';
+
+/** Fallback slider values for a device the server hasn't reported yet */
+const DEFAULT_VALUES: LightingValues = { brightness: 70, colorTemp: 30 };
 
 export default function Lighting() {
   interface DevicesState {
@@ -26,7 +30,6 @@ export default function Lighting() {
   const [serverState,  setServerState]  = useState<LightingServerState>({ connected: false, groups: {}, poweredOff: [] });
   const [devicesState, setDevicesState] = useState<DevicesState>({ bridgeOnline: false, devices: [], pairing: false });
   const [localDevices, setLocalDevices] = useState<Record<string, LightingValues>>({});
-  const [socket,       setSocket]       = useState<Socket | null>(null);
   const [circadian,    setCircadian]    = useState<CircadianState>({ enabledGroups: [], brightness: 50, colorTemp: 50, nextChange: null, timeline: [] });
   const [rooms,        setRooms]        = useState<RoomsMap>({});
   const [overrides,    setOverrides]    = useState<OverridesMap>({});
@@ -52,7 +55,7 @@ export default function Lighting() {
       setServerState(data);
       const initial: Record<string, LightingValues> = {};
       Object.entries(data.groups).forEach(([name, g]) => {
-        initial[name] = { brightness: g.brightness ?? 70, colorTemp: g.colorTemp ?? 30 };
+        initial[name] = { brightness: g.brightness ?? DEFAULT_VALUES.brightness, colorTemp: g.colorTemp ?? DEFAULT_VALUES.colorTemp };
       });
       setLocalDevices(initial);
     }).catch(() => {});
@@ -60,7 +63,6 @@ export default function Lighting() {
 
   useEffect(() => {
     const s = io({ transports: ['websocket', 'polling'] });
-    setSocket(s);
     s.on('lighting:state', (state: LightingServerState) => {
       setServerState(state);
       const now = Date.now();
@@ -99,8 +101,8 @@ export default function Lighting() {
     });
     setLocalDevices((prev) => {
       const next: Record<string, LightingValues> = {};
-      Object.keys(prev).forEach((name) => {
-        next[name] = off.includes(name) ? prev[name] : { ...prev[name], [key]: value };
+      Object.entries(prev).forEach(([name, vals]) => {
+        next[name] = off.includes(name) ? vals : { ...vals, [key]: value };
       });
       return next;
     });
@@ -130,7 +132,7 @@ export default function Lighting() {
   const handleDeviceSlider = useCallback((name: string, key: keyof LightingValues, value: number) => {
     if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
     lastTouchDevices.current[name][key] = Date.now();
-    setLocalDevices((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), [key]: value } }));
+    setLocalDevices((prev) => ({ ...prev, [name]: { ...(prev[name] ?? DEFAULT_VALUES), [key]: value } }));
     const timerKey = `${name}-${key}`;
     clearTimeout(timersDevices.current[timerKey]);
     timersDevices.current[timerKey] = setTimeout(() => {
@@ -152,7 +154,7 @@ export default function Lighting() {
     setLocalDevices((prev) => {
       const next = { ...prev };
       devicesInRoom.forEach((name) => {
-        if (!off.includes(name)) next[name] = { ...(prev[name] ?? {}), [key]: value };
+        if (!off.includes(name)) next[name] = { ...(prev[name] ?? DEFAULT_VALUES), [key]: value };
       });
       return next;
     });
@@ -216,17 +218,17 @@ export default function Lighting() {
   }, [handleSlider, circadian.enabledGroups]);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden relative">
+    <div className={styles.root}>
 
       {/* Nav pill */}
-      <div className="shrink-0 flex justify-center pt-5 pb-2">
-        <div className="flex bg-white/[0.06] rounded-full p-1 gap-1">
+      <div className={styles.tabBar}>
+        <div className={styles.tabs}>
           {['controls', 'presets', 'rules', 'devices'].map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-4 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-widest transition-colors touch-manipulation ${
-                view === v ? 'bg-white/[0.12] text-white/80' : 'text-white/30 hover:text-white/50'
+              className={`${styles.tab} ${
+                view === v ? styles.tabActive : styles.tabIdle
               }`}
             >
               {v}
@@ -268,9 +270,7 @@ export default function Lighting() {
 
       {view === 'devices' && (
         <DevicesView
-          socket={socket}
           devState={devicesState}
-          setDevState={setDevicesState}
           rooms={rooms}
           onCreateRoom={createRoom}
           onRenameRoom={renameRoom}

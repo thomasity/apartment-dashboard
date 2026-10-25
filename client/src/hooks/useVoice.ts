@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-
-export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking';
+import type { VoiceStatus } from '../types';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 const MAX_HISTORY = 12; // 6 exchanges

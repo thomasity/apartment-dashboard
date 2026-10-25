@@ -108,11 +108,6 @@ input[type='range'].slider-colortemp {
   background: linear-gradient(to right, var(--slider-warm), var(--slider-neutral) 45%, var(--slider-cool));
 }
 
-@keyframes homeFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
 /* Hide scrollbar on horizontal strips while keeping scroll behaviour */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }

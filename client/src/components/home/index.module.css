@@ -1,0 +1,72 @@
+.root {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  user-select: none;
+  overflow: hidden;
+}
+
+.background {
+  position: absolute;
+  inset: 0px;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.backgroundIncoming {
+  position: absolute;
+  inset: 0px;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  animation: homeFadeIn 4s ease-in-out forwards;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.55) 100%);
+}
+
+.mic {
+  position: absolute;
+  bottom: 5rem;
+  right: 1.25rem;
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  touch-action: manipulation;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border-width: 1px;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.micListening {
+  border-color: rgb(239 68 68 / 0.5);
+  background-color: rgb(239 68 68 / 0.2);
+  color: #f87171;
+}
+
+.micDisabled {
+  border-color: rgb(255 255 255 / 0.1);
+  background-color: rgb(0 0 0 / 0.3);
+  color: rgb(255 255 255 / 0.15);
+}
+
+.micIdle {
+  border-color: rgb(255 255 255 / 0.15);
+  background-color: rgb(0 0 0 / 0.3);
+  color: rgb(255 255 255 / 0.4);
+}
+
+@keyframes homeFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

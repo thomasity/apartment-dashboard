@@ -3,8 +3,9 @@ import { useWeather } from '../hooks/useWeather';
 import { useSpotify } from '../hooks/useSpotify';
 import { useConnectivity } from '../hooks/useConnectivity';
 import { wmo }        from '../lib/wmo';
-import type { VoiceStatus } from '../hooks/useVoice';
+import type { VoiceStatus } from '../types';
 import { MicrophoneIcon } from './icons';
+import styles from './Header.module.css';
 
 interface Props {
   micStatus: VoiceStatus;
@@ -31,37 +32,36 @@ export default function Header({ micStatus, onMicClick }: Props) {
   });
 
   return (
-    <div className="relative shrink-0 flex items-center justify-between px-6 border-b border-subtle"
-         style={{ height: '52px' }}>
-      <div className="flex items-baseline gap-2 select-none">
-        <span className="text-2xl font-thin text-white tracking-tight">
+    <div className={styles.root}>
+      <div className={styles.clock}>
+        <span className={styles.time}>
           {hour}:{m}
         </span>
-        <span className="text-sm font-light text-white/30">{ampm}</span>
-        <span className="text-sm font-light text-white/20 ml-2">{dateStr}</span>
+        <span className={styles.ampm}>{ampm}</span>
+        <span className={styles.date}>{dateStr}</span>
       </div>
 
       {/* Center: now playing */}
       {spot?.item && (
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 select-none max-w-[200px]">
-          <span className="text-white/30 text-xs">♪</span>
-          <span className="text-xs text-white/40 truncate">{spot.item.name}</span>
-          <span className="text-white/20 text-xs">·</span>
-          <span className="text-xs text-white/25 truncate">{spot.item.artist}</span>
+        <div className={styles.nowPlaying}>
+          <span className={styles.note}>♪</span>
+          <span className={styles.track}>{spot.item.name}</span>
+          <span className={styles.separator}>·</span>
+          <span className={styles.artist}>{spot.item.artist}</span>
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className={styles.status}>
         {!online && (
-          <div className="flex items-center gap-1.5 select-none" title="The hub can't reach the internet — music, weather and voice are paused">
-            <span className="w-2 h-2 rounded-full bg-white/20" />
-            <span className="text-xs text-white/40">Offline</span>
+          <div className={styles.offline} title="The hub can't reach the internet — music, weather and voice are paused">
+            <span className={styles.offlineDot} />
+            <span className={styles.offlineLabel}>Offline</span>
           </div>
         )}
         {current && (
-          <div className="flex items-center gap-2 select-none">
-            <span className="text-lg leading-none">{wmo(current.weather_code).icon}</span>
-            <span className="text-xl font-thin text-white/60">
+          <div className={styles.weather}>
+            <span className={styles.weatherIcon}>{wmo(current.weather_code).icon}</span>
+            <span className={styles.temperature}>
               {Math.round(current.temperature_2m)}°
             </span>
           </div>
@@ -71,12 +71,12 @@ export default function Header({ micStatus, onMicClick }: Props) {
           disabled={micDisabled}
           title={micDisabled ? 'Voice needs an internet connection' : undefined}
           data-no-swipe
-          className={`flex items-center justify-center w-8 h-8 rounded-full border transition-colors touch-manipulation ${
+          className={`${styles.mic} ${
             micStatus !== 'idle'
-              ? 'bg-red-500/20 border-red-500/50 text-red-400'
+              ? styles.micListening
               : micDisabled
-                ? 'bg-white/5 border-white/10 text-white/15'
-                : 'bg-white/5 border-white/15 text-white/40 hover:text-white/60 hover:border-white/25'
+                ? styles.micDisabled
+                : styles.micIdle
           }`}
         >
           <MicrophoneIcon size={16} />

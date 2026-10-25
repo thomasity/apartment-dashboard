@@ -6,15 +6,16 @@ import CircadianStrip from './CircadianStrip';
 import { avg, spread, tempLabel } from './utils';
 import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap } from '../../types';
 import { formatTime } from '../../lib/format';
+import styles from './ControlsView.module.css';
 
 function PowerBtn({ isOff, onClick }: { isOff: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`w-24 h-14 flex items-center justify-center rounded-item touch-manipulation transition-colors ${
+      className={`${styles.powerButton} ${
         isOff
-          ? 'bg-white/[0.05] text-white/30 hover:bg-white/[0.10] hover:text-white/60'
-          : 'bg-white/[0.14] text-white/75 hover:bg-danger/15 hover:text-danger/70'
+          ? styles.powerOff
+          : styles.powerOn
       }`}
     >
       <PowerIcon />
@@ -39,13 +40,13 @@ interface DeviceRowProps {
 
 function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onBrightness, onColorTemp, onToggleCircadian, onTogglePower, brightnessMixed, colorTempMixed }: DeviceRowProps) {
   return (
-    <div className={`flex flex-col gap-1.5 ${isOffline ? 'opacity-40 pointer-events-none' : ''}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-white/70 select-none">{name}</span>
-        {isOffline && <span className="text-[10px] text-white/30 uppercase tracking-wider">Offline</span>}
+    <div className={`${styles.deviceRow} ${isOffline ? styles.offline : ''}`}>
+      <div className={styles.deviceHeader}>
+        <span className={styles.deviceName}>{name}</span>
+        {isOffline && <span className={styles.offlineTag}>Offline</span>}
       </div>
-      <div className="flex items-center gap-4">
-        <div className={`flex-1 h-[6.5rem] flex flex-col justify-center transition-opacity ${isOff ? 'opacity-20 pointer-events-none' : ''}`}>
+      <div className={styles.deviceControls}>
+        <div className={`${styles.sliders} ${isOff ? styles.dimmed : ''}`}>
           {isCircadian
             ? <CircadianStrip circadian={circadian} />
             : <LightSliders
@@ -59,8 +60,8 @@ function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onB
               />
           }
         </div>
-        <div className="flex flex-row gap-4 mx-4">
-          <div className={isOff ? 'opacity-20 pointer-events-none' : ''}>
+        <div className={styles.toggles}>
+          <div className={isOff ? styles.dimmed : ''}>
             <AutoToggle on={isCircadian} onClick={onToggleCircadian} />
           </div>
           <PowerBtn isOff={isOff} onClick={onTogglePower} />
@@ -123,33 +124,33 @@ function RoomSection({
   const remainingMs = hasOverride ? Math.max(0, roomOverrideExpiry - Date.now()) : 0;
 
   return (
-    <div className={`flex flex-col pt-5 border-t border-white/[0.08] ${isRoomOffline ? 'opacity-40' : ''}`}>
+    <div className={`${styles.room} ${isRoomOffline ? styles.roomOffline : ''}`}>
       {/* Room header row */}
-      <div className="flex items-center gap-4 mb-3">
+      <div className={styles.roomHeader}>
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left touch-manipulation"
+          className={styles.roomToggle}
         >
-          <span className="text-white/25 shrink-0">
+          <span className={styles.chevron}>
             {expanded ? <ChevronDownIcon size={13} /> : <ChevronRightIcon size={13} />}
           </span>
-          <span className="text-sm font-semibold text-white/65 truncate">{name}</span>
-          <span className="text-[10px] text-white/20 shrink-0">{paired.length}</span>
+          <span className={styles.roomName}>{name}</span>
+          <span className={styles.roomCount}>{paired.length}</span>
         </button>
 
         {isRoomOffline && (
-          <span className="text-[10px] text-white/30 uppercase tracking-wider shrink-0">Offline</span>
+          <span className={styles.roomOfflineTag}>Offline</span>
         )}
         {someOffline && !isRoomOffline && (
-          <span className="text-[10px] text-white/25 shrink-0">{offlineCount} offline</span>
+          <span className={styles.roomOfflineCount}>{offlineCount} offline</span>
         )}
 
         {hasOverride && (
-          <span className="flex items-center gap-1.5 text-[10px] text-amber-400/70 bg-amber-400/[0.08] border border-amber-400/20 px-2 py-0.5 rounded-full shrink-0">
+          <span className={styles.overrideBadge}>
             Manual · {formatTime(remainingMs)}
             <button
               onClick={() => onClearRoomOverride(name)}
-              className="opacity-60 hover:opacity-100 leading-none touch-manipulation"
+              className={styles.overrideClear}
               title="Resume auto"
             >
               ✕
@@ -157,14 +158,14 @@ function RoomSection({
           </span>
         )}
 
-        <div className={isRoomOff || isRoomOffline ? 'opacity-20 pointer-events-none' : ''}>
+        <div className={isRoomOff || isRoomOffline ? styles.dimmed : ''}>
           <AutoToggle on={isRoomCircadian} onClick={() => onRoomToggleCircadian(name)} />
         </div>
         <PowerBtn isOff={isRoomOff} onClick={() => onRoomTogglePower(name)} />
       </div>
 
       {/* Room-level sliders — always visible */}
-      <div className={`transition-opacity ${isRoomOff || isRoomOffline ? 'opacity-20 pointer-events-none' : ''}`}>
+      <div className={`${styles.roomSliders} ${isRoomOff || isRoomOffline ? styles.dimmed : ''}`}>
         {isRoomCircadian
           ? <CircadianStrip circadian={circadian} />
           : <LightSliders
@@ -181,7 +182,7 @@ function RoomSection({
 
       {/* Individual devices — expanded */}
       {expanded && (
-        <div className="flex flex-col gap-5 mt-5 pl-4 border-l border-white/[0.06]">
+        <div className={styles.roomDevices}>
           {paired.map((n) => (
             <DeviceRow
               key={n}
@@ -249,17 +250,17 @@ export default function ControlsView({
 
   if (deviceEntries.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 pb-8">
-        <span className={`w-2 h-2 rounded-full ${offline ? 'bg-white/20' : 'bg-online/40'}`} />
-        <p className="text-[11px] uppercase tracking-widest text-white/25 mt-1">
+      <div className={styles.empty}>
+        <span className={`${styles.emptyDot} ${offline ? styles.emptyDotOffline : styles.emptyDotOnline}`} />
+        <p className={styles.emptyTitle}>
           {offline ? 'Bridge offline' : 'No devices paired'}
         </p>
         {!offline && (
           <>
-            <p className="text-white/15 text-xs">Pair a bulb in the Devices tab</p>
+            <p className={styles.emptyHint}>Pair a bulb in the Devices tab</p>
             <button
               onClick={onGoToDevices}
-              className="mt-2 px-4 py-1.5 rounded-full bg-white/[0.06] text-white/40 text-[11px] font-medium uppercase tracking-widest touch-manipulation hover:bg-white/[0.10] transition-colors"
+              className={styles.emptyAction}
             >
               Open Devices
             </button>
@@ -272,14 +273,14 @@ export default function ControlsView({
   return (
     <>
       {offline && (
-        <div className="absolute top-5 right-8 flex items-center gap-1.5 text-[10px] text-accent/60 select-none z-10">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent/60" />
+        <div className={styles.localMode}>
+          <span className={styles.localModeDot} />
           Local mode
         </div>
       )}
 
       {/* Global "All Devices" row */}
-      <div className="shrink-0 px-8 pt-2 pb-5 bg-white/[0.02]" data-no-swipe>
+      <div className={styles.allDevices} data-no-swipe>
         <DeviceRow
           name="All Devices"
           device={{ brightness: allBrightness, colorTemp: allColorTemp }}
@@ -296,8 +297,8 @@ export default function ControlsView({
       </div>
 
       {/* Room / device sections */}
-      <div className="flex-1 min-h-0 flex flex-col border-t-2 border-white/[0.12]">
-        <div className="flex-1 min-h-0 overflow-y-auto app-scrollbar px-8 pb-6 flex flex-col" data-no-swipe>
+      <div className={styles.sections}>
+        <div className={styles.sectionsScroll} data-no-swipe>
 
           {hasRooms ? (
             <>
@@ -322,11 +323,11 @@ export default function ControlsView({
               ))}
 
               {unassigned.length > 0 && (
-                <div className="flex flex-col pt-5 border-t border-white/[0.08]">
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-white/25 mb-4">
+                <div className={styles.unassigned}>
+                  <span className={styles.unassignedTitle}>
                     Unassigned
                   </span>
-                  <div className="flex flex-col gap-5">
+                  <div className={styles.unassignedList}>
                     {unassigned.map(([name]) => (
                       <DeviceRow
                         key={name}
@@ -347,7 +348,7 @@ export default function ControlsView({
               )}
             </>
           ) : (
-            <div className="flex flex-col gap-5 pt-4">
+            <div className={styles.flatList}>
               {deviceEntries.map(([name]) => (
                 <DeviceRow
                   key={name}

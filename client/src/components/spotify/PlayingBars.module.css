@@ -1,0 +1,19 @@
+.root {
+  display: flex;
+  height: 0.875rem;
+  width: 0.875rem;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.bar {
+  width: 3px;
+  border-radius: 0.125rem;
+  background-color: #4ade80;
+  animation: soundbar 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes soundbar {
+  from { height: 3px; }
+  to   { height: 14px; }
+}

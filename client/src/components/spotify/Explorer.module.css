@@ -1,0 +1,424 @@
+.square {
+  width: 7rem;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  text-align: left;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.square:active {
+  transform: scale(.95);
+}
+
+.squareImage {
+  height: 7rem;
+  width: 7rem;
+  object-fit: cover;
+}
+
+.squarePlaceholder {
+  display: flex;
+  height: 7rem;
+  width: 7rem;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(255 255 255 / 0.05);
+}
+
+.squarePlaceholderIcon {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.itemTitle {
+  margin-top: 0.375rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.itemSubtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.skeleton {
+  width: 7rem;
+  flex-shrink: 0;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.skeletonArt {
+  height: 7rem;
+  width: 7rem;
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+.skeletonTitle {
+  margin-top: 0.5rem;
+  height: 0.625rem;
+  width: 5rem;
+  border-radius: 9999px;
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+.skeletonSubtitle {
+  margin-top: 0.375rem;
+  height: 0.5rem;
+  width: 3.5rem;
+  border-radius: 9999px;
+  background-color: rgb(255 255 255 / 0.04);
+}
+
+.rowHeader {
+  margin-bottom: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.sectionTitle {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.rowItems {
+  display: flex;
+  height: 154px;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 0.25rem;
+  scrollbar-width: none;
+}
+
+.seeAll {
+  display: flex;
+  width: 7rem;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: rgb(255 255 255 / 0.3);
+}
+.seeAll:active {
+  color: rgb(255 255 255 / 0.6);
+}
+
+.seeAllIcon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.seeAllLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.gridHeader {
+  position: sticky;
+  top: 0px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background-color: var(--color-bg);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.backButton {
+  touch-action: manipulation;
+  color: rgb(255 255 255 / 0.4);
+}
+.backButton:active {
+  color: #fff;
+}
+
+.gridTitle {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  padding-top: 0.5rem;
+}
+
+.gridItem {
+  touch-action: manipulation;
+  text-align: left;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.gridItem:active {
+  transform: scale(.95);
+}
+
+.gridImage {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  object-fit: cover;
+}
+
+.gridPlaceholder {
+  display: flex;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(255 255 255 / 0.05);
+}
+
+.gridPlaceholderIcon {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.result {
+  display: flex;
+  width: 100%;
+  touch-action: manipulation;
+  align-items: center;
+  gap: 0.75rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  text-align: left;
+}
+.result:active {
+  background-color: rgb(255 255 255 / 0.05);
+}
+
+.resultActive {
+  background-color: rgb(255 255 255 / 0.04);
+}
+
+.resultArt {
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.resultArtPlaceholder {
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  background-color: rgb(255 255 255 / 0.05);
+}
+
+.resultText {
+  min-width: 0px;
+  flex: 1 1 0%;
+}
+
+.resultTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.titlePlaying {
+  color: #4ade80;
+}
+
+.titleIdle {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.resultSubtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.35);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+.statusText {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.2);
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.resultsHeader {
+  margin-bottom: 0.25rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.root {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.searchBar {
+  flex-shrink: 0;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+.searchInput {
+  width: 100%;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  border-color: rgb(255 255 255 / 0.05);
+  background-color: rgb(255 255 255 / 0.05);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.searchInput::placeholder {
+  color: rgb(255 255 255 / 0.2);
+}
+.searchInput:focus {
+  border-color: rgb(255 255 255 / 0.2);
+}
+
+.body {
+  flex: 1 1 0%;
+  overflow-y: auto;
+}
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.likedSection {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.likedCard {
+  display: flex;
+  width: 100%;
+  touch-action: manipulation;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: left;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+  background: linear-gradient(135deg, #4c0080 0%, #1a0040 100%);
+}
+.likedCard:active {
+  transform: scale(0.98);
+}
+
+.likedIcon {
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  user-select: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background-color: rgb(255 255 255 / 0.1);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.likedTitle {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.likedSubtitle {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.section {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.sectionHeader {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionEmpty {
+  padding-left: 0.125rem;
+  padding-right: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(255 255 255 / 0.25);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: .5;
+  }
+}

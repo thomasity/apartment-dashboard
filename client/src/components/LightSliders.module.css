@@ -1,0 +1,79 @@
+.sunDim {
+  flex-shrink: 0;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.sunBright {
+  flex-shrink: 0;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.mixed {
+  font-size: 10px;
+  font-style: italic;
+  color: rgb(255 255 255 / 0.25);
+}
+
+.value {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.35);
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brightnessSlider {
+  composes: slider-brightness from global;
+  flex: 1 1 0%;
+  touch-action: manipulation;
+}
+
+.sliderMixed {
+  composes: slider-mixed from global;
+}
+
+.tempValue {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.35);
+}
+
+.tempIcon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.colorTempSlider {
+  composes: slider-colortemp from global;
+  flex: 1 1 0%;
+  touch-action: manipulation;
+}

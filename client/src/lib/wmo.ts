@@ -25,6 +25,6 @@ export const WMO = {
   99: { label: 'Thunderstorm',   icon: '⛈' },
 };
 
-export function wmo(code: number): { label: string; icon: string } {
-  return (WMO as Record<number, { label: string; icon: string }>)[code] ?? { label: 'Unknown', icon: '🌡' };
+export function wmo(code: number | undefined): { label: string; icon: string } {
+  return (code !== undefined ? (WMO as Record<number, { label: string; icon: string }>)[code] : undefined) ?? { label: 'Unknown', icon: '🌡' };
 }
