@@ -1,15 +1,6 @@
 {
-  "rooms": {
-    "Living Room": [
-      "Living Room",
-      "Bedroom"
-    ],
-    "Bedroom": []
-  },
-  "circadianGroups": [
-    "Living Room",
-    "Bedroom"
-  ],
+  "rooms": {},
+  "circadianGroups": [],
   "bulbDesiredStates": {},
   "rules": [],
   "active_voice": "Freya",
@@ -82,13 +73,5 @@
       "id": "TxGi1N29NQoCaYD4fcU5",
       "description": "Like, totally a valley girl. Uptalks everything. Perpetually unbothered. Uses 'literally' and 'so' constantly. Still somehow gets things done."
     }
-  },
-  "memories": {
-    "name": "Tommy",
-    "hype playlists": "Pump, Hype, Get crazy get stupid, 🌟🌟🌟🌟🌟, Ye and J",
-    "feel good playlists": "Funky funk, Upbeat, prod, Broad Strokes, Feel good stuff, Dance/Throwback, Constant producer flex",
-    "relaxing playlists": "Orchestral, Current faves, Favorites, righteous bud",
-    "bedtime playlists": "Bedtime vibe fest, Orchestral",
-    "voice preference": "Bella"
   }
 }

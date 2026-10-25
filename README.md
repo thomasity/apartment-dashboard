@@ -52,6 +52,14 @@ Open `http://localhost:5173` in your browser.
 | `PORT` | No | Express port (default: 3001) |
 | `MQTT_BROKER_URL` | No | e.g. `mqtt://localhost:1883` |
 
+### Runtime config (`server/config.json`)
+
+Rooms, rules, presence sensors, bulb states, the Roku device and voice-assistant
+memories are saved to `server/config.json` by the server as you use the dashboard. It is
+**not** tracked in git — each machine keeps its own. Any key it doesn't have falls back to
+the committed `server/config.example.json`, which is where the voice list lives; edit
+voices there.
+
 ---
 
 ## Zigbee Lighting Setup
