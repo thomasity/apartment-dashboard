@@ -1,16 +1,9 @@
 import type { VoiceStatus } from '../../types';
+import { useVoice } from '../../hooks/useVoice';
 import styles from './VoiceOverlay.module.css';
 
-interface Props {
-  status: VoiceStatus;
-  transcript: string;
-  response: string;
-  onCancel: () => void;
-  onInterrupt: () => void;
-  activeVoice: string;
-}
-
-export default function VoiceOverlay({ status, transcript, response, onCancel, onInterrupt, activeVoice }: Props) {
+export default function VoiceOverlay() {
+  const { status, transcript, response, cancel: onCancel, interrupt: onInterrupt, activeVoice } = useVoice();
   const STATUS_LABEL: Record<VoiceStatus, string> = {
     idle:       '',
     listening:  'Listening…',

@@ -1,21 +1,16 @@
+import { useClock } from '../../hooks/useClock';
 import styles from './ClockDisplay.module.css';
 
-interface Props {
-  hour: string;
-  m: string;
-  s: string;
-  ampm: string;
-  dateStr: string;
-}
+export default function ClockDisplay() {
+  const { hour, minute, second, ampm, longDate } = useClock();
 
-export default function ClockDisplay({ hour, m, s, ampm, dateStr }: Props) {
   return (
     <div className={styles.root}>
       <div className={styles.timeRow}>
         <span
           className={styles.time}
         >
-          {hour}:{m}
+          {hour}:{minute}
         </span>
         <div className={styles.side}>
           <span
@@ -26,14 +21,14 @@ export default function ClockDisplay({ hour, m, s, ampm, dateStr }: Props) {
           <span
             className={styles.seconds}
           >
-            :{s}
+            :{second}
           </span>
         </div>
       </div>
       <div
         className={styles.date}
       >
-        {dateStr}
+        {longDate}
       </div>
     </div>
   );

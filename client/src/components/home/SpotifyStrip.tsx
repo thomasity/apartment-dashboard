@@ -1,17 +1,16 @@
 import { PrevIcon, PlayIcon, PauseIcon, NextIcon } from '../icons';
-import type { SpotifyPlaybackItem } from '../../types';
+import { useSpotify } from '../../hooks/useSpotify';
 import styles from './SpotifyStrip.module.css';
 
 interface Props {
-  item: SpotifyPlaybackItem | null;
-  isPlaying: boolean;
-  onControl: () => void;
-  onPrevious: () => void;
-  onNext: () => void;
   onNavigate: () => void;
 }
 
-export default function SpotifyStrip({ item, isPlaying, onControl, onPrevious, onNext, onNavigate }: Props) {
+export default function SpotifyStrip({ onNavigate }: Props) {
+  const { state, control } = useSpotify();
+  const item      = state?.item;
+  const isPlaying = state?.isPlaying ?? false;
+
   if (!item) return null;
 
   return (
@@ -39,13 +38,13 @@ export default function SpotifyStrip({ item, isPlaying, onControl, onPrevious, o
 
       {/* Controls — independent, do not navigate */}
       <div className={styles.controls} data-no-swipe>
-        <button onClick={onPrevious} className={styles.skipButton}>
+        <button onClick={() => control('previous')} className={styles.skipButton}>
           <PrevIcon />
         </button>
-        <button onClick={onControl} className={styles.playButton}>
+        <button onClick={() => control(isPlaying ? 'pause' : 'play')} className={styles.playButton}>
           {isPlaying ? <PauseIcon /> : <PlayIcon />}
         </button>
-        <button onClick={onNext} className={styles.skipButton}>
+        <button onClick={() => control('next')} className={styles.skipButton}>
           <NextIcon />
         </button>
       </div>

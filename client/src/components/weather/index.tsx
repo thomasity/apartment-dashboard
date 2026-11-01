@@ -1,12 +1,11 @@
 import { useWeather }       from '../../hooks/useWeather';
-import { wmo }              from '../../lib/wmo';
 import CurrentConditions    from './CurrentConditions';
 import HourlyStrip          from './HourlyStrip';
 import DailyForecast        from './DailyForecast';
 import styles from './index.module.css';
 
 export default function Weather() {
-  const { data, error } = useWeather();
+  const { data, today, error } = useWeather();
 
   if (error && !data) {
     return (
@@ -16,7 +15,7 @@ export default function Weather() {
     );
   }
 
-  if (!data) {
+  if (!data || !today) {
     return (
       <div className={styles.loading}>
         Loading…
@@ -25,11 +24,10 @@ export default function Weather() {
   }
 
   const { current, hourly, daily } = data;
-  const weather = wmo(current.weather_code);
 
   return (
     <div className={styles.root}>
-      <CurrentConditions current={current} icon={weather.icon} label={weather.label} />
+      <CurrentConditions current={current} icon={today.icon} label={today.label} />
       <HourlyStrip hourly={hourly} daily={daily} />
       <DailyForecast daily={daily} />
     </div>

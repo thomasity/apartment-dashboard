@@ -2,43 +2,26 @@ import { useClock }   from '../hooks/useClock';
 import { useWeather } from '../hooks/useWeather';
 import { useSpotify } from '../hooks/useSpotify';
 import { useConnectivity } from '../hooks/useConnectivity';
-import { wmo }        from '../lib/wmo';
-import type { VoiceStatus } from '../types';
+import { useVoice }   from '../hooks/useVoice';
 import { MicrophoneIcon } from './icons';
 import styles from './Header.module.css';
 
-interface Props {
-  micStatus: VoiceStatus;
-  onMicClick: () => void;
-}
-
-export default function Header({ micStatus, onMicClick }: Props) {
-  const now             = useClock();
-  const { data }        = useWeather();
+export default function Header() {
+  const { hour, minute, ampm, shortDate } = useClock();
+  const { today }       = useWeather();
   const { state: spot } = useSpotify();
   const { online }      = useConnectivity();
-  const current         = data?.current ?? null;
-  // Voice needs Claude + ElevenLabs. Only block starting — an in-progress session can still be stopped.
-  const micDisabled     = !online && micStatus === 'idle';
+  const { status: micStatus, toggle: onMicClick, micDisabled } = useVoice();
 
-  const h      = now.getHours();
-  const m      = String(now.getMinutes()).padStart(2, '0');
-  const ampm   = h >= 12 ? 'PM' : 'AM';
-  const hour   = String(h % 12 || 12);
-  const dateStr = now.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month:   'short',
-    day:     'numeric',
-  });
 
   return (
     <div className={styles.root}>
       <div className={styles.clock}>
         <span className={styles.time}>
-          {hour}:{m}
+          {hour}:{minute}
         </span>
         <span className={styles.ampm}>{ampm}</span>
-        <span className={styles.date}>{dateStr}</span>
+        <span className={styles.date}>{shortDate}</span>
       </div>
 
       {/* Center: now playing */}
@@ -58,11 +41,11 @@ export default function Header({ micStatus, onMicClick }: Props) {
             <span className={styles.offlineLabel}>Offline</span>
           </div>
         )}
-        {current && (
+        {today && (
           <div className={styles.weather}>
-            <span className={styles.weatherIcon}>{wmo(current.weather_code).icon}</span>
+            <span className={styles.weatherIcon}>{today.icon}</span>
             <span className={styles.temperature}>
-              {Math.round(current.temperature_2m)}°
+              {today.temperature}°
             </span>
           </div>
         )}

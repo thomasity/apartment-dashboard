@@ -25,24 +25,7 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [navVisible, setNavVisible] = useState(true);
   const [spotifyMounted, setSpotifyMounted] = useState(false);
-  const {
-    status,
-    transcript,
-    response,
-    start,
-    stop,
-    cancel,
-    interrupt,
-    clearHistory,
-    activeVoice,
-  } = useVoice();
-
-  function handleMicClick() {
-    if (status === "idle") start();
-    else if (status === "listening") stop();
-    else if (status === "speaking") interrupt();
-    else cancel();
-  }
+  const { clearHistory } = useVoice();
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const inactivityRef = useRef<number | null>(null);
@@ -132,11 +115,7 @@ export default function App() {
             } ${id !== "home" ? styles.panelInset : ""}`}
           >
             {id === "home" && (
-              <Home
-                onNavigate={setTab}
-                micStatus={status}
-                onMicClick={handleMicClick}
-              />
+              <Home onNavigate={setTab} />
             )}
             {id === "weather" && <Weather />}
             {id === "lights" && <Lighting />}
@@ -149,7 +128,7 @@ export default function App() {
       {/* ── Header overlay (non-home tabs only) ── */}
       {tab !== "home" && (
         <div className={styles.header}>
-          <Header micStatus={status} onMicClick={handleMicClick} />
+          <Header />
         </div>
       )}
 
@@ -181,14 +160,7 @@ export default function App() {
         ))}
       </nav>
 
-      <VoiceOverlay
-        status={status}
-        transcript={transcript}
-        response={response}
-        onCancel={cancel}
-        onInterrupt={interrupt}
-        activeVoice={activeVoice}
-      />
+      <VoiceOverlay />
     </div>
   );
 }
