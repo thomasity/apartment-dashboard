@@ -3,7 +3,7 @@ import axios from "axios";
 import { TrashIcon } from "../icons";
 import type { Rule, RuleAction, RoomsMap, RuleFormState } from "../../types";
 import RuleForm from "./RuleForm";
-import styles from './ScheduleView.module.css';
+import styles from "./ScheduleView.module.css";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -134,22 +134,15 @@ export default function ScheduleView({ rooms }: Props) {
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        <span className={styles.title}>
-          Scheduled Rules
-        </span>
-        <button
-          onClick={openAdd}
-          className={styles.addButton}
-        >
+        <span className={styles.title}>Scheduled Rules</span>
+        <button onClick={openAdd} className={styles.addButton}>
           + Add Rule
         </button>
       </div>
 
       {rules.length === 0 ? (
         <div className={styles.empty}>
-          <p className={styles.emptyTitle}>
-            No rules yet
-          </p>
+          <p className={styles.emptyTitle}>No rules yet</p>
           <p className={styles.emptyHint}>
             Add a rule to automate your lights on a schedule
           </p>
@@ -167,9 +160,7 @@ export default function ScheduleView({ rooms }: Props) {
                 onClick={() => openEdit(rule)}
                 className={styles.ruleBody}
               >
-                <div className={styles.ruleName}>
-                  {rule.name}
-                </div>
+                <div className={styles.ruleName}>{rule.name}</div>
                 <div className={styles.ruleWhen}>
                   {fmt12(rule.time)} · {fmtDays(rule.days)}
                 </div>
@@ -196,7 +187,7 @@ export default function ScheduleView({ rooms }: Props) {
                 onClick={() => deleteRule(rule.id)}
                 className={styles.deleteButton}
               >
-                <TrashIcon />
+                <TrashIcon size={20} />
               </button>
             </div>
           ))}

@@ -6,7 +6,7 @@ import type {
   RuleFormState,
   RoomsMap,
 } from "../../types";
-import styles from './RuleForm.module.css';
+import styles from "./RuleForm.module.css";
 
 interface RuleFormProps {
   editId: string | null;
@@ -18,6 +18,7 @@ interface RuleFormProps {
 }
 
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
+const RULE_TIME_OPTIONS = ["sunrise", "sunset", "fixed"];
 
 export default function RuleForm({
   editId,
@@ -28,43 +29,36 @@ export default function RuleForm({
   onCancel,
 }: RuleFormProps) {
   const toggleDay = (day: number) => {
-    setForm((f) => ({
-      ...f,
-      days: f.days.includes(day)
+    setForm((f) => {
+      const days = f.days.includes(day)
         ? f.days.filter((d) => d !== day)
-        : [...f.days, day],
-    }));
+        : [...f.days, day];
+
+      return {
+        ...f,
+        days,
+      };
+    });
   };
   const setAction = (patch: Partial<RuleAction>) =>
     setForm((f) => ({ ...f, action: { ...f.action, ...patch } }));
 
   const roomNames = Object.keys(rooms);
   return (
-    <div
-      className={styles.backdrop}
-      onClick={onCancel}
-    >
-      <div
-        className={styles.sheet}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className={styles.backdrop} onClick={onCancel}>
+      <div className={styles.sheet} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <span className={styles.title}>
             {editId ? "Edit Rule" : "New Rule"}
           </span>
-          <button
-            onClick={onCancel}
-            className={styles.close}
-          >
+          <button onClick={onCancel} className={styles.close}>
             ✕
           </button>
         </div>
 
         {/* Name */}
         <div className={styles.field}>
-          <label className={styles.label}>
-            Name
-          </label>
+          <label className={styles.label}>Name</label>
           <input
             autoFocus
             value={form.name}
@@ -76,11 +70,9 @@ export default function RuleForm({
 
         {/* Time */}
         <div className={styles.group}>
-          <label className={styles.label}>
-            Time
-          </label>
+          <label className={styles.label}>Time</label>
           <div className={styles.options}>
-            {(["sunrise", "sunset", "fixed"] as const).map((opt) => {
+            {RULE_TIME_OPTIONS.map((opt) => {
               const active =
                 opt === "fixed"
                   ? form.time !== "sunrise" && form.time !== "sunset"
@@ -100,9 +92,7 @@ export default function RuleForm({
                     }))
                   }
                   className={`${styles.option} ${
-                    active
-                      ? styles.optionSelected
-                      : styles.optionIdle
+                    active ? styles.optionSelected : styles.optionIdle
                   }`}
                 >
                   {opt}
@@ -122,18 +112,14 @@ export default function RuleForm({
 
         {/* Days */}
         <div className={styles.group}>
-          <label className={styles.label}>
-            Days
-          </label>
+          <label className={styles.label}>Days</label>
           <div className={styles.options}>
             {DAYS.map((label, i) => (
               <button
                 key={i}
                 onClick={() => toggleDay(i)}
                 className={`${styles.day} ${
-                  form.days.includes(i)
-                    ? styles.daySelected
-                    : styles.dayIdle
+                  form.days.includes(i) ? styles.daySelected : styles.dayIdle
                 }`}
               >
                 {label}
@@ -144,9 +130,7 @@ export default function RuleForm({
 
         {/* Rule type */}
         <div className={styles.group}>
-          <label className={styles.label}>
-            Rule Type
-          </label>
+          <label className={styles.label}>Rule Type</label>
           <div className={styles.options}>
             {(
               [
@@ -182,9 +166,7 @@ export default function RuleForm({
 
         {/* Target */}
         <div className={styles.group}>
-          <label className={styles.label}>
-            Target
-          </label>
+          <label className={styles.label}>Target</label>
           <div className={styles.chips}>
             <button
               onClick={() => setAction({ group: "all" })}
@@ -279,9 +261,7 @@ export default function RuleForm({
           <div className={styles.sceneFields}>
             <div className={styles.field}>
               <div className={styles.fieldHeader}>
-                <label className={styles.label}>
-                  Brightness
-                </label>
+                <label className={styles.label}>Brightness</label>
                 <span className={styles.fieldValue}>
                   {form.action.brightness ?? 70}%
                 </span>
@@ -299,9 +279,7 @@ export default function RuleForm({
             </div>
             <div className={styles.field}>
               <div className={styles.fieldHeader}>
-                <label className={styles.label}>
-                  Color Temp
-                </label>
+                <label className={styles.label}>Color Temp</label>
                 <span className={styles.fieldValue}>
                   {(form.action.colorTemp ?? 0) < 33
                     ? "Warm"
