@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { TrashIcon } from "../icons";
-import type { Rule, RuleAction, RoomsMap, RuleFormState } from "../../types";
+import type { Rule, RuleAction, RuleFormState } from "../../types";
+import { useLighting } from "../../hooks/useLighting";
 import RuleForm from "./RuleForm";
 import styles from "./ScheduleView.module.css";
 
@@ -61,11 +62,8 @@ const BLANK_FORM: RuleFormState = {
   },
 };
 
-interface Props {
-  rooms: RoomsMap;
-}
-
-export default function ScheduleView({ rooms }: Props) {
+export default function ScheduleView() {
+  const { rooms } = useLighting();
   const [rules, setRules] = useState<Rule[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);

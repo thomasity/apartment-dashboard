@@ -1,20 +1,12 @@
 import PRESETS from "../../presets.json";
 import { avg, tempLabel } from "./utils";
-import type { LightingValues } from "../../types";
+import { useLighting } from "../../hooks/useLighting";
 import styles from "./PresetsView.module.css";
 import controlStyles from "./ControlsView.module.css";
 
-interface Props {
-  offline: boolean;
-  localDevices: Record<string, LightingValues>;
-  onApplyPreset: (preset: LightingValues) => void;
-}
-
-export default function PresetsView({
-  offline,
-  localDevices,
-  onApplyPreset,
-}: Props) {
+export default function PresetsView() {
+  const { serverState, localDevices, applyPreset } = useLighting();
+  const offline = !serverState.connected;
   const allBrightness = avg(localDevices, "brightness");
   const allColorTemp = avg(localDevices, "colorTemp");
   const activePreset = PRESETS.find(
@@ -41,7 +33,7 @@ export default function PresetsView({
           return (
             <button
               key={preset.label}
-              onClick={() => onApplyPreset(preset)}
+              onClick={() => applyPreset(preset)}
               className={`${styles.preset} ${
                 isActive ? styles.presetActive : styles.presetIdle
               }`}

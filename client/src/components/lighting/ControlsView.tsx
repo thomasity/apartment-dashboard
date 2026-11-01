@@ -4,7 +4,9 @@ import { LightSliders } from '../LightSliders';
 import AutoToggle from './AutoToggle';
 import CircadianStrip from './CircadianStrip';
 import { avg, spread, tempLabel } from './utils';
-import type { LightingServerState, LightingValues, CircadianState, RoomsMap, OverridesMap } from '../../types';
+import type { LightingValues, CircadianState } from '../../types';
+import { useLighting } from '../../hooks/useLighting';
+import { DEFAULT_VALUES } from '../../context/lightingContext';
 import { formatTime } from '../../lib/format';
 import styles from './ControlsView.module.css';
 
@@ -74,27 +76,17 @@ function DeviceRow({ name, device, isCircadian, isOff, isOffline, circadian, onB
 interface RoomSectionProps {
   name: string;
   deviceNames: string[];
-  serverState: LightingServerState;
-  localDevices: Record<string, LightingValues>;
-  circadian: CircadianState;
-  avail: Record<string, boolean>;
-  overrides: OverridesMap;
-  onRoomSlider: (roomName: string, key: keyof LightingValues, value: number) => void;
-  onRoomTogglePower: (roomName: string) => void;
-  onRoomToggleCircadian: (roomName: string) => void;
-  onClearRoomOverride: (roomName: string) => void;
-  onDeviceSlider: (name: string, key: keyof LightingValues, value: number) => void;
-  onTogglePower: (name: string) => void;
-  onToggleCircadian: (name: string) => void;
 }
 
-function RoomSection({
-  name, deviceNames, serverState, localDevices, circadian, avail, overrides,
-  onRoomSlider, onRoomTogglePower, onRoomToggleCircadian, onClearRoomOverride,
-  onDeviceSlider, onTogglePower, onToggleCircadian,
-}: RoomSectionProps) {
+function RoomSection({ name, deviceNames }: RoomSectionProps) {
+  const {
+    serverState, localDevices, circadian, devicesState, overrides,
+    setRoom, toggleRoomPower, toggleRoomCircadian, clearRoomOverride,
+    setDevice, togglePower, toggleCircadian,
+  } = useLighting();
   const [expanded, setExpanded] = useState(false);
 
+  const avail         = devicesState.availability ?? {};
   const poweredOff    = serverState.poweredOff ?? [];
   const enabledGroups = circadian.enabledGroups ?? [];
   const paired        = deviceNames.filter((n) => serverState.groups[n]);
@@ -110,7 +102,7 @@ function RoomSection({
 
   const roomOnDevices  = Object.fromEntries(
     paired.filter((n) => !poweredOff.includes(n))
-          .map((n) => [n, localDevices[n] ?? { brightness: 70, colorTemp: 30 }])
+          .map((n) => [n, localDevices[n] ?? DEFAULT_VALUES])
   );
   const roomBrightness  = avg(roomOnDevices, 'brightness');
   const roomColorTemp   = avg(roomOnDevices, 'colorTemp');
@@ -149,7 +141,7 @@ function RoomSection({
           <span className={styles.overrideBadge}>
             Manual · {formatTime(remainingMs)}
             <button
-              onClick={() => onClearRoomOverride(name)}
+              onClick={() => clearRoomOverride(name)}
               className={styles.overrideClear}
               title="Resume auto"
             >
@@ -159,9 +151,9 @@ function RoomSection({
         )}
 
         <div className={isRoomOff || isRoomOffline ? styles.dimmed : ''}>
-          <AutoToggle on={isRoomCircadian} onClick={() => onRoomToggleCircadian(name)} />
+          <AutoToggle on={isRoomCircadian} onClick={() => toggleRoomCircadian(name)} />
         </div>
-        <PowerBtn isOff={isRoomOff} onClick={() => onRoomTogglePower(name)} />
+        <PowerBtn isOff={isRoomOff} onClick={() => toggleRoomPower(name)} />
       </div>
 
       {/* Room-level sliders — always visible */}
@@ -172,8 +164,8 @@ function RoomSection({
               brightness={roomBrightness}
               colorTemp={roomColorTemp}
               tempLabel={tempLabel(roomColorTemp)}
-              onBrightness={(v) => onRoomSlider(name, 'brightness', v)}
-              onColorTemp={(v) => onRoomSlider(name, 'colorTemp', v)}
+              onBrightness={(v) => setRoom(name, 'brightness', v)}
+              onColorTemp={(v) => setRoom(name, 'colorTemp', v)}
               brightnessMixed={brightnessMixed}
               colorTempMixed={colorTempMixed}
             />
@@ -187,15 +179,15 @@ function RoomSection({
             <DeviceRow
               key={n}
               name={n}
-              device={localDevices[n] ?? { brightness: 70, colorTemp: 30 }}
+              device={localDevices[n] ?? DEFAULT_VALUES}
               isCircadian={enabledGroups.includes(n)}
               isOff={poweredOff.includes(n)}
               isOffline={avail[n] === false}
               circadian={circadian}
-              onBrightness={(v) => onDeviceSlider(n, 'brightness', v)}
-              onColorTemp={(v) => onDeviceSlider(n, 'colorTemp', v)}
-              onToggleCircadian={() => onToggleCircadian(n)}
-              onTogglePower={() => onTogglePower(n)}
+              onBrightness={(v) => setDevice(n, 'brightness', v)}
+              onColorTemp={(v) => setDevice(n, 'colorTemp', v)}
+              onToggleCircadian={() => toggleCircadian(n)}
+              onTogglePower={() => togglePower(n)}
             />
           ))}
         </div>
@@ -205,33 +197,17 @@ function RoomSection({
 }
 
 interface ControlsViewProps {
-  serverState: LightingServerState;
-  localDevices: Record<string, LightingValues>;
-  circadian: CircadianState;
-  availability: Record<string, boolean> | undefined;
-  rooms: RoomsMap;
-  overrides: OverridesMap;
-  onSlider: (key: keyof LightingValues, value: number) => void;
-  onDeviceSlider: (name: string, key: keyof LightingValues, value: number) => void;
-  onRoomSlider: (roomName: string, key: keyof LightingValues, value: number) => void;
-  onTogglePower: (group: string) => void;
-  onToggleCircadian: (group: string) => void;
-  onRoomTogglePower: (roomName: string) => void;
-  onRoomToggleCircadian: (roomName: string) => void;
-  onClearRoomOverride: (roomName: string) => void;
   onGoToDevices: () => void;
 }
 
-export default function ControlsView({
-  serverState, localDevices, circadian, availability, rooms, overrides,
-  onSlider, onDeviceSlider, onRoomSlider,
-  onTogglePower, onToggleCircadian,
-  onRoomTogglePower, onRoomToggleCircadian, onClearRoomOverride,
-  onGoToDevices,
-}: ControlsViewProps) {
+export default function ControlsView({ onGoToDevices }: ControlsViewProps) {
+  const {
+    serverState, localDevices, circadian, devicesState, rooms,
+    setAll, setDevice, togglePower, toggleCircadian,
+  } = useLighting();
   const offline       = !serverState.connected;
   const deviceEntries = Object.entries(serverState.groups);
-  const avail         = availability ?? {};
+  const avail         = devicesState.availability ?? {};
   const poweredOff    = serverState.poweredOff ?? [];
   const enabledGroups = circadian.enabledGroups ?? [];
 
@@ -287,10 +263,10 @@ export default function ControlsView({
           isCircadian={allCircadian}
           isOff={allOff}
           circadian={circadian}
-          onBrightness={(v) => onSlider('brightness', v)}
-          onColorTemp={(v) => onSlider('colorTemp', v)}
-          onToggleCircadian={() => onToggleCircadian('all')}
-          onTogglePower={() => onTogglePower('all')}
+          onBrightness={(v) => setAll('brightness', v)}
+          onColorTemp={(v) => setAll('colorTemp', v)}
+          onToggleCircadian={() => toggleCircadian('all')}
+          onTogglePower={() => togglePower('all')}
           brightnessMixed={brightnessMixed}
           colorTempMixed={colorTempMixed}
         />
@@ -307,18 +283,6 @@ export default function ControlsView({
                   key={roomName}
                   name={roomName}
                   deviceNames={roomDeviceNames}
-                  serverState={serverState}
-                  localDevices={localDevices}
-                  circadian={circadian}
-                  avail={avail}
-                  overrides={overrides}
-                  onRoomSlider={onRoomSlider}
-                  onRoomTogglePower={onRoomTogglePower}
-                  onRoomToggleCircadian={onRoomToggleCircadian}
-                  onClearRoomOverride={onClearRoomOverride}
-                  onDeviceSlider={onDeviceSlider}
-                  onTogglePower={onTogglePower}
-                  onToggleCircadian={onToggleCircadian}
                 />
               ))}
 
@@ -332,15 +296,15 @@ export default function ControlsView({
                       <DeviceRow
                         key={name}
                         name={name}
-                        device={localDevices[name] ?? { brightness: 70, colorTemp: 30 }}
+                        device={localDevices[name] ?? DEFAULT_VALUES}
                         isCircadian={enabledGroups.includes(name)}
                         isOff={poweredOff.includes(name)}
                         isOffline={avail[name] === false}
                         circadian={circadian}
-                        onBrightness={(v) => onDeviceSlider(name, 'brightness', v)}
-                        onColorTemp={(v) => onDeviceSlider(name, 'colorTemp', v)}
-                        onToggleCircadian={() => onToggleCircadian(name)}
-                        onTogglePower={() => onTogglePower(name)}
+                        onBrightness={(v) => setDevice(name, 'brightness', v)}
+                        onColorTemp={(v) => setDevice(name, 'colorTemp', v)}
+                        onToggleCircadian={() => toggleCircadian(name)}
+                        onTogglePower={() => togglePower(name)}
                       />
                     ))}
                   </div>
@@ -353,15 +317,15 @@ export default function ControlsView({
                 <DeviceRow
                   key={name}
                   name={name}
-                  device={localDevices[name] ?? { brightness: 70, colorTemp: 30 }}
+                  device={localDevices[name] ?? DEFAULT_VALUES}
                   isCircadian={enabledGroups.includes(name)}
                   isOff={poweredOff.includes(name)}
                   isOffline={avail[name] === false}
                   circadian={circadian}
-                  onBrightness={(v) => onDeviceSlider(name, 'brightness', v)}
-                  onColorTemp={(v) => onDeviceSlider(name, 'colorTemp', v)}
-                  onToggleCircadian={() => onToggleCircadian(name)}
-                  onTogglePower={() => onTogglePower(name)}
+                  onBrightness={(v) => setDevice(name, 'brightness', v)}
+                  onColorTemp={(v) => setDevice(name, 'colorTemp', v)}
+                  onToggleCircadian={() => toggleCircadian(name)}
+                  onTogglePower={() => togglePower(name)}
                 />
               ))}
             </div>

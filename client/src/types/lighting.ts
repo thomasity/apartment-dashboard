@@ -86,6 +86,21 @@ export interface DeviceExpose {
   values?: (string | number)[];
 }
 
+/** A Zigbee2MQTT device as reported by the bridge */
+export interface DeviceEntry {
+  ieee_address: string;
+  friendly_name: string;
+  type: string;
+  definition?: { description?: string; exposes?: DeviceExpose[] };
+}
+
+export interface DevicesState {
+  bridgeOnline: boolean;
+  devices: DeviceEntry[];
+  pairing: boolean;
+  availability?: Record<string, boolean>;
+}
+
 /** Editable fields of a rule in the schedule form */
 export interface RuleFormState {
   name: string;

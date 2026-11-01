@@ -1,24 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { PencilIcon, TrashIcon, CheckIcon } from '../icons';
-import type { RoomsMap, PresenceEntry, SensorsMap, DeviceExpose } from '../../types';
+import type { RoomsMap, PresenceEntry, SensorsMap, DeviceEntry } from '../../types';
+import { useLighting } from '../../hooks/useLighting';
 import styles from './DevicesView.module.css';
 
 const SCAN_DURATION = 254;
-
-interface DeviceEntry {
-  ieee_address: string;
-  friendly_name: string;
-  type: string;
-  definition?: { description?: string; exposes?: DeviceExpose[] };
-}
-
-interface DevicesState {
-  bridgeOnline: boolean;
-  devices: DeviceEntry[];
-  pairing: boolean;
-  availability?: Record<string, boolean>;
-}
 
 function getRoomForDevice(name: string, rooms: RoomsMap): string | null {
   for (const [room, devices] of Object.entries(rooms)) {
@@ -27,16 +14,8 @@ function getRoomForDevice(name: string, rooms: RoomsMap): string | null {
   return null;
 }
 
-interface Props {
-  devState: DevicesState;
-  rooms: RoomsMap;
-  onCreateRoom: (name: string) => void;
-  onRenameRoom: (oldName: string, newName: string) => void;
-  onDeleteRoom: (name: string) => void;
-  onAssignDevice: (deviceName: string, roomName: string | null) => void;
-}
-
-export default function DevicesView({ devState, rooms, onCreateRoom, onRenameRoom, onDeleteRoom, onAssignDevice }: Props) {
+export default function DevicesView() {
+  const { devicesState: devState, rooms, createRoom, renameRoom, deleteRoom, assignDevice } = useLighting();
   // Scan state
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [draftName, setDraftName]       = useState('');
@@ -161,21 +140,21 @@ export default function DevicesView({ devState, rooms, onCreateRoom, onRenameRoo
 
   const submitAddRoom = () => {
     const name = newRoomName.trim();
-    if (name) onCreateRoom(name);
+    if (name) createRoom(name);
     setAddingRoom(false);
     setNewRoomName('');
   };
 
   const submitRenameRoom = (oldName: string) => {
     const name = draftRoomName.trim();
-    if (name && name !== oldName) onRenameRoom(oldName, name);
+    if (name && name !== oldName) renameRoom(oldName, name);
     setEditingRoom(null);
   };
 
   const toggleDeviceInRoom = (deviceName: string, roomName: string) => {
     const currentRoom = getRoomForDevice(deviceName, rooms);
     // If already in this room, remove (unassign); otherwise assign to this room
-    onAssignDevice(deviceName, currentRoom === roomName ? null : roomName);
+    assignDevice(deviceName, currentRoom === roomName ? null : roomName);
   };
 
   const fmt     = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -235,7 +214,7 @@ export default function DevicesView({ devState, rooms, onCreateRoom, onRenameRoo
                   <PencilIcon />
                 </button>
                 <button
-                  onClick={() => onDeleteRoom(name)}
+                  onClick={() => deleteRoom(name)}
                   className={styles.roomDelete}
                 >
                   <TrashIcon />
