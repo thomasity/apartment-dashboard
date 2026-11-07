@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { AddressInfo } from 'net';
 import { connectedManager } from './fakeMqtt';
+import { clearActivityLog } from './config';
 import type { Z2MDevice } from '../../types';
 
 /**
@@ -8,6 +9,7 @@ import type { Z2MDevice } from '../../types';
  * are reset first so each call gets fresh service state (overrides, circadian, rules…).
  */
 export async function startApp(devices?: Z2MDevice[]) {
+  clearActivityLog();
   vi.resetModules();
   const { mgr, client } = connectedManager(devices);
   const { createApp } = await import('../../app');

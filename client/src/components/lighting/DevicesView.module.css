@@ -426,6 +426,12 @@
 .deviceRemove:hover {
   color: rgb(var(--color-danger-rgb) / 0.6);
 }
+.deviceRemoveArmed,
+.deviceRemoveArmed:hover {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--color-danger-rgb));
+}
 
 .sheetBackdrop {
   position: absolute;

@@ -11,43 +11,54 @@ import type {
   LightingValues,
   CircadianState,
   RoomsMap,
-  OverridesMap,
+  ZonesMap,
   DevicesState,
+  RuleSuggestion,
 } from "../types";
 import { getSocket } from "../lib/socket";
 
 /** Fallback slider values for a device the server hasn't reported yet */
 export const DEFAULT_VALUES: LightingValues = { brightness: 70, colorTemp: 30 };
 
+// Bulbs are keyed by IEEE address and rooms by id throughout; names are for display.
+// The server decides what lights should look like (Auto, rules, presence, manual
+// sessions) — these actions just tell it what you did.
 type LightingContextValue = {
   serverState: LightingServerState;
   devicesState: DevicesState;
-  /** Optimistic slider values per device — what the UI shows while the server catches up */
+  /** Optimistic slider values per bulb — what the UI shows while the server catches up */
   localDevices: Record<string, LightingValues>;
   circadian: CircadianState;
   rooms: RoomsMap;
-  overrides: OverridesMap;
+  /** Per room (or unassigned bulb): on Auto?, and who's in control right now */
+  zones: ZonesMap;
 
   // Global (all devices)
   setAll: (key: keyof LightingValues, value: number) => void;
-  togglePower: (group: string) => void;
-  toggleCircadian: (group: string) => Promise<void>;
   applyPreset: (preset: LightingValues) => void;
 
-  // Per-device
-  setDevice: (name: string, key: keyof LightingValues, value: number) => void;
+  /** "all", a room id or a bulb address */
+  togglePower: (target: string) => void;
+  /** "all" or a zone (room id / unassigned bulb address) */
+  toggleAuto: (target: string) => void;
+  /** Hand a zone back to automation: ends its manual session and the motion cooldown */
+  resumeZone: (zone: string) => void;
 
-  // Room-level
-  setRoom: (roomName: string, key: keyof LightingValues, value: number) => void;
-  toggleRoomPower: (roomName: string) => void;
-  toggleRoomCircadian: (roomName: string) => Promise<void>;
-  clearRoomOverride: (roomName: string) => void;
+  /** A rule suggestion to show on the Schedule tab, if the server has one */
+  suggestion: RuleSuggestion | null;
+  /** The suggested rule was saved */
+  acceptSuggestion: (id: string) => void;
+  /** "Not now" (30 days) or "never" */
+  dismissSuggestion: (id: string, forever: boolean) => void;
+
+  setDevice: (id: string, key: keyof LightingValues, value: number) => void;
+  setRoom: (roomId: string, key: keyof LightingValues, value: number) => void;
 
   // Room CRUD
   createRoom: (name: string) => void;
-  renameRoom: (oldName: string, newName: string) => void;
-  deleteRoom: (name: string) => void;
-  assignDevice: (deviceName: string, roomName: string | null) => void;
+  renameRoom: (id: string, name: string) => void;
+  deleteRoom: (id: string) => void;
+  assignDevice: (deviceId: string, roomId: string | null) => void;
 };
 
 export const LightingContext = createContext<LightingContextValue | null>(null);
@@ -67,21 +78,17 @@ export function LightingProvider({ children }: { children: React.ReactNode }) {
     Record<string, LightingValues>
   >({});
   const [circadian, setCircadian] = useState<CircadianState>({
-    enabledGroups: [],
     brightness: 50,
     colorTemp: 50,
     nextChange: null,
     timeline: [],
   });
   const [rooms, setRooms] = useState<RoomsMap>({});
-  const [overrides, setOverrides] = useState<OverridesMap>({});
+  const [zones, setZones] = useState<ZonesMap>({});
+  const [suggestion, setSuggestion] = useState<RuleSuggestion | null>(null);
 
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const roomTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastTouchDevices = useRef<Record<string, Record<string, number>>>({});
-  const timersDevices = useRef<Record<string, ReturnType<typeof setTimeout>>>(
-    {},
-  );
 
   useEffect(() => {
     axios
@@ -93,8 +100,12 @@ export function LightingProvider({ children }: { children: React.ReactNode }) {
       .then((r) => setRooms(r.data))
       .catch(() => {});
     axios
-      .get("/api/lighting/override")
-      .then((r) => setOverrides(r.data))
+      .get("/api/lighting/zones")
+      .then((r) => setZones(r.data))
+      .catch(() => {});
+    axios
+      .get("/api/lighting/suggestions")
+      .then((r) => setSuggestion(r.data || null))
       .catch(() => {});
     axios
       .get("/api/lighting/devices")
@@ -106,8 +117,8 @@ export function LightingProvider({ children }: { children: React.ReactNode }) {
         if (!Object.keys(data.groups).length) return;
         setServerState(data);
         const initial: Record<string, LightingValues> = {};
-        Object.entries(data.groups).forEach(([name, g]) => {
-          initial[name] = {
+        Object.entries(data.groups).forEach(([id, g]) => {
+          initial[id] = {
             brightness: g.brightness ?? DEFAULT_VALUES.brightness,
             colorTemp: g.colorTemp ?? DEFAULT_VALUES.colorTemp,
           };
@@ -124,17 +135,17 @@ export function LightingProvider({ children }: { children: React.ReactNode }) {
       const now = Date.now();
       setLocalDevices((prev) => {
         const next: Record<string, LightingValues> = {};
-        Object.entries(state.groups).forEach(([name, g]) => {
-          const dt = lastTouchDevices.current[name] ?? {};
-          next[name] = {
+        Object.entries(state.groups).forEach(([id, g]) => {
+          const dt = lastTouchDevices.current[id] ?? {};
+          next[id] = {
             brightness:
               now - (dt.brightness ?? 0) > 1200
                 ? g.brightness
-                : (prev[name]?.brightness ?? g.brightness),
+                : (prev[id]?.brightness ?? g.brightness),
             colorTemp:
               now - (dt.colorTemp ?? 0) > 1200
                 ? g.colorTemp
-                : (prev[name]?.colorTemp ?? g.colorTemp),
+                : (prev[id]?.colorTemp ?? g.colorTemp),
           };
         });
         return next;
@@ -148,236 +159,176 @@ export function LightingProvider({ children }: { children: React.ReactNode }) {
     socket.on("lighting:devices", setDevicesState);
     socket.on("lighting:circadian", onCircadian);
     socket.on("lighting:rooms", setRooms);
-    socket.on("lighting:override", setOverrides);
+    socket.on("lighting:zones", setZones);
+    socket.on("lighting:suggestion", setSuggestion);
     return () => {
       socket.off("lighting:state", onState);
       socket.off("lighting:devices", setDevicesState);
       socket.off("lighting:circadian", onCircadian);
       socket.off("lighting:rooms", setRooms);
-      socket.off("lighting:override", setOverrides);
+      socket.off("lighting:zones", setZones);
+      socket.off("lighting:suggestion", setSuggestion);
     };
   }, []);
 
-  // ── Global (all devices) ─────────────────────────────────────────────────
-
-  const sendAll = useCallback((payload: Record<string, unknown>) => {
-    axios
-      .post("/api/lighting/set", { group: "all", ...payload })
-      .catch(console.warn);
-  }, []);
-
-  const setAll = useCallback(
-    (key: keyof LightingValues, value: number) => {
+  // Optimistically moves the given (on) bulbs' sliders and sends one debounced request
+  // for the target, so dragging doesn't flood the bridge.
+  const slide = useCallback(
+    (
+      target: string,
+      bulbs: string[],
+      key: keyof LightingValues,
+      value: number,
+    ) => {
       const now = Date.now();
       const off = serverState.poweredOff ?? [];
-      Object.keys(localDevices).forEach((name) => {
-        if (off.includes(name)) return;
-        if (!lastTouchDevices.current[name])
-          lastTouchDevices.current[name] = {};
-        lastTouchDevices.current[name][key] = now;
-      });
-      setLocalDevices((prev) => {
-        const next: Record<string, LightingValues> = {};
-        Object.entries(prev).forEach(([name, vals]) => {
-          next[name] = off.includes(name) ? vals : { ...vals, [key]: value };
-        });
-        return next;
-      });
-      clearTimeout(timers.current[key]);
-      timers.current[key] = setTimeout(() => sendAll({ [key]: value }), 220);
-    },
-    [serverState.poweredOff, localDevices, sendAll],
-  );
-
-  const togglePower = useCallback(
-    (group: string) => {
-      const poweredOff = serverState.poweredOff ?? [];
-      const deviceEntries = Object.entries(serverState.groups);
-      const isOff =
-        group === "all"
-          ? deviceEntries.every(([n]) => poweredOff.includes(n))
-          : poweredOff.includes(group);
-      axios
-        .post("/api/lighting/power", { group, on: isOff })
-        .catch(console.warn);
-    },
-    [serverState],
-  );
-
-  const toggleCircadian = useCallback(
-    async (group: string) => {
-      const deviceEntries = Object.entries(serverState.groups);
-      const enabled =
-        group === "all"
-          ? !deviceEntries.every(([n]) =>
-              (circadian.enabledGroups ?? []).includes(n),
-            )
-          : !(circadian.enabledGroups ?? []).includes(group);
-      await axios
-        .post("/api/lighting/circadian", { group, enabled })
-        .catch(console.warn);
-    },
-    [serverState.groups, circadian.enabledGroups],
-  );
-
-  const applyPreset = useCallback(
-    (preset: LightingValues) => {
-      if ((circadian.enabledGroups ?? []).length > 0) {
-        axios
-          .post("/api/lighting/circadian", { group: "all", enabled: false })
-          .catch(console.warn);
-        setCircadian((prev) => ({ ...prev, enabledGroups: [] }));
-      }
-      setAll("brightness", preset.brightness);
-      setAll("colorTemp", preset.colorTemp);
-    },
-    [setAll, circadian.enabledGroups],
-  );
-
-  // ── Per-device ───────────────────────────────────────────────────────────
-
-  const setDevice = useCallback(
-    (name: string, key: keyof LightingValues, value: number) => {
-      if (!lastTouchDevices.current[name]) lastTouchDevices.current[name] = {};
-      lastTouchDevices.current[name][key] = Date.now();
-      setLocalDevices((prev) => ({
-        ...prev,
-        [name]: { ...(prev[name] ?? DEFAULT_VALUES), [key]: value },
-      }));
-      const timerKey = `${name}-${key}`;
-      clearTimeout(timersDevices.current[timerKey]);
-      timersDevices.current[timerKey] = setTimeout(() => {
-        axios
-          .post("/api/lighting/set", { group: name, [key]: value })
-          .catch(console.warn);
-      }, 220);
-    },
-    [],
-  );
-
-  // ── Room-level ───────────────────────────────────────────────────────────
-
-  const setRoom = useCallback(
-    (roomName: string, key: keyof LightingValues, value: number) => {
-      const now = Date.now();
-      const off = serverState.poweredOff ?? [];
-      const devicesInRoom = rooms[roomName] ?? [];
-      devicesInRoom.forEach((name) => {
-        if (off.includes(name)) return;
-        if (!lastTouchDevices.current[name])
-          lastTouchDevices.current[name] = {};
-        lastTouchDevices.current[name][key] = now;
+      const on = bulbs.filter((id) => !off.includes(id));
+      on.forEach((id) => {
+        (lastTouchDevices.current[id] ??= {})[key] = now;
       });
       setLocalDevices((prev) => {
         const next = { ...prev };
-        devicesInRoom.forEach((name) => {
-          if (!off.includes(name))
-            next[name] = { ...(prev[name] ?? DEFAULT_VALUES), [key]: value };
+        on.forEach((id) => {
+          next[id] = { ...(prev[id] ?? DEFAULT_VALUES), [key]: value };
         });
         return next;
       });
-      const timerKey = `room|${roomName}|${key}`;
-      clearTimeout(roomTimers.current[timerKey]);
-      roomTimers.current[timerKey] = setTimeout(() => {
+      const timerKey = `${target}|${key}`;
+      clearTimeout(timers.current[timerKey]);
+      timers.current[timerKey] = setTimeout(() => {
         axios
-          .post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/set`, {
-            [key]: value,
-          })
+          .post("/api/lighting/set", { group: target, [key]: value })
           .catch(console.warn);
       }, 220);
     },
-    [serverState.poweredOff, rooms],
+    [serverState.poweredOff],
   );
 
-  const toggleRoomPower = useCallback(
-    (roomName: string) => {
-      const devicesInRoom = rooms[roomName] ?? [];
-      const poweredOff = serverState.poweredOff ?? [];
-      const isOff =
-        devicesInRoom.length > 0 &&
-        devicesInRoom.every((n) => poweredOff.includes(n));
+  const setAll = useCallback(
+    (key: keyof LightingValues, value: number) =>
+      slide("all", Object.keys(serverState.groups), key, value),
+    [slide, serverState.groups],
+  );
+
+  const setDevice = useCallback(
+    (id: string, key: keyof LightingValues, value: number) =>
+      slide(id, [id], key, value),
+    [slide],
+  );
+
+  const setRoom = useCallback(
+    (roomId: string, key: keyof LightingValues, value: number) =>
+      slide(roomId, rooms[roomId]?.devices ?? [], key, value),
+    [slide, rooms],
+  );
+
+  // One request for both values, so the lights change in a single step
+  const applyPreset = useCallback(
+    (preset: LightingValues) => {
+      const now = Date.now();
+      const off = serverState.poweredOff ?? [];
+      Object.keys(serverState.groups).forEach((id) => {
+        if (!off.includes(id))
+          lastTouchDevices.current[id] = { brightness: now, colorTemp: now };
+      });
+      setLocalDevices((prev) => {
+        const next: Record<string, LightingValues> = {};
+        Object.entries(prev).forEach(([id, vals]) => {
+          next[id] = off.includes(id) ? vals : { ...preset };
+        });
+        return next;
+      });
+      // Drop any pending slider send so it can't land after the preset
+      clearTimeout(timers.current["all|brightness"]);
+      clearTimeout(timers.current["all|colorTemp"]);
       axios
-        .post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/power`, {
-          on: isOff,
-        })
+        .post("/api/lighting/set", { group: "all", ...preset })
         .catch(console.warn);
     },
-    [serverState.poweredOff, rooms],
+    [serverState.poweredOff, serverState.groups],
   );
 
-  const toggleRoomCircadian = useCallback(
-    async (roomName: string) => {
-      const devicesInRoom = rooms[roomName] ?? [];
-      const isEnabled =
-        devicesInRoom.length > 0 &&
-        devicesInRoom.every((n) => (circadian.enabledGroups ?? []).includes(n));
-      await axios
-        .post(`/api/lighting/rooms/${encodeURIComponent(roomName)}/circadian`, {
-          enabled: !isEnabled,
-        })
+  // Bulbs a target covers that are actually paired — a stale room member would
+  // otherwise keep "every device is off" from ever being true
+  const bulbsOf = useCallback(
+    (target: string): string[] => {
+      if (target === "all") return Object.keys(serverState.groups);
+      const members = rooms[target]?.devices ?? [target];
+      return members.filter((id) => serverState.groups[id]);
+    },
+    [rooms, serverState.groups],
+  );
+
+  const togglePower = useCallback(
+    (target: string) => {
+      const poweredOff = serverState.poweredOff ?? [];
+      const bulbs = bulbsOf(target);
+      const isOff = bulbs.length > 0 && bulbs.every((id) => poweredOff.includes(id));
+      axios
+        .post("/api/lighting/power", { group: target, on: isOff })
         .catch(console.warn);
     },
-    [rooms, circadian.enabledGroups],
+    [serverState.poweredOff, bulbsOf],
   );
 
-  const clearRoomOverride = useCallback((roomName: string) => {
+  const toggleAuto = useCallback(
+    (target: string) => {
+      const list = Object.values(zones);
+      const enabled =
+        target === "all"
+          ? !(list.length > 0 && list.every((z) => z.auto))
+          : !zones[target]?.auto;
+      axios
+        .post("/api/lighting/auto", { group: target, enabled })
+        .catch(console.warn);
+    },
+    [zones],
+  );
+
+  const resumeZone = useCallback((zone: string) => {
     axios
-      .delete(`/api/lighting/rooms/${encodeURIComponent(roomName)}/override`)
+      .post(`/api/lighting/zones/${encodeURIComponent(zone)}/resume`)
       .catch(console.warn);
   }, []);
 
-  // ── Room CRUD ────────────────────────────────────────────────────────────
-
-  const refetchRooms = useCallback(() => {
-    axios
-      .get("/api/lighting/rooms")
-      .then((r) => setRooms(r.data))
-      .catch(() => {});
+  // The server broadcasts the cleared suggestion; clearing locally too hides it at once
+  const acceptSuggestion = useCallback((id: string) => {
+    setSuggestion(null);
+    axios.post(`/api/lighting/suggestions/${id}/accept`).catch(console.warn);
   }, []);
 
-  const createRoom = useCallback(
-    (name: string) => {
-      axios
-        .post("/api/lighting/rooms", { name })
-        .then(refetchRooms)
-        .catch(console.warn);
-    },
-    [refetchRooms],
-  );
+  const dismissSuggestion = useCallback((id: string, forever: boolean) => {
+    setSuggestion(null);
+    axios
+      .post(`/api/lighting/suggestions/${id}/dismiss`, { forever })
+      .catch(console.warn);
+  }, []);
 
-  const renameRoom = useCallback(
-    (oldName: string, newName: string) => {
-      axios
-        .patch(`/api/lighting/rooms/${encodeURIComponent(oldName)}`, {
-          newName,
-        })
-        .then(refetchRooms)
-        .catch(console.warn);
-    },
-    [refetchRooms],
-  );
+  // ── Room CRUD (the server broadcasts the new rooms) ──────────────────────
 
-  const deleteRoom = useCallback(
-    (name: string) => {
-      axios
-        .delete(`/api/lighting/rooms/${encodeURIComponent(name)}`)
-        .then(refetchRooms)
-        .catch(console.warn);
-    },
-    [refetchRooms],
-  );
+  const createRoom = useCallback((name: string) => {
+    axios.post("/api/lighting/rooms", { name }).catch(console.warn);
+  }, []);
+
+  const renameRoom = useCallback((id: string, name: string) => {
+    axios
+      .patch(`/api/lighting/rooms/${encodeURIComponent(id)}`, { name })
+      .catch(console.warn);
+  }, []);
+
+  const deleteRoom = useCallback((id: string) => {
+    axios
+      .delete(`/api/lighting/rooms/${encodeURIComponent(id)}`)
+      .catch(console.warn);
+  }, []);
 
   const assignDevice = useCallback(
-    (deviceName: string, roomName: string | null) => {
+    (deviceId: string, roomId: string | null) => {
       axios
-        .post("/api/lighting/rooms/assign", {
-          device: deviceName,
-          room: roomName ?? null,
-        })
-        .then(refetchRooms)
+        .post("/api/lighting/rooms/assign", { device: deviceId, room: roomId })
         .catch(console.warn);
     },
-    [refetchRooms],
+    [],
   );
 
   const value = {
@@ -386,16 +337,17 @@ export function LightingProvider({ children }: { children: React.ReactNode }) {
     localDevices,
     circadian,
     rooms,
-    overrides,
+    zones,
     setAll,
-    togglePower,
-    toggleCircadian,
     applyPreset,
+    togglePower,
+    toggleAuto,
+    resumeZone,
+    suggestion,
+    acceptSuggestion,
+    dismissSuggestion,
     setDevice,
     setRoom,
-    toggleRoomPower,
-    toggleRoomCircadian,
-    clearRoomOverride,
     createRoom,
     renameRoom,
     deleteRoom,

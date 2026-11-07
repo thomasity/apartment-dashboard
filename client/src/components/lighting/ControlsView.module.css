@@ -172,6 +172,40 @@
   color: rgb(251 191 36 / 0.7);
 }
 
+/* Who's driving a zone's look when it isn't you or Auto: a rule window or presence */
+.ruleBadge {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 9999px;
+  border-width: 1px;
+  border-color: rgb(168 200 255 / 0.2);
+  background-color: rgb(168 200 255 / 0.08);
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  color: rgb(168 200 255 / 0.75);
+  white-space: nowrap;
+}
+
+.autoStrip {
+  margin-top: 0.75rem;
+}
+
+.badgeLabel {
+  touch-action: manipulation;
+}
+
+.infoButton {
+  touch-action: manipulation;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.25);
+}
+.infoButton:hover {
+  color: rgb(255 255 255 / 0.5);
+}
+
 .overrideClear {
   touch-action: manipulation;
   line-height: 1;

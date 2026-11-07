@@ -172,3 +172,48 @@
 .deleteButton:hover {
   color: rgb(var(--color-danger-rgb) / 0.6);
 }
+
+.suggestion {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.625rem;
+  border-radius: 0.75rem;
+  border-width: 1px;
+  border-color: rgb(168 200 255 / 0.15);
+  background-color: rgb(168 200 255 / 0.05);
+  padding: 0.875rem 1rem;
+}
+
+.suggestionText {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.suggestionActions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.suggestionMake {
+  touch-action: manipulation;
+  border-radius: 9999px;
+  background-color: rgb(168 200 255 / 0.15);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  color: rgb(168 200 255 / 0.9);
+}
+.suggestionMake:hover {
+  background-color: rgb(168 200 255 / 0.25);
+}
+
+.suggestionDismiss {
+  touch-action: manipulation;
+  font-size: 0.75rem;
+  color: rgb(255 255 255 / 0.3);
+}
+.suggestionDismiss:hover {
+  color: rgb(255 255 255 / 0.6);
+}

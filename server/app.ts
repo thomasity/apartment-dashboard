@@ -4,10 +4,12 @@ import path from 'path';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import * as circadian from './services/circadian';
+import * as controller from './services/controller';
 import * as roomsSvc from './services/rooms';
-import overrideSvc from './services/override';
 import * as rulesSvc from './services/rules';
 import * as presenceSvc from './services/presence';
+import * as suggestions from './services/suggestions';
+import { isMigrated, migrateLighting } from './services/migrate';
 import * as spotifyPlayer from './services/spotifyPlayer';
 import * as connectivity from './services/connectivity';
 import { MOCK } from './dev/mock';
@@ -20,7 +22,7 @@ import tvRouter from './routes/tv';
 import voiceRouter from './routes/voice';
 import connectivityRouter from './routes/connectivity';
 import type { MqttManager } from './mqtt/client';
-import type { AppServer, Rule } from './types';
+import type { AppServer } from './types';
 
 // Builds the Express app, socket.io server and service wiring without listening or
 // connecting to MQTT — index.ts does those, and tests pass in a manager with a fake client.
@@ -59,7 +61,8 @@ export function createApp(mqttManager: MqttManager) {
     socket.emit('lighting:devices', mqttManager.getDevicesState());
     socket.emit('lighting:circadian', circadian.getState());
     socket.emit('lighting:rooms', roomsSvc.get());
-    socket.emit('lighting:override', overrideSvc.getState());
+    socket.emit('lighting:zones', controller.getZonesState());
+    if (isMigrated()) socket.emit('lighting:suggestion', suggestions.current());
     if (mock) {
       socket.emit('spotify:state', mock.spotifySnapshot());
       socket.emit('connectivity', { online: true });
@@ -88,47 +91,37 @@ export function createApp(mqttManager: MqttManager) {
     io.emit('lighting:bridge_event', event);
   });
 
-  overrideSvc.on('change', (state) => {
-    io.emit('lighting:override', state);
-  });
+  controller.init(mqttManager, io);
+  presenceSvc.init(mqttManager);
 
-  overrideSvc.on('resume', (groupName) => {
-    circadian.applyToGroup(groupName);
-  });
-
-  circadian.init(mqttManager, io, (g) => overrideSvc.isOverridden(g));
-  presenceSvc.init(mqttManager, roomsSvc);
-
-  // 'scene' pins a fixed brightness/colorTemp, 'auto' hands the groups to circadian,
-  // 'none' leaves them as they were.
-  function applyRuleConfig(action: Rule['action'], groups: string[]): void {
-    if (action.config === 'scene') {
-      groups.forEach((g) => {
-        circadian.disable(g);
-        mqttManager.setGroup(g, { brightness: action.brightness, colorTemp: action.colorTemp });
-      });
-    } else if (action.config === 'auto') {
-      groups.forEach((g) => circadian.enable(g));
-    }
-  }
-
-  rulesSvc.init((rule) => {
-    const { action } = rule;
-    const roomDevices = roomsSvc.getDevices(action.group);
-    const groups = action.group === 'all'
-      ? Object.keys(mqttManager.groups)
-      : roomDevices.length > 0
-        ? roomDevices
-        : mqttManager.groups[action.group] ? [action.group] : [];
-
-    if (action.type === 'power') {
-      groups.forEach((g) => mqttManager.setPower(g, !!action.on));
-      if (action.on) applyRuleConfig(action, groups);
-    } else if (action.type === 'reconfigure') {
-      applyRuleConfig(action, groups);
+  // A rule start goes to the controller. An instant "off" (no window to carry a presence
+  // setting) also starts presence's cooldown, so bedtime-style rules aren't undone by the
+  // next movement; an instant "on" clears it.
+  function runRule(rule: Parameters<typeof controller.ruleStart>[0]): void {
+    controller.ruleStart(rule);
+    if (rule.action.type === 'power' && !rule.end) {
+      controller.zonesForTarget(rule.action.group)
+        .forEach((zone) => presenceSvc.recordManualPower(zone, !!rule.action.on));
     }
     console.log(`[rules] fired: "${rule.name}"`);
-  });
+  }
+
+  // The scheduler waits for the id migration, which waits for the bridge's device list —
+  // until then rules would be read in the old name-keyed shape.
+  let rulesStarted = false;
+  const startWhenMigrated = (): void => {
+    if (!isMigrated() && migrateLighting(mqttManager.devices)) {
+      io.emit('lighting:rooms', roomsSvc.get());
+    }
+    if (isMigrated() && !rulesStarted) {
+      rulesStarted = true;
+      rulesSvc.init(runRule, () => controller.reconcile());
+      controller.reconcile();
+      suggestions.init(io);
+    }
+  };
+  mqttManager.on('devicesChange', startWhenMigrated);
+  startWhenMigrated();
 
   return { app, server, io };
 }

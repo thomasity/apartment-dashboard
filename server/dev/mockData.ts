@@ -5,9 +5,11 @@ import type { ConfigSchema, NowPlaying, Z2MDevice } from '../types';
 
 // ── Lighting (Zigbee2MQTT device list + the config.json it starts from) ──────
 
+const ieee = (name: string) => `0x${Buffer.from(name).toString('hex').slice(0, 16)}`;
+
 function bulb(name: string, description = 'Smart Bulb E27'): Z2MDevice {
   return {
-    ieee_address: `0x${Buffer.from(name).toString('hex').slice(0, 16)}`,
+    ieee_address: ieee(name),
     friendly_name: name,
     type: 'Router',
     interview_completed: true,
@@ -16,6 +18,7 @@ function bulb(name: string, description = 'Smart Bulb E27'): Z2MDevice {
 }
 
 export const PRESENCE_SENSOR = 'Living Room Sensor';
+const PRESENCE_SENSOR_ID = '0x5e05041ee0';
 
 export const zigbeeDevices: Z2MDevice[] = [
   { ieee_address: '0x0000', friendly_name: 'Coordinator', type: 'Coordinator', interview_completed: true, definition: null },
@@ -25,7 +28,7 @@ export const zigbeeDevices: Z2MDevice[] = [
   bulb('Bedside'),
   bulb('Hallway'),
   {
-    ieee_address: '0x5e05041ee0',
+    ieee_address: PRESENCE_SENSOR_ID,
     friendly_name: PRESENCE_SENSOR,
     type: 'EndDevice',
     interview_completed: true,
@@ -58,27 +61,31 @@ export const offlineDevices = ['Hallway'];
 export const pairableBulb = bulb('New Bulb');
 
 export const seedConfig: Partial<ConfigSchema> = {
+  lightingSchema: 2,
   rooms: {
-    'Living Room': ['Floor Lamp', 'Ceiling'],
-    'Bedroom':     ['Bedside'],
+    room_living:  { name: 'Living Room', devices: [ieee('Floor Lamp'), ieee('Ceiling')] },
+    room_bedroom: { name: 'Bedroom',     devices: [ieee('Bedside')] },
   },
-  circadianGroups: ['Bedside'],
+  autoZones: ['room_bedroom'],
   rules: [
     {
       id: 'mock-rule-1', name: 'Wake up', time: '07:00', days: [1, 2, 3, 4, 5], enabled: true,
-      action: { type: 'power', group: 'Bedroom', on: true, config: 'auto' },
+      action: { type: 'power', group: 'room_bedroom', on: true, config: 'auto' },
     },
     {
-      id: 'mock-rule-2', name: 'Evening glow', time: 'sunset', days: [0, 1, 2, 3, 4, 5, 6], enabled: true,
-      action: { type: 'reconfigure', group: 'Living Room', config: 'scene', brightness: 45, colorTemp: 15 },
+      id: 'mock-rule-2', name: 'Evening glow', time: 'sunset', end: '22:00', days: [0, 1, 2, 3, 4, 5, 6], enabled: true,
+      action: { type: 'reconfigure', group: 'room_living', config: 'scene', brightness: 45, colorTemp: 15 },
+      presence: { mode: 'normal' },
     },
     {
-      id: 'mock-rule-3', name: 'Lights out', time: '23:30', days: [0, 6], enabled: false,
+      id: 'mock-rule-3', name: 'Bedtime', time: '23:30', end: '07:00', days: [0, 6], enabled: false,
       action: { type: 'power', group: 'all', on: false },
+      presence: { mode: 'custom', brightness: 10, colorTemp: 0, vacantAfterMinutes: 2 },
+      overrideManual: true,
     },
   ],
   presence: {
-    [PRESENCE_SENSOR]: { room: 'Living Room', vacantAfterMinutes: 10, manualOffCooldownMinutes: 30, enabled: true },
+    [PRESENCE_SENSOR_ID]: { room: 'room_living', vacantAfterMinutes: 10, manualOffCooldownMinutes: 30, enabled: true },
   },
   rokuIp:   '192.168.1.50',
   rokuName: 'Living Room Roku',

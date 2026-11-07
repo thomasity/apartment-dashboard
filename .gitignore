@@ -5,3 +5,6 @@ client/dist/
 .DS_Store
 backups/
 server/config.json
+server/config.json.tmp
+server/config.pre-ids-*.json
+server/lighting-log.jsonl

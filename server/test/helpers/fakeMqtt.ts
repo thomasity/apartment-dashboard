@@ -97,3 +97,8 @@ export function connectedManager(devices: Z2MDevice[] = [bulb('Lamp'), bulb('Cei
   client.reset();
   return { mgr, client };
 }
+
+/** The IEEE address bulb()/motionSensor() give a device with this name. */
+export function id(name: string): string {
+  return `0x${Buffer.from(name).toString('hex')}`;
+}

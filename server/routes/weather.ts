@@ -1,12 +1,11 @@
 import express from 'express';
 import axios from 'axios';
 import { errorMessage } from '../util';
+import { LAT as DEFAULT_LAT, LON as DEFAULT_LON } from '../location';
 
 const router = express.Router();
 
 const CACHE_TTL   = 10 * 60 * 1000;
-const DEFAULT_LAT = parseFloat(process.env.LATITUDE ?? '')  || 38.627;
-const DEFAULT_LON = parseFloat(process.env.LONGITUDE ?? '') || -90.1994;
 
 // Open-Meteo's response is passed straight through to the client, so it stays untyped here.
 const cache: Record<string, { data: unknown; at: number }> = {};

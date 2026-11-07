@@ -1,49 +1,95 @@
 import * as config from '../config';
-import { ServiceError } from '../util';
-import type { RoomsMap } from '../types';
+import { ServiceError, genId } from '../util';
+import type { Room, RoomsMap } from '../types';
 
-export function get(): RoomsMap { return config.get('rooms') ?? {}; }
+// Until migrate.ts has run, config may still hold the old name → [names] shape; that is
+// ignored here (and the lighting routes refuse changes until then, so nothing overwrites it).
+export function get(): RoomsMap {
+  const rooms = config.get('rooms') ?? {};
+  return Object.fromEntries(
+    Object.entries(rooms).filter(([, r]) => r && !Array.isArray(r) && Array.isArray(r.devices)),
+  );
+}
 
 function save(rooms: RoomsMap): void { config.set('rooms', rooms); }
 
-export function getDevices(roomName: string): string[] { return get()[roomName] ?? []; }
+export function getRoom(id: string): Room | null { return get()[id] ?? null; }
 
-export function getRoomForDevice(deviceName: string): string | null {
+export function getDevices(roomId: string): string[] { return get()[roomId]?.devices ?? []; }
+
+export function getRoomForDevice(deviceId: string): string | null {
   const rooms = get();
-  return Object.keys(rooms).find((r) => rooms[r]?.includes(deviceName)) ?? null;
+  return Object.keys(rooms).find((r) => rooms[r]?.devices.includes(deviceId)) ?? null;
 }
 
-export function create(name: string): void {
-  if (!name) throw new ServiceError('name required', 'INVALID');
+/** A room id from an id or a (case-insensitive) name — voice and rules may use either. */
+export function findRoom(idOrName: string): string | null {
   const rooms = get();
-  if (rooms[name]) throw new ServiceError('Room already exists', 'EXISTS');
-  rooms[name] = [];
+  if (rooms[idOrName]) return idOrName;
+  const lower = idOrName.trim().toLowerCase();
+  return Object.keys(rooms).find((r) => rooms[r]?.name.toLowerCase() === lower) ?? null;
+}
+
+function nameTaken(rooms: RoomsMap, name: string, except?: string): boolean {
+  const lower = name.toLowerCase();
+  return Object.entries(rooms).some(([id, r]) => id !== except && r.name.toLowerCase() === lower);
+}
+
+/** Creates a room and returns its id. */
+export function create(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new ServiceError('name required', 'INVALID');
+  const rooms = get();
+  if (nameTaken(rooms, trimmed)) throw new ServiceError('Room already exists', 'EXISTS');
+  const id = `room_${genId()}`;
+  rooms[id] = { name: trimmed, devices: [] };
+  save(rooms);
+  return id;
+}
+
+export function rename(id: string, newName: string): void {
+  const trimmed = newName.trim();
+  if (!trimmed) throw new ServiceError('name required', 'INVALID');
+  const rooms = get();
+  const room  = rooms[id];
+  if (!room) throw new ServiceError('Room not found', 'NOT_FOUND');
+  if (nameTaken(rooms, trimmed, id)) throw new ServiceError('Name taken', 'EXISTS');
+  room.name = trimmed;
   save(rooms);
 }
 
-export function rename(oldName: string, newName: string): void {
-  if (!newName) throw new ServiceError('newName required', 'INVALID');
+export function remove(id: string): void {
   const rooms = get();
-  const devices = rooms[oldName];
-  if (!devices) throw new ServiceError('Room not found', 'NOT_FOUND');
-  if (rooms[newName]) throw new ServiceError('Name taken', 'EXISTS');
-  rooms[newName] = devices;
-  delete rooms[oldName];
+  delete rooms[id];
   save(rooms);
 }
 
-export function remove(name: string): void {
+/** Assign a bulb to a room (or pass null to take it out of every room). */
+export function assignDevice(deviceId: string, roomId: string | null): void {
   const rooms = get();
-  delete rooms[name];
+  if (roomId && !rooms[roomId]) throw new ServiceError('Room not found', 'NOT_FOUND');
+  for (const room of Object.values(rooms)) room.devices = room.devices.filter((d) => d !== deviceId);
+  if (roomId) rooms[roomId]!.devices.push(deviceId);
   save(rooms);
 }
 
-/** Assign device to a room (or pass null to unassign from all rooms). */
-export function assignDevice(deviceName: string, roomName: string | null): void {
-  const rooms = get();
-  for (const [r, devices] of Object.entries(rooms)) rooms[r] = devices.filter((d) => d !== deviceName);
-  if (roomName) {
-    (rooms[roomName] ??= []).push(deviceName);
+/**
+ * Zones are what the lighting controller decides for: every room, plus each known bulb
+ * that isn't in a room (as a zone of one, id = its address). Members are limited to
+ * `knownBulbs` so a removed bulb never keeps a room "on".
+ */
+export function zones(knownBulbs: string[]): Record<string, string[]> {
+  const known = new Set(knownBulbs);
+  const result: Record<string, string[]> = {};
+  const inARoom = new Set<string>();
+  for (const [id, room] of Object.entries(get())) {
+    result[id] = room.devices.filter((d) => known.has(d));
+    room.devices.forEach((d) => inARoom.add(d));
   }
-  save(rooms);
+  for (const bulb of knownBulbs) if (!inARoom.has(bulb)) result[bulb] = [bulb];
+  return result;
+}
+
+export function zoneOf(bulb: string): string {
+  return getRoomForDevice(bulb) ?? bulb;
 }

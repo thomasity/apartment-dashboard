@@ -1,58 +1,167 @@
 import express from 'express';
 import * as circadian from '../services/circadian';
+import * as controller from '../services/controller';
 import * as roomsSvc from '../services/rooms';
-import overrideSvc from '../services/override';
 import * as rulesSvc from '../services/rules';
 import * as presenceSvc from '../services/presence';
-import { errorCode, errorMessage } from '../util';
+import * as activity from '../services/activity';
+import * as suggestions from '../services/suggestions';
+import { explain } from '../services/explain';
+import { isMigrated } from '../services/migrate';
+import { ServiceError, errorCode, errorMessage } from '../util';
 import type { MqttManager } from '../mqtt/client';
-import type { AppServer, LightValues, PresenceConfigEntry, Rule } from '../types';
+import type { ActivitySource, AppServer, LightValues, PresenceConfigEntry, Rule } from '../types';
 
 // Request bodies as the client sends them. Express doesn't validate these — they
-// document the expected shape and give the handlers typed access.
-interface LightBody      { group?: string; brightness?: number | string; colorTemp?: number | string }
-interface PowerBody      { group?: string; on: boolean }
-interface CircadianBody  { group?: string; enabled: boolean }
+// document the expected shape and give the handlers typed access. `group` is always a
+// target: "all", a room (id or name) or a bulb (IEEE address or name). `source` says
+// who's asking, for the activity log: the dashboard (default) or voice.
+interface LightBody { group?: string; brightness?: unknown; colorTemp?: unknown; source?: unknown }
+interface PowerBody { group?: string; on?: unknown; source?: unknown }
+interface AutoBody  { group?: string; enabled?: unknown; source?: unknown }
+interface IdParams  { id: string }
+
+const sourceOf = (body: { source?: unknown } | undefined): ActivitySource =>
+  body?.source === 'voice' ? 'voice' : 'dashboard';
+
+// Brightness bottoms out at 1: 0 makes Zigbee2MQTT switch the bulb off without the app
+// marking it powered off. Sliders send strings, so numeric strings are accepted.
+function parseLevel(name: string, value: unknown, min: number): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (value === null || value === '' || !Number.isFinite(n)) {
+    throw new ServiceError(`${name} must be a number`, 'INVALID');
+  }
+  return Math.min(100, Math.max(min, Math.round(n)));
+}
+
+function buildLightPayload({ brightness, colorTemp }: LightBody): Partial<LightValues> {
+  const payload: Partial<LightValues> = {};
+  const b = parseLevel('brightness', brightness, 1);
+  const c = parseLevel('colorTemp',  colorTemp,  0);
+  if (b !== undefined) payload.brightness = b;
+  if (c !== undefined) payload.colorTemp  = c;
+  return payload;
+}
+
+function requireBoolean(name: string, value: unknown): boolean {
+  if (typeof value !== 'boolean') throw new ServiceError(`${name} must be true or false`, 'INVALID');
+  return value;
+}
+
+/** Runs a handler, answering a ServiceError with its matching status. */
+// Routes with :params name them, e.g. handle<IdParams>(…) — Express can't infer them
+// through the wrapper.
+function handle<P = object>(fn: (req: express.Request<P>, res: express.Response) => void): express.RequestHandler<P> {
+  return (req, res) => {
+    try {
+      fn(req, res);
+    } catch (err) {
+      const code   = errorCode(err);
+      const status = code === 'NOT_FOUND' ? 404 : code === 'EXISTS' ? 409 : code ? 400 : 500;
+      res.status(status).json({ error: errorMessage(err) });
+    }
+  };
+}
 
 export default function lightingRouter(io: AppServer, mqttManager: MqttManager) {
   const router = express.Router();
 
-  const emitRooms = () => io.emit('lighting:rooms', roomsSvc.get());
+  const emitRooms = () => {
+    io.emit('lighting:rooms', roomsSvc.get());
+    controller.emitZones();
+  };
 
-  function setOverride(groups: string[]): void {
-    groups.forEach((g) => overrideSvc.set(g));
-  }
-
-  // Maps a list of device/group names back to their rooms and tells presence
-  // about the manual power change, so it can suppress or clear auto-on suppression.
-  function recordManualPowerForGroups(groups: string[], on: boolean): void {
-    const rooms = new Set(groups.map((g) => roomsSvc.getRoomForDevice(g)).filter((r): r is string => r !== null));
-    rooms.forEach((room) => presenceSvc.recordManualPower(room, on));
-  }
-
-  // "all" (or no group) expands to every configured group; otherwise just the one named.
-  function resolveGroups(group: string | undefined): string[] {
-    return (!group || group === 'all') ? Object.keys(mqttManager.groups) : [group];
-  }
-
-  // Only pass through brightness/colorTemp fields that were actually provided.
-  function buildLightPayload({ brightness, colorTemp }: LightBody): Partial<LightValues> {
-    return {
-      brightness: brightness !== undefined ? Number(brightness) : undefined,
-      colorTemp:  colorTemp  !== undefined ? Number(colorTemp)  : undefined,
-    };
-  }
-
-  // ── Override ─────────────────────────────────────────────────────────────
-
-  router.get('/override', (_req, res) => {
-    res.json(overrideSvc.getState());
+  // Changes wait for the one-time id migration (it needs the bridge's device list), so
+  // nothing writes new-format data over a config that hasn't been converted yet.
+  router.use((req, res, next) => {
+    if (req.method === 'GET' || isMigrated()) return next();
+    res.status(503).json({ error: 'Lighting is still starting up — try again in a moment' });
   });
 
-  router.delete('/override/:group', (req, res) => {
-    overrideSvc.clear(req.params.group);
-    circadian.applyToGroup(req.params.group);
+  // An explicit target that matches nothing is a 404, so voice hears about a misheard
+  // room instead of a silent no-op.
+  function bulbsFor(group: string | undefined): string[] {
+    const bulbs = controller.resolveTargets(group);
+    if (bulbs.length === 0 && group && group !== 'all') {
+      throw new ServiceError(`No light or room named "${group}"`, 'NOT_FOUND');
+    }
+    return bulbs;
+  }
+
+  function zonesFor(group: string | undefined): string[] {
+    const zones = controller.zonesForTarget(group);
+    if (zones.length === 0 && group && group !== 'all') {
+      throw new ServiceError(`No light or room named "${group}"`, 'NOT_FOUND');
+    }
+    return zones;
+  }
+
+  // ── Controls ─────────────────────────────────────────────────────────────
+
+  router.post('/set', handle((req, res) => {
+    const body = req.body as LightBody;
+    const payload = buildLightPayload(body);
+    controller.manualSet(bulbsFor(body.group), payload, sourceOf(body));
     res.json({ ok: true });
+  }));
+
+  router.post('/power', handle((req, res) => {
+    const body  = req.body as PowerBody;
+    const on    = requireBoolean('on', body.on);
+    const bulbs = bulbsFor(body.group);
+    controller.manualPower(bulbs, on, sourceOf(body));
+    // A manual off starts presence's "don't switch back on" cooldown; on clears it.
+    new Set(bulbs.map(roomsSvc.zoneOf)).forEach((zone) => presenceSvc.recordManualPower(zone, on));
+    res.json({ ok: true });
+  }));
+
+  router.post('/auto', handle((req, res) => {
+    const body = req.body as AutoBody;
+    controller.setAuto(zonesFor(body.group), requireBoolean('enabled', body.enabled), sourceOf(body));
+    res.json({ ok: true });
+  }));
+
+  router.get('/zones', (_req, res) => res.json(controller.getZonesState()));
+
+  // "Resume": hand a zone (id or name, or "all") back to automation — ends its manual
+  // session and lets its motion sensor switch it on again.
+  router.post('/zones/:id/resume', handle<IdParams>((req, res) => {
+    const source = sourceOf(req.body as { source?: unknown });
+    for (const zone of zonesFor(req.params.id)) {
+      const ended   = controller.endManual(zone);
+      const cleared = presenceSvc.clearCooldown(zone);
+      if (ended || cleared) activity.record({ zone, source, action: 'resume' });
+    }
+    res.json({ ok: true });
+  }));
+
+  // Why each zone looks the way it does, what's holding automation back, and what
+  // happened in the last `hours` (default 24). `group` narrows it like any target.
+  router.get('/explain', handle((req, res) => {
+    const { group, hours } = req.query as { group?: string; hours?: string };
+    const h = Math.min(24 * activity.RETENTION_DAYS, Math.max(1, Number(hours) || 24));
+    const since = Date.now() - h * 60 * 60 * 1000;
+    res.json(zonesFor(group).map((zone) => explain(zone, since)));
+  }));
+
+  // ── Suggestions ───────────────────────────────────────────────────────────
+
+  router.get('/suggestions', (_req, res) => res.json(suggestions.current()));
+
+  router.post('/suggestions/:id/dismiss', handle<IdParams>((req, res) => {
+    const { forever } = req.body as { forever?: unknown };
+    if (!suggestions.dismiss(req.params.id, forever === true)) throw new ServiceError('No such suggestion', 'NOT_FOUND');
+    res.json({ ok: true });
+  }));
+
+  router.post('/suggestions/:id/accept', handle<IdParams>((req, res) => {
+    if (!suggestions.accept(req.params.id)) throw new ServiceError('No such suggestion', 'NOT_FOUND');
+    res.json({ ok: true });
+  }));
+
+  router.get('/circadian', (_req, res) => {
+    res.json({ ...circadian.getState(), timeline: circadian.getTimeline() });
   });
 
   // ── Rules ─────────────────────────────────────────────────────────────────
@@ -61,135 +170,73 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
 
   router.get('/rules', (_req, res) => res.json(rulesSvc.getRules()));
 
-  router.post('/rules', (req, res) => {
-    try {
-      res.json(rulesSvc.create(req.body as rulesSvc.NewRule));
-    } catch (err) {
-      res.status(400).json({ error: errorMessage(err) });
-    }
-  });
+  router.post('/rules', handle((req, res) => {
+    res.json(rulesSvc.create(req.body as rulesSvc.NewRule));
+    controller.emitZones();
+  }));
 
-  router.patch('/rules/:id', (req, res) => {
-    try {
-      res.json(rulesSvc.update(req.params.id, req.body as Partial<Rule>));
-    } catch (err) {
-      res.status(errorCode(err) === 'NOT_FOUND' ? 404 : 400).json({ error: errorMessage(err) });
-    }
-  });
+  router.patch('/rules/:id', handle<IdParams>((req, res) => {
+    res.json(rulesSvc.update(req.params.id, req.body as Partial<Rule>));
+    controller.emitZones();
+  }));
 
-  router.delete('/rules/:id', (req, res) => {
+  router.delete('/rules/:id', handle<IdParams>((req, res) => {
     rulesSvc.remove(req.params.id);
+    controller.emitZones();
     res.json({ ok: true });
-  });
+  }));
 
-  // ── Presence ─────────────────────────────────────────────────────────────
+  // ── Presence (sensors by IEEE address) ───────────────────────────────────
 
   router.get('/presence', (_req, res) => res.json(presenceSvc.getState()));
 
-  router.post('/presence', (req, res) => {
-    try {
-      res.json(presenceSvc.create(req.body as presenceSvc.CreateParams));
-    } catch (err) {
-      res.status(400).json({ error: errorMessage(err) });
-    }
-  });
+  router.post('/presence', handle((req, res) => {
+    res.json(presenceSvc.create(req.body as presenceSvc.CreateParams));
+  }));
 
-  router.patch('/presence/:sensor', (req, res) => {
-    try {
-      res.json(presenceSvc.update(req.params.sensor, req.body as Partial<PresenceConfigEntry>));
-    } catch (err) {
-      res.status(errorCode(err) === 'NOT_FOUND' ? 404 : 400).json({ error: errorMessage(err) });
-    }
-  });
+  router.patch('/presence/:id', handle<IdParams>((req, res) => {
+    res.json(presenceSvc.update(req.params.id, req.body as Partial<PresenceConfigEntry>));
+  }));
 
-  router.delete('/presence/:sensor', (req, res) => {
-    presenceSvc.remove(req.params.sensor);
+  router.delete('/presence/:id', handle<IdParams>((req, res) => {
+    presenceSvc.remove(req.params.id);
     res.json({ ok: true });
-  });
+  }));
 
-  // ── Room CRUD ────────────────────────────────────────────────────────────
+  // ── Rooms (by id) ─────────────────────────────────────────────────────────
 
   router.get('/rooms', (_req, res) => res.json(roomsSvc.get()));
 
-  router.post('/rooms', (req, res) => {
-    try {
-      const { name } = req.body as { name?: string };
-      roomsSvc.create(name ?? '');
-      emitRooms();
-      res.json({ ok: true });
-    } catch (err) {
-      res.status(errorCode(err) === 'EXISTS' ? 409 : 400).json({ error: errorMessage(err) });
-    }
-  });
+  router.post('/rooms', handle((req, res) => {
+    const { name } = req.body as { name?: string };
+    const id = roomsSvc.create(name ?? '');
+    emitRooms();
+    res.json({ ok: true, id });
+  }));
 
-  // Must come before /:name routes so Express doesn't treat "assign" as a :name
-  router.post('/rooms/assign', (req, res) => {
+  // Must come before /:id routes so Express doesn't treat "assign" as an :id
+  router.post('/rooms/assign', handle((req, res) => {
     const { device, room } = req.body as { device?: string; room?: string | null };
-    if (!device) return res.status(400).json({ error: 'device required' });
+    if (!device) throw new ServiceError('device required', 'INVALID');
     roomsSvc.assignDevice(device, room ?? null);
     emitRooms();
     res.json({ ok: true });
-  });
+  }));
 
-  router.patch('/rooms/:name', (req, res) => {
-    try {
-      const { newName } = req.body as { newName?: string };
-      roomsSvc.rename(req.params.name, newName ?? '');
-      emitRooms();
-      res.json({ ok: true });
-    } catch (err) {
-      const code = errorCode(err);
-      const status = code === 'NOT_FOUND' ? 404 : code === 'EXISTS' ? 409 : 400;
-      res.status(status).json({ error: errorMessage(err) });
-    }
-  });
-
-  router.delete('/rooms/:name', (req, res) => {
-    roomsSvc.remove(req.params.name);
+  router.patch('/rooms/:id', handle<IdParams>((req, res) => {
+    const { name } = req.body as { name?: string };
+    roomsSvc.rename(req.params.id, name ?? '');
     emitRooms();
     res.json({ ok: true });
-  });
+  }));
 
-  // ── Room-level actions (fan out to member devices) ───────────────────────
-
-  router.post('/rooms/:name/set', (req, res) => {
-    const payload = buildLightPayload(req.body as LightBody);
-    const groups  = roomsSvc.getDevices(req.params.name);
-    groups.forEach((g) => mqttManager.setGroup(g, payload));
-    setOverride(groups);
+  router.delete('/rooms/:id', handle<IdParams>((req, res) => {
+    roomsSvc.remove(req.params.id);
+    emitRooms();
     res.json({ ok: true });
-  });
+  }));
 
-  router.post('/rooms/:name/power', (req, res) => {
-    const { on } = req.body as PowerBody;
-    const groups = roomsSvc.getDevices(req.params.name);
-    groups.forEach((g) => mqttManager.setPower(g, on));
-    presenceSvc.recordManualPower(req.params.name, on);
-    res.json({ ok: true });
-  });
-
-  router.post('/rooms/:name/circadian', (req, res) => {
-    const { enabled } = req.body as CircadianBody;
-    const groups = roomsSvc.getDevices(req.params.name);
-    // Clear overrides BEFORE enabling so apply() inside enable() sees no active overrides
-    groups.forEach((g) => overrideSvc.clear(g));
-    groups.forEach((g) => {
-      if (enabled) circadian.enable(g);
-      else circadian.disable(g);
-    });
-    res.json({ ok: true });
-  });
-
-  router.delete('/rooms/:name/override', (req, res) => {
-    const groups = roomsSvc.getDevices(req.params.name);
-    groups.forEach((g) => {
-      overrideSvc.clear(g);
-      circadian.applyToGroup(g);
-    });
-    res.json({ ok: true });
-  });
-
-  // ── Device management ────────────────────────────────────────────────────
+  // ── Devices ──────────────────────────────────────────────────────────────
 
   router.get('/state', (_req, res) => {
     res.json(mqttManager.getState());
@@ -203,10 +250,10 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
     res.json(mqttManager.getSensorsState());
   });
 
-  router.post('/sensors/:name/set', (req, res) => {
-    mqttManager.setSensorProperty(req.params.name, req.body as Record<string, unknown>);
+  router.post('/sensors/:id/set', handle<IdParams>((req, res) => {
+    mqttManager.setSensorProperty(req.params.id, req.body as Record<string, unknown>);
     res.json({ ok: true });
-  });
+  }));
 
   router.post('/pair', (req, res) => {
     const { enable } = req.body as { enable?: boolean };
@@ -214,55 +261,20 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
     res.json({ ok: true });
   });
 
-  router.post('/devices/rename', (req, res) => {
+  // Zigbee2MQTT accepts either the friendly name or the IEEE address for both of these.
+  router.post('/devices/rename', handle((req, res) => {
     const { from, to } = req.body as { from?: string; to?: string };
-    if (!from || !to) return res.status(400).json({ error: 'from and to required' });
+    if (!from || !to) throw new ServiceError('from and to required', 'INVALID');
     mqttManager.renameDevice(from, to);
     res.json({ ok: true });
-  });
+  }));
 
-  router.post('/devices/remove', (req, res) => {
+  router.post('/devices/remove', handle((req, res) => {
     const { id } = req.body as { id?: string };
-    if (!id) return res.status(400).json({ error: 'id required' });
+    if (!id) throw new ServiceError('id required', 'INVALID');
     mqttManager.removeDevice(id);
     res.json({ ok: true });
-  });
-
-  // ── Global set / power ───────────────────────────────────────────────────
-
-  router.post('/set', (req, res) => {
-    const body    = req.body as LightBody;
-    const payload = buildLightPayload(body);
-    const groups  = resolveGroups(body.group);
-    groups.forEach((g) => mqttManager.setGroup(g, payload));
-    setOverride(groups);
-    res.json({ ok: true });
-  });
-
-  router.post('/power', (req, res) => {
-    const { group = 'all', on } = req.body as PowerBody;
-    mqttManager.setPower(group, on);
-    recordManualPowerForGroups(resolveGroups(group), on);
-    res.json({ ok: true });
-  });
-
-  // ── Circadian ────────────────────────────────────────────────────────────
-
-  router.get('/circadian', (_req, res) => {
-    res.json({ ...circadian.getState(), timeline: circadian.getTimeline() });
-  });
-
-  router.post('/circadian', (req, res) => {
-    const { group = 'all', enabled } = req.body as CircadianBody;
-    if (enabled) {
-      // Clear overrides BEFORE enabling so apply() sees no active overrides
-      resolveGroups(group).forEach((g) => overrideSvc.clear(g));
-      circadian.enable(group);
-    } else {
-      circadian.disable(group);
-    }
-    res.json({ ok: true });
-  });
+  }));
 
   return router;
 }

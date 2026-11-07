@@ -75,8 +75,15 @@ export default function App() {
   }, [resetInactivity]);
 
   // ── Swipe detection ─────────────────────────────────────────────────
+  // Form controls (sliders especially) never start a tab swipe, so they don't each
+  // need data-no-swipe; mark sheets and scroll areas with it instead.
+  const NO_SWIPE = "[data-no-swipe], input, textarea, select";
+
   const handleTouchStart = (e: React.TouchEvent) => {
-    if ((e.target as Element).closest("[data-no-swipe]")) return;
+    if ((e.target as Element).closest(NO_SWIPE)) {
+      touchStart.current = null;
+      return;
+    }
     const t = e.touches[0];
     if (!t) return;
     touchStart.current = { x: t.clientX, y: t.clientY };

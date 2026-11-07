@@ -1,7 +1,6 @@
 {
   "rooms": {},
-  "circadianGroups": [],
-  "bulbDesiredStates": {},
+  "autoZones": [],
   "rules": [],
   "active_voice": "Freya",
   "voices": {

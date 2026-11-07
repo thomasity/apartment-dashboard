@@ -5,30 +5,88 @@ export interface LightingValues {
   colorTemp: number;
 }
 
+// Bulbs and sensors are keyed by IEEE address; `label` is the current friendly name.
+
+export interface BulbState extends LightingValues {
+  label: string;
+}
+
 export interface LightingServerState {
   connected: boolean;
-  groups: Record<string, LightingValues>;
+  /** IEEE address → bulb */
+  groups: Record<string, BulbState>;
+  /** IEEE addresses of bulbs that are off */
   poweredOff: string[];
 }
 
 export interface CircadianPoint {
-  time: string;
+  hour: number;
   brightness: number;
   colorTemp: number;
 }
 
 export interface CircadianState {
-  enabledGroups: string[];
   brightness: number;
   colorTemp: number;
   nextChange: string | null;
   timeline: CircadianPoint[];
 }
 
-export type RoomsMap = Record<string, string[]>;
+export interface Room {
+  name: string;
+  /** Bulb IEEE addresses */
+  devices: string[];
+}
 
-/** expiresAt timestamp per group name */
-export type OverridesMap = Record<string, number>;
+/** Room id → room */
+export type RoomsMap = Record<string, Room>;
+
+/** A room, or a bulb not in one (keyed by its address): what the server decides looks for. */
+export interface ZoneState {
+  auto: boolean;
+  /** Who is deciding the zone's look right now */
+  control: 'manual' | 'presence' | 'rule' | 'auto' | 'none';
+  ruleName: string | null;
+  /** ISO end of the rule window in control */
+  until: string | null;
+}
+
+export type ZonesMap = Record<string, ZoneState>;
+
+// ── Explanations / activity / suggestions ────────────────────────────────────
+
+export type ActivitySource = 'dashboard' | 'voice' | 'rule' | 'presence' | 'wall';
+
+/** One thing that happened to a zone, already phrased by the server */
+export interface ActivityLine {
+  at: number;
+  source: ActivitySource;
+  text: string;
+}
+
+/** Why a zone looks the way it does, and what's holding automation back */
+export interface ZoneExplanation {
+  zone: string;
+  name: string;
+  on: boolean;
+  control: ZoneState['control'];
+  auto: boolean;
+  reasons: string[];
+  blocked: string[];
+  history: ActivityLine[];
+}
+
+/** A rule the server thinks you'd want, from what you keep doing by hand */
+export interface RuleSuggestion {
+  id: string;
+  zone: string;
+  kind: 'on' | 'off' | 'set';
+  time: string;
+  days: number[];
+  text: string;
+  rule: Omit<Rule, 'id' | 'enabled'>;
+  createdAt: number;
+}
 
 // ── Rules ─────────────────────────────────────────────────────────────────────
 
@@ -37,6 +95,7 @@ export type RuleConfig = 'none' | 'scene' | 'auto';
 
 export interface RuleAction {
   type: RuleActionType;
+  /** "all", a room id, or a bulb address */
   group: string;
   /** power only */
   on?: boolean;
@@ -46,11 +105,24 @@ export interface RuleAction {
   colorTemp?: number;
 }
 
+/** What presence may do while a windowed rule is in effect */
+export interface RulePresence {
+  mode: 'ignore' | 'normal' | 'custom';
+  brightness?: number;
+  colorTemp?: number;
+  vacantAfterMinutes?: number;
+}
+
 export interface Rule {
   id: string;
   name: string;
   /** "HH:MM" 24-hour format, or "sunrise" / "sunset" */
   time: string;
+  /** Optional end, same format — makes the rule a window */
+  end?: string;
+  presence?: RulePresence;
+  /** Apply even to rooms in a manual session */
+  overrideManual?: boolean;
   /** 0 = Sunday … 6 = Saturday */
   days: number[];
   enabled: boolean;
@@ -60,7 +132,9 @@ export interface Rule {
 // ── Presence ──────────────────────────────────────────────────────────────────
 
 export interface PresenceEntry {
+  /** Sensor IEEE address */
   sensor: string;
+  /** Room id */
   room: string;
   vacantAfterMinutes: number;
   manualOffCooldownMinutes: number;
@@ -105,6 +179,9 @@ export interface DevicesState {
 export interface RuleFormState {
   name: string;
   time: string;
+  end?: string;
   days: number[];
   action: RuleAction;
+  presence?: RulePresence;
+  overrideManual?: boolean;
 }

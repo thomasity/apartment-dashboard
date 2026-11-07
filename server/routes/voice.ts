@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'crypto';
 import * as config from '../config';
 import { apiBase, errorMessage, toHHMM } from '../util';
-import type { LightingState } from '../types';
+import type { LightingState, RoomsMap, ZoneExplanation } from '../types';
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -134,10 +134,31 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        group:      { type: 'string',  description: '"all" or a specific room name.' },
+        group:      { type: 'string',  description: '"all", a room name, or a single light\'s name (names from get_home_state).' },
         power:      { type: 'boolean', description: 'true = on, false = off. Omit to leave power unchanged.' },
         brightness: { type: 'number',  description: 'Brightness 1–100. Omit to leave unchanged.' },
         colorTemp:  { type: 'number',  description: 'Color temperature 0 (warm) – 100 (cool). Omit to leave unchanged.' },
+      },
+      required: ['group'],
+    },
+  },
+  {
+    name: 'explain_lights',
+    description: 'Explain why lights are the way they are, or why they did or didn\'t turn on/off: who is in control (Thomas by hand, a rule, motion, Auto), what is holding automation back (motion cooldown, a rule ignoring motion, an unreachable bulb) and what happened recently. Use for any "why" question about the lights.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        group: { type: 'string', description: 'A room or light name. Omit for every room.' },
+      },
+    },
+  },
+  {
+    name: 'resume_automation',
+    description: 'Hand lights back to automation: ends a manual adjustment (so rules and Auto take over again) and lets the motion sensor switch the room on again after it was turned off by hand. Use for "go back to normal", "let the sensor work again", "stop overriding".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        group: { type: 'string', description: '"all", a room name, or a light name.' },
       },
       required: ['group'],
     },
@@ -275,6 +296,8 @@ When to stay silent (reply with empty string ""):
 
 Tools:
 - Call get_home_state before answering questions about current state, or to discover room names.
+- For "why" questions about the lights ("why are the lights so dim?", "why didn't the light come on?"), call explain_lights and answer from its reasons/blocked in one sentence. If Thomas then wants things back to normal, call resume_automation.
+- Changing the lights by voice counts as a manual adjustment: it holds until the room is turned off.
 - When the user says "the lights" without a room, use group "all".
 - Use remember to store things the user wants you to remember.
 - Call get_memories when addressing Thomas personally, or when a request might match a stored preference (music taste, favorite settings).
@@ -481,6 +504,8 @@ interface ToolInputs {
   set_timer:        { description: string; delay_minutes: number };
   cancel_timers:    Record<string, never>;
   control_lights:   { group: string; power?: boolean; brightness?: number; colorTemp?: number };
+  explain_lights:   { group?: string };
+  resume_automation: { group: string };
   control_music:    { action: 'play' | 'pause' | 'next' | 'previous'; volume?: number };
   get_voices:       Record<string, never>;
   set_voice:        { name: string };
@@ -499,24 +524,38 @@ type ToolHandlers = { [K in keyof ToolInputs]: (input: ToolInputs[K], base: stri
 // stay a thin, uniform dispatcher.
 const toolHandlers: ToolHandlers = {
   async get_home_state(_input, base) {
-    const [lightsRes, spotifyRes, tvRes] = await Promise.all([
+    const [lightsRes, roomsRes, spotifyRes, tvRes] = await Promise.all([
       fetch(`${base}/lighting/state`),
+      fetch(`${base}/lighting/rooms`),
       fetch(`${base}/spotify/now-playing`),
       fetch(`${base}/tv/status`),
     ]);
     const lights  = await lightsRes.json().catch(() => null)  as LightingState | null;
+    const rooms   = await roomsRes.json().catch(() => ({}))   as RoomsMap;
     const spotify = await spotifyRes.json().catch(() => null) as NowPlayingLite | null;
     const tv      = await tvRes.json().catch(() => null)      as TvStatusLite | null;
     const playing = spotify?.item;
 
+    // Rooms with their lights, plus any light not in a room — by name only (the lighting
+    // API resolves names), and every name here is a valid control_lights group.
+    const describeLight = (id: string) => {
+      const vals = lights?.groups[id];
+      return vals && {
+        name:       vals.label,
+        brightness: vals.brightness,
+        colorTemp:  vals.colorTemp,
+        on:         !(lights?.poweredOff ?? []).includes(id),
+      };
+    };
+    const inARoom = new Set(Object.values(rooms).flatMap((r) => r.devices));
+
     return {
       lights: lights ? {
-        rooms: Object.entries(lights.groups || {}).map(([roomName, vals]) => ({
-          name:       roomName,
-          brightness: vals.brightness,
-          colorTemp:  vals.colorTemp,
-          on:         !(lights.poweredOff || []).includes(roomName),
+        rooms: Object.values(rooms).map((room) => ({
+          name:   room.name,
+          lights: room.devices.map(describeLight).filter(Boolean),
         })),
+        unassigned: Object.keys(lights.groups).filter((id) => !inARoom.has(id)).map(describeLight),
       } : null,
       music: spotify ? {
         isPlaying: spotify.isPlaying,
@@ -609,17 +648,49 @@ const toolHandlers: ToolHandlers = {
 
   async control_lights(input, base) {
     const { group, power, brightness, colorTemp } = input;
+    // Surface a 404/400 (e.g. a misheard room) so the reply can say so instead of
+    // claiming success.
+    const check = async (res: globalThis.Response) => {
+      if (res.ok) return null;
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      return body.error ?? `HTTP ${res.status}`;
+    };
     if (power !== undefined) {
-      await post(`${base}/lighting/power`, { group, on: power });
+      const error = await check(await post(`${base}/lighting/power`, { group, on: power, source: 'voice' }));
+      if (error) return { ok: false, error };
     }
     if (brightness !== undefined || colorTemp !== undefined) {
-      await post(`${base}/lighting/set`, {
+      const error = await check(await post(`${base}/lighting/set`, {
         group,
+        source: 'voice',
         ...(brightness !== undefined && { brightness }),
         ...(colorTemp  !== undefined && { colorTemp }),
-      });
+      }));
+      if (error) return { ok: false, error };
     }
     return { ok: true };
+  },
+
+  async explain_lights(input, base) {
+    const query = input.group ? `?group=${encodeURIComponent(input.group)}` : '';
+    const res = await fetch(`${base}/lighting/explain${query}`);
+    const body = await res.json().catch(() => ({})) as ZoneExplanation[] | { error?: string };
+    if (!res.ok || !Array.isArray(body)) return { ok: false, error: (body as { error?: string }).error ?? `HTTP ${res.status}` };
+    // Keep it short for the model: the reasons, and the last few things that happened
+    return body.map((z) => ({
+      room:    z.name,
+      on:      z.on,
+      reasons: z.reasons,
+      blocked: z.blocked,
+      recent:  z.history.slice(-5).map((h) => `${new Date(h.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}: ${h.text}`),
+    }));
+  },
+
+  async resume_automation(input, base) {
+    const res = await post(`${base}/lighting/zones/${encodeURIComponent(input.group)}/resume`, { source: 'voice' });
+    if (res.ok) return { ok: true };
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    return { ok: false, error: body.error ?? `HTTP ${res.status}` };
   },
 
   async control_music(input, base) {

@@ -7,9 +7,10 @@ import styles from './DevicesView.module.css';
 
 const SCAN_DURATION = 254;
 
-function getRoomForDevice(name: string, rooms: RoomsMap): string | null {
-  for (const [room, devices] of Object.entries(rooms)) {
-    if (devices.includes(name)) return room;
+/** Room id a bulb (by IEEE address) is in */
+function getRoomForDevice(id: string, rooms: RoomsMap): string | null {
+  for (const [roomId, room] of Object.entries(rooms)) {
+    if (room.devices.includes(id)) return roomId;
   }
   return null;
 }
@@ -83,15 +84,15 @@ export default function DevicesView() {
     return () => clearInterval(interval);
   }, []);
 
-  const openPresenceConfig = (sensorName: string) => {
-    const existing = presence.find((p) => p.sensor === sensorName);
+  const openPresenceConfig = (sensorId: string) => {
+    const existing = presence.find((p) => p.sensor === sensorId);
     setPresenceForm({
       room:                     existing?.room ?? Object.keys(rooms)[0] ?? '',
       vacantAfterMinutes:       existing?.vacantAfterMinutes ?? 5,
       manualOffCooldownMinutes: existing?.manualOffCooldownMinutes ?? 120,
       enabled:                  existing?.enabled ?? true,
     });
-    setPresenceSheetFor(sensorName);
+    setPresenceSheetFor(sensorId);
   };
 
   const savePresence = async () => {
@@ -106,8 +107,8 @@ export default function DevicesView() {
     setPresenceSheetFor(null);
   };
 
-  const removePresence = async (sensorName: string) => {
-    await axios.delete(`/api/lighting/presence/${encodeURIComponent(sensorName)}`).catch(console.warn);
+  const removePresence = async (sensorId: string) => {
+    await axios.delete(`/api/lighting/presence/${encodeURIComponent(sensorId)}`).catch(console.warn);
     refetchPresence();
   };
 
@@ -115,21 +116,35 @@ export default function DevicesView() {
 
   // Debounced for sliders (numeric), immediate for discrete picks (enum) — same 220ms
   // pattern used by the lighting sliders elsewhere in this app.
-  const setSensorProperty = (sensorName: string, property: string, value: number | string, debounceMs = 0) => {
+  const setSensorProperty = (sensorId: string, property: string, value: number | string, debounceMs = 0) => {
     setSensors((prev) => ({
       ...prev,
-      [sensorName]: { ...(prev[sensorName] ?? { label: sensorName, occupancy: null }), [property]: value },
+      [sensorId]: { ...(prev[sensorId] ?? { label: sensorId, occupancy: null }), [property]: value },
     }));
-    const key = `${sensorName}|${property}`;
+    const key = `${sensorId}|${property}`;
     clearTimeout(sensorSetTimers.current[key]);
     sensorSetTimers.current[key] = setTimeout(() => {
-      axios.post(`/api/lighting/sensors/${encodeURIComponent(sensorName)}/set`, { [property]: value }).catch(console.warn);
+      axios.post(`/api/lighting/sensors/${encodeURIComponent(sensorId)}/set`, { [property]: value }).catch(console.warn);
     }, debounceMs);
   };
 
   const toggleScan   = () => axios.post('/api/lighting/pair', { enable: !devState.pairing }).catch(console.warn);
   const startEdit    = (d: DeviceEntry) => { setEditingId(d.ieee_address); setDraftName(d.friendly_name); };
-  const removeDevice = (id: string) => axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
+
+  // Removal unpairs the bulb from Zigbee — first tap arms it, a second within 3s confirms
+  const [armedRemove, setArmedRemove] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(armTimer.current ?? undefined), []);
+  const removeDevice = (id: string) => {
+    clearTimeout(armTimer.current ?? undefined);
+    if (armedRemove !== id) {
+      setArmedRemove(id);
+      armTimer.current = setTimeout(() => setArmedRemove(null), 3000);
+      return;
+    }
+    setArmedRemove(null);
+    axios.post('/api/lighting/devices/remove', { id }).catch(console.warn);
+  };
 
   const submitRename = (oldName: string) => {
     const trimmed = draftName.trim();
@@ -145,17 +160,18 @@ export default function DevicesView() {
     setNewRoomName('');
   };
 
-  const submitRenameRoom = (oldName: string) => {
+  const submitRenameRoom = (roomId: string) => {
     const name = draftRoomName.trim();
-    if (name && name !== oldName) renameRoom(oldName, name);
+    if (name && name !== rooms[roomId]?.name) renameRoom(roomId, name);
     setEditingRoom(null);
   };
 
-  const toggleDeviceInRoom = (deviceName: string, roomName: string) => {
-    const currentRoom = getRoomForDevice(deviceName, rooms);
+  const toggleDeviceInRoom = (deviceId: string, roomId: string) => {
+    const currentRoom = getRoomForDevice(deviceId, rooms);
     // If already in this room, remove (unassign); otherwise assign to this room
-    assignDevice(deviceName, currentRoom === roomName ? null : roomName);
+    assignDevice(deviceId, currentRoom === roomId ? null : roomId);
   };
+  const roomName = (roomId: string | null) => (roomId && rooms[roomId]?.name) || null;
 
   const fmt     = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const visible = devState.devices.filter((d) => d.type !== 'Coordinator');
@@ -179,42 +195,42 @@ export default function DevicesView() {
           <p className={styles.emptyNote}>No rooms yet — create one to group your lights</p>
         ) : (
           <div className={styles.roomList}>
-            {Object.keys(rooms).map((name) => (
-              <div key={name} className={styles.roomRow}>
-                {editingRoom === name ? (
+            {Object.entries(rooms).map(([roomId, room]) => (
+              <div key={roomId} className={styles.roomRow}>
+                {editingRoom === roomId ? (
                   <input
                     autoFocus
                     value={draftRoomName}
                     onChange={(e) => setDraftRoomName(e.target.value)}
-                    onBlur={() => submitRenameRoom(name)}
+                    onBlur={() => submitRenameRoom(roomId)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitRenameRoom(name);
+                      if (e.key === 'Enter') submitRenameRoom(roomId);
                       if (e.key === 'Escape') setEditingRoom(null);
                     }}
                     className={styles.roomRenameInput}
                   />
                 ) : (
                   <>
-                    <span className={styles.roomName}>{name}</span>
-                    <span className={styles.roomCount}>{(rooms[name] ?? []).length} lights</span>
+                    <span className={styles.roomName}>{room.name}</span>
+                    <span className={styles.roomCount}>{room.devices.length} lights</span>
                   </>
                 )}
                 {/* Add devices to room */}
                 <button
-                  onClick={() => setPickerRoom(name)}
+                  onClick={() => setPickerRoom(roomId)}
                   className={styles.roomAddDevices}
                   title="Add devices"
                 >
                   +
                 </button>
                 <button
-                  onClick={() => { setEditingRoom(name); setDraftRoomName(name); }}
+                  onClick={() => { setEditingRoom(roomId); setDraftRoomName(room.name); }}
                   className={styles.roomRename}
                 >
                   <PencilIcon />
                 </button>
                 <button
-                  onClick={() => deleteRoom(name)}
+                  onClick={() => deleteRoom(roomId)}
                   className={styles.roomDelete}
                 >
                   <TrashIcon />
@@ -276,9 +292,9 @@ export default function DevicesView() {
             {visible.map((d) => {
               const isNew      = newDeviceIds.has(d.ieee_address);
               const avail      = devState.availability ?? {};
-              const knowsAvail = d.friendly_name in avail;
-              const isOffline  = avail[d.friendly_name] === false;
-              const deviceRoom = getRoomForDevice(d.friendly_name, rooms);
+              const knowsAvail = d.ieee_address in avail;
+              const isOffline  = avail[d.ieee_address] === false;
+              const deviceRoom = roomName(getRoomForDevice(d.ieee_address, rooms));
 
               return (
                 <div
@@ -318,9 +334,9 @@ export default function DevicesView() {
                         <span className={styles.deviceRoom}>· {deviceRoom}</span>
                       )}
                     </div>
-                    {d.friendly_name in sensors && (() => {
-                      const occ   = sensors[d.friendly_name]?.occupancy ?? null;
-                      const entry = presence.find((p) => p.sensor === d.friendly_name);
+                    {d.ieee_address in sensors && (() => {
+                      const occ   = sensors[d.ieee_address]?.occupancy ?? null;
+                      const entry = presence.find((p) => p.sensor === d.ieee_address);
                       return (
                         <div className={styles.presenceRow}>
                           <span className={`${styles.presenceDot} ${occ ? styles.presenceDotOccupied : styles.presenceDotIdle}`} />
@@ -329,11 +345,11 @@ export default function DevicesView() {
                           </span>
                           {entry && (
                             <span className={styles.presenceEntry}>
-                              · {entry.room} · {entry.vacantAfterMinutes}m off / {(entry.manualOffCooldownMinutes / 60).toFixed(1)}h cooldown{!entry.enabled ? ' · disabled' : ''}
+                              · {roomName(entry.room) ?? 'Missing room'} · {entry.vacantAfterMinutes}m off / {(entry.manualOffCooldownMinutes / 60).toFixed(1)}h cooldown{!entry.enabled ? ' · disabled' : ''}
                             </span>
                           )}
                           <button
-                            onClick={() => openPresenceConfig(d.friendly_name)}
+                            onClick={() => openPresenceConfig(d.ieee_address)}
                             className={styles.presenceSetup}
                           >
                             {entry ? 'Edit' : 'Set up as trigger'}
@@ -345,8 +361,11 @@ export default function DevicesView() {
                   <button onClick={() => startEdit(d)} className={styles.deviceEdit}>
                     <PencilIcon />
                   </button>
-                  <button onClick={() => removeDevice(d.friendly_name)} className={styles.deviceRemove}>
-                    <TrashIcon />
+                  <button
+                    onClick={() => removeDevice(d.ieee_address)}
+                    className={`${styles.deviceRemove} ${armedRemove === d.ieee_address ? styles.deviceRemoveArmed : ''}`}
+                  >
+                    {armedRemove === d.ieee_address ? 'Remove?' : <TrashIcon />}
                   </button>
                 </div>
               );
@@ -357,20 +376,20 @@ export default function DevicesView() {
 
       {/* ── Room device picker ── */}
       {pickerRoom && (
-        <div className={styles.sheetBackdrop} onClick={() => setPickerRoom(null)}>
+        <div className={styles.sheetBackdrop} onClick={() => setPickerRoom(null)} data-no-swipe>
           <div className={styles.pickerSheet} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.sheetTitle}>{pickerRoom}</p>
+            <p className={styles.sheetTitle}>{roomName(pickerRoom)}</p>
             <p className={styles.sheetHint}>Tap a device to add or remove it from this room</p>
             <div className={styles.pickerList}>
               {visible.length === 0 ? (
                 <p className={styles.pickerEmpty}>No devices paired</p>
               ) : visible.map((d) => {
-                const inThisRoom = (rooms[pickerRoom] ?? []).includes(d.friendly_name);
-                const otherRoom  = !inThisRoom ? getRoomForDevice(d.friendly_name, rooms) : null;
+                const inThisRoom = (rooms[pickerRoom]?.devices ?? []).includes(d.ieee_address);
+                const otherRoom  = !inThisRoom ? roomName(getRoomForDevice(d.ieee_address, rooms)) : null;
                 return (
                   <button
                     key={d.ieee_address}
-                    onClick={() => toggleDeviceInRoom(d.friendly_name, pickerRoom)}
+                    onClick={() => toggleDeviceInRoom(d.ieee_address, pickerRoom)}
                     className={styles.pickerItem}
                   >
                     <div className={styles.pickerItemText}>
@@ -390,7 +409,7 @@ export default function DevicesView() {
 
       {/* ── Presence trigger config ── */}
       {presenceSheetFor && (
-        <div className={styles.sheetBackdrop} onClick={() => setPresenceSheetFor(null)}>
+        <div className={styles.sheetBackdrop} onClick={() => setPresenceSheetFor(null)} data-no-swipe>
           <div
             className={styles.presenceSheet}
             onClick={(e) => e.stopPropagation()}
@@ -399,7 +418,7 @@ export default function DevicesView() {
               <span className={styles.presenceSheetTitle}>Presence Trigger</span>
               <button onClick={() => setPresenceSheetFor(null)} className={styles.sheetClose}>✕</button>
             </div>
-            <p className={styles.presenceSheetSubtitle}>{presenceSheetFor}</p>
+            <p className={styles.presenceSheetSubtitle}>{sensors[presenceSheetFor]?.label ?? presenceSheetFor}</p>
 
             {/* Room */}
             <div className={styles.field}>
@@ -408,7 +427,7 @@ export default function DevicesView() {
                 <p className={styles.fieldEmpty}>No rooms yet — create one above first.</p>
               ) : (
                 <div className={styles.chips}>
-                  {Object.keys(rooms).map((r) => (
+                  {Object.entries(rooms).map(([r, room]) => (
                     <button
                       key={r}
                       onClick={() => setPresenceForm((f) => ({ ...f, room: r }))}
@@ -418,7 +437,7 @@ export default function DevicesView() {
                           : styles.chipIdle
                       }`}
                     >
-                      {r}
+                      {room.name}
                     </button>
                   ))}
                 </div>
@@ -473,7 +492,7 @@ export default function DevicesView() {
             {/* Sensor settings — built from whatever this device actually reports as settable
                 (e.g. radar sensitivity, detection distance), instead of hardcoding property names. */}
             {(() => {
-              const device = devState.devices.find((d) => d.friendly_name === presenceSheetFor);
+              const device = devState.devices.find((d) => d.ieee_address === presenceSheetFor);
               const settable = (device?.definition?.exposes || []).filter((e) => (e.access & 2) !== 0);
               if (!settable.length) return null;
               const current: Record<string, unknown> = sensors[presenceSheetFor] ?? {};

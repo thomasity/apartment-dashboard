@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { TrashIcon } from "../icons";
-import type { Rule, RuleAction, RuleFormState } from "../../types";
+import type { Rule, RuleAction, RuleFormState, RoomsMap, RuleSuggestion } from "../../types";
 import { useLighting } from "../../hooks/useLighting";
 import RuleForm from "./RuleForm";
 import styles from "./ScheduleView.module.css";
@@ -13,7 +13,7 @@ function fmt12(timeStr: string): string {
   if (timeStr === "sunset") return "Sunset";
   if (!timeStr) return "";
   const [h, m] = timeStr.split(":").map(Number);
-  if (!h || !m || isNaN(h) || isNaN(m)) return "";
+  if (h === undefined || m === undefined || isNaN(h) || isNaN(m)) return "";
   const period = h < 12 ? "AM" : "PM";
   const h12 = h % 12 || 12;
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
@@ -30,9 +30,9 @@ function fmtDays(days: number[]): string {
   return sorted.map((d) => DAY_NAMES[d]).join(", ");
 }
 
-function fmtAction(action: RuleAction): string {
+function fmtAction(action: RuleAction, rooms: RoomsMap): string {
   if (!action) return "";
-  const target = action.group === "all" ? "All lights" : action.group;
+  const target = action.group === "all" ? "All lights" : (rooms[action.group]?.name ?? "Missing room");
   if (action.type === "power") {
     if (!action.on) return `Turn off · ${target}`;
     if (action.config === "scene")
@@ -62,12 +62,29 @@ const BLANK_FORM: RuleFormState = {
   },
 };
 
+/** A quiet card offering a rule for something you keep doing by hand. */
+function SuggestionCard({ suggestion, onMake }: { suggestion: RuleSuggestion; onMake: () => void }) {
+  const { dismissSuggestion } = useLighting();
+  return (
+    <div className={styles.suggestion}>
+      <p className={styles.suggestionText}>{suggestion.text} Make it a rule?</p>
+      <div className={styles.suggestionActions}>
+        <button onClick={onMake} className={styles.suggestionMake}>Make rule</button>
+        <button onClick={() => dismissSuggestion(suggestion.id, false)} className={styles.suggestionDismiss}>Not now</button>
+        <button onClick={() => dismissSuggestion(suggestion.id, true)} className={styles.suggestionDismiss}>Never</button>
+      </div>
+    </div>
+  );
+}
+
 export default function ScheduleView() {
-  const { rooms } = useLighting();
+  const { rooms, suggestion, acceptSuggestion } = useLighting();
   const [rules, setRules] = useState<Rule[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<RuleFormState>(BLANK_FORM);
+  /** The suggestion the open form was started from — cleared once the rule is saved */
+  const [fromSuggestion, setFromSuggestion] = useState<string | null>(null);
 
   useEffect(() => {
     axios
@@ -84,17 +101,29 @@ export default function ScheduleView() {
 
   const openAdd = () => {
     setEditId(null);
+    setFromSuggestion(null);
     setForm(BLANK_FORM);
+    setShowForm(true);
+  };
+
+  const openSuggestion = (s: RuleSuggestion) => {
+    setEditId(null);
+    setFromSuggestion(s.id);
+    setForm({ ...BLANK_FORM, ...s.rule, action: { ...BLANK_FORM.action, ...s.rule.action } });
     setShowForm(true);
   };
 
   const openEdit = (rule: Rule) => {
     setEditId(rule.id);
+    setFromSuggestion(null);
     setForm({
       name: rule.name,
       time: rule.time,
       days: rule.days,
       action: { ...rule.action },
+      end: rule.end,
+      presence: rule.presence,
+      overrideManual: rule.overrideManual,
     });
     setShowForm(true);
   };
@@ -107,11 +136,19 @@ export default function ScheduleView() {
   const saveForm = async () => {
     if (!form.name.trim() || !form.time || form.days.length === 0) return;
     if (editId) {
+      // null (not undefined, which JSON drops) so removing an end/presence reaches the server
       await axios
-        .patch(`/api/lighting/rules/${editId}`, form)
+        .patch(`/api/lighting/rules/${editId}`, { ...form, end: form.end ?? null, presence: form.end ? form.presence : null })
         .catch(console.warn);
     } else {
-      await axios.post("/api/lighting/rules", form).catch(console.warn);
+      const saved = await axios
+        .post("/api/lighting/rules", form)
+        .then(() => true)
+        .catch((err) => {
+          console.warn(err);
+          return false;
+        });
+      if (saved && fromSuggestion) acceptSuggestion(fromSuggestion);
     }
     await refetch();
     closeForm();
@@ -138,6 +175,8 @@ export default function ScheduleView() {
         </button>
       </div>
 
+      {suggestion && <SuggestionCard suggestion={suggestion} onMake={() => openSuggestion(suggestion)} />}
+
       {rules.length === 0 ? (
         <div className={styles.empty}>
           <p className={styles.emptyTitle}>No rules yet</p>
@@ -160,10 +199,13 @@ export default function ScheduleView() {
               >
                 <div className={styles.ruleName}>{rule.name}</div>
                 <div className={styles.ruleWhen}>
-                  {fmt12(rule.time)} · {fmtDays(rule.days)}
+                  {fmt12(rule.time)}{rule.end ? `–${fmt12(rule.end)}` : ""} · {fmtDays(rule.days)}
                 </div>
                 <div className={styles.ruleAction}>
-                  {fmtAction(rule.action)}
+                  {fmtAction(rule.action, rooms)}
+                  {rule.end && rule.presence?.mode === "custom" && ` · night light ${rule.presence.brightness ?? 10}%`}
+                  {rule.end && rule.presence?.mode === "ignore" && " · ignores presence"}
+                  {rule.overrideManual && " · overrides manual"}
                 </div>
               </button>
 

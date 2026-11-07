@@ -7,8 +7,13 @@ import controlStyles from "./ControlsView.module.css";
 export default function PresetsView() {
   const { serverState, localDevices, applyPreset } = useLighting();
   const offline = !serverState.connected;
-  const allBrightness = avg(localDevices, "brightness");
-  const allColorTemp = avg(localDevices, "colorTemp");
+  // Match ControlsView: powered-off bulbs don't count toward the current look
+  const poweredOff = serverState.poweredOff ?? [];
+  const onDevices = Object.fromEntries(
+    Object.entries(localDevices).filter(([n]) => !poweredOff.includes(n)),
+  );
+  const allBrightness = avg(onDevices, "brightness");
+  const allColorTemp = avg(onDevices, "colorTemp");
   const activePreset = PRESETS.find(
     (p) => p.brightness === allBrightness && p.colorTemp === allColorTemp,
   );

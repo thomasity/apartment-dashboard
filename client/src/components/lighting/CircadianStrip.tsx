@@ -1,4 +1,6 @@
 import type { CircadianState } from '../../types';
+import { useClock } from '../../hooks/useClock';
+import { tempLabel } from './utils';
 import styles from './CircadianStrip.module.css';
 
 interface Props {
@@ -7,18 +9,17 @@ interface Props {
 
 export default function CircadianStrip({ circadian }: Props) {
   const { brightness, colorTemp, nextChange, timeline } = circadian;
-  const tempLabel = colorTemp < 33 ? 'Warm' : colorTemp < 67 ? 'Neutral' : 'Cool';
+  const { now } = useClock();
+  const nowPct  = ((now.getHours() * 60 + now.getMinutes()) / (24 * 60)) * 100;
 
-  const now    = new Date();
-  const nowPct = ((now.getHours() * 60 + now.getMinutes()) / (24 * 60)) * 100;
-
-  const nextMs  = nextChange ? Math.max(0, new Date(nextChange).getTime() - Date.now()) : null;
+  const nextMs  = nextChange ? Math.max(0, new Date(nextChange).getTime() - now.getTime()) : null;
   const nextMin = nextMs !== null ? Math.floor(nextMs / 60000) : null;
 
   // Interpolates the same 3-stop gradient as slider-colortemp: #ffb300 → #fff4e0 45% → #a8c8ff
   const stops = timeline.length > 0
     ? timeline.map((pt, i) => {
-        const pct = ((i / 23) * 100).toFixed(1);
+        // Hour i starts at i/24 of the day — same scale as the now marker
+        const pct = ((i / 24) * 100).toFixed(1);
         const t   = pt.colorTemp;
         let r, g, b;
         if (t <= 45) {
@@ -49,7 +50,7 @@ export default function CircadianStrip({ circadian }: Props) {
         />
       </div>
       <div className={styles.labels}>
-        <span className={styles.summary}>{brightness}% · {tempLabel}</span>
+        <span className={styles.summary}>{brightness}% · {tempLabel(colorTemp)}</span>
         {nextMin !== null && <span className={styles.countdown}>~{nextMin}m</span>}
       </div>
     </div>

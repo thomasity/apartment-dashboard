@@ -63,7 +63,7 @@ export function LightSliders({
         <div className={styles.sliderRow}>
           <SunDim />
           <input
-            type="range" min={0} max={100} value={brightness}
+            type="range" min={1} max={100} value={brightness}
             onChange={(e) => onBrightness(Number(e.target.value))}
             className={`${styles.brightnessSlider} ${brightnessMixed ? styles.sliderMixed : ''}`}
           />

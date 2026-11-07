@@ -40,8 +40,9 @@ let ctx: Awaited<ReturnType<typeof startApp>>;
 
 beforeEach(async () => {
   claude.create.mockReset();
+  // Pre-ids shape on purpose: the app migrates it on startup, so this also covers that path.
   writeConfig({
-    rooms: { 'Living Room': ['Lamp', 'Ceiling'] },
+    rooms: { 'Living Room': ['Lamp', 'Ceiling'] } as never,
     rokuIp: '192.168.1.50',
     active_voice: 'Gary',
     voices: { Gary: { id: 'voice-gary', description: 'Deadpan.' }, Bella: { id: 'voice-bella', description: 'Cheerful.' } },
@@ -72,6 +73,48 @@ describe('POST /api/voice/chat', () => {
     const { body } = await chat('make the lamp cozy').expect(200);
     expect(body.reply).toBe('Cozy.');
     expect(ctx.client.lastSet('Lamp')).toEqual({ state: 'ON', brightness: 51, color_temp: 454 });
+  });
+
+  it('reports a misheard room back to the model instead of claiming success', async () => {
+    mockAxios({});
+    script(turn(tool('control_lights', { group: 'Garage', power: false })), turn(text('No garage.')));
+    await chat('turn off the garage').expect(200);
+    expect(toolResults()).toEqual([{ ok: false, error: 'No light or room named "Garage"' }]);
+  });
+
+  it('"why are the lights like this?" — voice changes count as manual, and resume hands them back', async () => {
+    mockAxios({});
+    script(
+      turn(tool('control_lights', { group: 'Living Room', brightness: 20 })), turn(text('')),
+    );
+    await chat('dim the living room').expect(200);
+
+    script(turn(tool('explain_lights', { group: 'living room' })), turn(text('You dimmed it.')));
+    await chat('why are the lights so dim?').expect(200);
+    const living = (toolResults() as Array<Array<{ room: string; reasons: string[]; recent: string[] }>>)[0]![0];
+    expect(living!.room).toBe('Living Room');
+    expect(living!.reasons[0]).toMatch(/^You adjusted it by voice at /);
+    expect(living!.recent).toEqual([expect.stringMatching(/: You \(voice\) set it to 20% /)]);
+
+    script(turn(tool('resume_automation', { group: 'living room' })), turn(text('')));
+    await chat('go back to normal').expect(200);
+    expect(toolResults()).toEqual([{ ok: true }]);
+    const zones = (await request(ctx.app).get('/api/lighting/zones')).body;
+    expect(Object.values(zones)[0]).toMatchObject({ control: 'none' });
+
+    script(turn(tool('resume_automation', { group: 'Garage' })), turn(text('')));
+    await chat('reset the garage').expect(200);
+    expect(toolResults()).toEqual([{ ok: false, error: 'No light or room named "Garage"' }]);
+  });
+
+  it('get_home_state lists real rooms and the lights in them', async () => {
+    mockAxios({});
+    script(turn(tool('get_home_state', {})), turn(text('')));
+    await chat("what's on").expect(200);
+    const [state] = toolResults() as Array<{ lights: { rooms: Array<{ name: string; lights: Array<{ name: string }> }> } }>;
+    expect(state?.lights.rooms).toEqual([
+      { name: 'Living Room', lights: [expect.objectContaining({ name: 'Lamp' }), expect.objectContaining({ name: 'Ceiling' })] },
+    ]);
   });
 
   it('prefixes the message with a context line', async () => {
