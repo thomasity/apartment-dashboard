@@ -23,6 +23,7 @@ import voiceRouter from './routes/voice';
 import connectivityRouter from './routes/connectivity';
 import type { MqttManager } from './mqtt/client';
 import type { AppServer } from './types';
+import { SERVER_DIR } from './paths';
 
 // Builds the Express app, socket.io server and service wiring without listening or
 // connecting to MQTT — index.ts does those, and tests pass in a manager with a fake client.
@@ -49,7 +50,7 @@ export function createApp(mqttManager: MqttManager) {
   app.use('/api/connectivity', connectivityRouter);
 
   if (process.env.NODE_ENV === 'production') {
-    const clientBuild = path.join(__dirname, '../client/dist');
+    const clientBuild = path.join(SERVER_DIR, '../client/dist');
     app.use(express.static(clientBuild));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(clientBuild, 'index.html'));

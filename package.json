@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "dev:mock": "MOCK=true npm run dev",
-    "build": "npm --prefix client run build",
+    "build": "npm --prefix client run build && npm --prefix server run build",
     "start": "NODE_ENV=production npm --prefix server start",
     "test": "npm --prefix server test",
     "check": "npm --prefix server run typecheck && npm --prefix server test",

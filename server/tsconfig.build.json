@@ -1,0 +1,12 @@
+// Compiles the server to plain JavaScript in dist/ for the Pi, so it runs with node alone
+// instead of tsx (which keeps a compiler in memory). Development and tests still use tsx.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true
+  },
+  "exclude": ["node_modules", "test", "dist", "scripts"]
+}

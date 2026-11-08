@@ -21,16 +21,18 @@ else
     warn ".env created from .env.example — fill in your API keys before starting the server."
 fi
 
-# Server deps
+# Server deps + compile. The server is written in TypeScript; on the Pi it runs as plain
+# JavaScript from server/dist, so no compiler stays in memory.
 log "Installing server dependencies..."
 sudo -u "$PI_USER" bash -c "cd '$PROJECT_DIR' && npm install --prefix server"
+log "Compiling the server..."
+sudo -u "$PI_USER" bash -c "cd '$PROJECT_DIR/server' && rm -rf dist && npm run build"
 
 # Client build
 log "Installing client dependencies and building..."
 sudo -u "$PI_USER" bash -c "cd '$PROJECT_DIR/client' && npm install && npm run build"
 
 # Systemd service — always (re)written so changes to ExecStart reach existing installs.
-# The server is TypeScript, run directly by tsx (a server dependency) — no build step.
 log "Writing systemd service..."
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
@@ -41,7 +43,7 @@ After=network.target mosquitto.service zigbee2mqtt.service raspotify.service blu
 Type=simple
 User=$PI_USER
 WorkingDirectory=$PROJECT_DIR
-ExecStart=$(which node) server/node_modules/tsx/dist/cli.mjs server/index.ts
+ExecStart=$(which node) --enable-source-maps server/dist/index.js
 Restart=on-failure
 RestartSec=10s
 Environment=NODE_ENV=production

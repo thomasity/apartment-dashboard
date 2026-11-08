@@ -1,11 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { errorMessage } from './util';
+import { SERVER_DIR } from './paths';
 import type { ConfigSchema } from './types';
 
 // CONFIG_PATH lets tests point at a throwaway file instead of the real config.json.
 function configPath(): string {
-  return process.env.CONFIG_PATH || path.join(__dirname, 'config.json');
+  return process.env.CONFIG_PATH || path.join(SERVER_DIR, 'config.json');
 }
 
 // A missing file is a fresh install. Anything else (bad JSON, permissions) throws, so set()
@@ -26,7 +27,7 @@ function read(): Partial<ConfigSchema> {
 let defaults: Partial<ConfigSchema> | null = null;
 function readDefaults(): Partial<ConfigSchema> {
   if (!defaults) {
-    try { defaults = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.example.json'), 'utf8')); }
+    try { defaults = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'config.example.json'), 'utf8')); }
     catch { defaults = {}; }
   }
   return defaults!;
