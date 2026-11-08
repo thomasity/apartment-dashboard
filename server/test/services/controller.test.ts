@@ -214,4 +214,13 @@ describe('targets', () => {
     expect(controller.zonesForTarget('Lamp')).toEqual(['living']);
     expect(controller.zonesForTarget('all').sort()).toEqual([DESK, 'living'].sort());
   });
+
+  it('an empty room gives way to a bulb with the same name', async () => {
+    const { controller } = await setup({
+      rooms: { ...base.rooms, empty: { name: 'Desk', devices: [] } },
+    });
+    expect(controller.resolveTargets('desk')).toEqual([DESK]);
+    expect(controller.zonesForTarget('Desk')).toEqual([DESK]);
+    expect(controller.zonesForTarget('empty')).toEqual(['empty']); // still reachable by id
+  });
 });

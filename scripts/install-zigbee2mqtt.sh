@@ -89,6 +89,10 @@ serial:
   adapter: ember
 frontend:
   enabled: false
+# Per-device online/offline reports — the dashboard treats a bulb dropping offline as
+# switched off at the wall, and powers it back up with its room's look when it returns.
+availability:
+  enabled: true
 version: 4
 devices:
   '0xb4e8428f4ad10000':

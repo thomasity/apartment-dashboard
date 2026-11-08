@@ -44,10 +44,20 @@ function findBulb(idOrName: string): string | null {
   return Object.keys(groups).find((id) => groups[id]!.label.toLowerCase() === lower) ?? null;
 }
 
+/**
+ * The room a target names. A room with no bulbs gives way to a bulb of the same name —
+ * a room and a bulb can share a name ("Bedroom"), and only one of them can be lit.
+ */
+function findTargetRoom(target: string): string | null {
+  const room = roomsSvc.findRoom(target);
+  if (room && (zoneMap()[room] ?? []).length === 0 && findBulb(target)) return null;
+  return room;
+}
+
 /** "all"/nothing, a room (id or name), or a bulb (address or name) → bulb addresses. */
 export function resolveTargets(target?: string): string[] {
   if (!target || target === 'all') return knownBulbs();
-  const room = roomsSvc.findRoom(target);
+  const room = findTargetRoom(target);
   if (room) return zoneMap()[room] ?? [];
   const bulb = findBulb(target);
   return bulb ? [bulb] : [];
@@ -57,7 +67,7 @@ export function resolveTargets(target?: string): string[] {
 export function zonesForTarget(target?: string): string[] {
   const zones = zoneMap();
   if (!target || target === 'all') return Object.keys(zones).filter((z) => zones[z]!.length > 0);
-  const room = roomsSvc.findRoom(target);
+  const room = findTargetRoom(target);
   if (room) return [room];
   const bulb = findBulb(target);
   return bulb ? [roomsSvc.zoneOf(bulb)] : [];
