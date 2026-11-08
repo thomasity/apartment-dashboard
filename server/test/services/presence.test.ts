@@ -206,3 +206,30 @@ describe('presence config', () => {
     expect(presence.getState()).toEqual([expect.objectContaining({ sensor: HALL_MOTION, occupancy: true })]);
   });
 });
+
+describe('occupancy log', () => {
+  it('records when rooms become occupied or empty — but not a brief "empty" while you sit still', async () => {
+    const { presence, motion } = await setup();
+    motion(false); // first report: where things stand, not a change
+    motion(true);
+    vi.advanceTimersByTime(10 * MIN);
+    motion(false);
+    vi.advanceTimersByTime(MIN);
+    motion(true);  // back within 2 minutes: never really empty
+    vi.advanceTimersByTime(30 * MIN);
+    motion(false);
+    vi.advanceTimersByTime(5 * MIN);
+
+    expect(presence.occupancyHistory().map((e) => [e.room, e.occupied])).toEqual([
+      ['hall', true],
+      ['hall', false],
+    ]);
+  });
+
+  it('logs sensors that aren\'t assigned to a room too', async () => {
+    const stack = await lightingStack([bulb('Lamp'), motionSensor('Spare Motion')]);
+    stack.client.deliver('zigbee2mqtt/Spare Motion', { occupancy: false });
+    stack.client.deliver('zigbee2mqtt/Spare Motion', { occupancy: true });
+    expect(stack.presence.occupancyHistory()).toMatchObject([{ sensor: id('Spare Motion'), room: null, occupied: true }]);
+  });
+});

@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import * as config from '../../config';
 import type { ConfigSchema } from '../../types';
 
@@ -20,8 +21,8 @@ export function readConfig(): Partial<ConfigSchema> {
   return config.readAll() as Partial<ConfigSchema>;
 }
 
-/** Delete the lighting activity log. */
-export function clearActivityLog(): void {
+/** Delete every history log (lighting, presence, media, assistant). */
+export function clearLogs(): void {
   requireTestDataDir();
-  fs.rmSync(config.logPath('lighting'), { force: true });
+  fs.rmSync(path.dirname(config.logPath('lighting')), { recursive: true, force: true });
 }

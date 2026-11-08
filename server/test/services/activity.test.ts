@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearActivityLog } from '../helpers/config';
+import { clearLogs } from '../helpers/config';
 import { logPath } from '../../config';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -16,7 +16,7 @@ async function load() {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(2026, 5, 21, 13, 0));
-  clearActivityLog();
+  clearLogs();
 });
 afterEach(() => vi.useRealTimers());
 

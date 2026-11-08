@@ -2,8 +2,9 @@ import * as config from '../config';
 import { ServiceError } from '../util';
 import * as controller from './controller';
 import * as activity from './activity';
+import { createLog } from './logs';
 import type { MqttManager } from '../mqtt/client';
-import type { OccupancyEvent, PresenceConfigEntry, PresenceConfigMap, PresenceEntry } from '../types';
+import type { OccupancyEvent, PresenceConfigEntry, PresenceConfigMap, PresenceEntry, PresenceLogEntry } from '../types';
 
 // Sensors are keyed by IEEE address and point at a room id. Presence never touches bulbs
 // itself: it asks the controller, and while a rule window is in effect it follows that
@@ -18,6 +19,23 @@ export interface CreateParams {
   vacantAfterMinutes?:       number;
   manualOffCooldownMinutes?: number;
   enabled?:                  boolean;
+}
+
+// Every sensor's occupancy changes, assigned to a room or not — the record of when rooms
+// are used. A room that reads empty and then occupied again within FLICKER_MS was never
+// really empty (you sat still), so the pair cancels out instead of being logged.
+const FLICKER_MS = 2 * 60 * 1000;
+const occupancyLog = createLog<PresenceLogEntry>({
+  category:      'presence',
+  retentionDays: 30,
+  holdMs:        FLICKER_MS,
+  keyOf:         (e) => e.sensor,
+  combine:       (open, next) => (!open.occupied && next.occupied ? null : undefined),
+});
+
+/** Occupancy changes since `since` (ms), oldest first. */
+export function occupancyHistory(since = 0): PresenceLogEntry[] {
+  return occupancyLog.list(since);
 }
 
 let mqttMgr: MqttManager | null = null;
@@ -146,6 +164,9 @@ function handleOccupancy({ sensor, occupancy }: OccupancyEvent): void {
   if (previous === occupancy) return;
 
   const cfg = getConfig()[sensor];
+  // The first report after startup is the sensor's current state, not a change
+  if (previous !== undefined) occupancyLog.record({ sensor, room: cfg?.room ?? null, occupied: occupancy });
+
   if (!cfg || cfg.enabled === false) return;
   const { room, vacantAfterMinutes } = cfg;
 

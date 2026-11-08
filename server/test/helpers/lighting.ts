@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { connectedManager } from './fakeMqtt';
-import { clearActivityLog, writeConfig } from './config';
+import { clearLogs, writeConfig } from './config';
 import type { AppServer, ConfigSchema, Z2MDevice } from '../../types';
 
 /**
@@ -9,7 +9,7 @@ import type { AppServer, ConfigSchema, Z2MDevice } from '../../types';
  * start on at 70% / 30, and the publish log is cleared once startup has settled.
  */
 export async function lightingStack(devices?: Z2MDevice[], config: Partial<ConfigSchema> = {}) {
-  clearActivityLog();
+  clearLogs();
   writeConfig({ lightingSchema: 2, ...config });
   vi.resetModules();
   const controller = await import('../../services/controller');

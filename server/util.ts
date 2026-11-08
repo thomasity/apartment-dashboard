@@ -27,3 +27,12 @@ export function toHHMM(d: Date): string {
 export function apiBase(): string {
   return `http://localhost:${process.env.PORT || 3001}/api`;
 }
+
+/**
+ * Who sent a request to our own API: voice marks its internal calls with an
+ * `X-Source: voice` header (or `source: "voice"` in the body); anything else is a dashboard.
+ */
+export function requestSource(req: { body?: unknown; get(name: string): string | undefined }): 'voice' | 'dashboard' {
+  const body = req.body as { source?: unknown } | undefined;
+  return body?.source === 'voice' || req.get('x-source') === 'voice' ? 'voice' : 'dashboard';
+}

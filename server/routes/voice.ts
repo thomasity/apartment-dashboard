@@ -3,7 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'crypto';
 import * as config from '../config';
 import { apiBase, errorMessage, toHHMM } from '../util';
-import type { LightingState, RoomsMap, ZoneExplanation } from '../types';
+import { assistantLog } from '../services/assistantLog';
+import type { AssistantToolCall, LightingState, RoomsMap, ZoneExplanation } from '../types';
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -325,9 +326,10 @@ async function runAgentLoop(
   messages: Anthropic.MessageParam[],
   base: string,
   { maxTokens, watchEndConversation = false }: AgentLoopOptions,
-): Promise<{ reply: string; keepListening: boolean }> {
+): Promise<{ reply: string; keepListening: boolean; tools: AssistantToolCall[] }> {
   let reply         = '';
   let keepListening = true; // default: stay open; AI calls end_conversation to close
+  const tools: AssistantToolCall[] = [];
 
   while (true) {
     const response = await client.messages.create({
@@ -353,6 +355,7 @@ async function runAgentLoop(
         continue;
       }
       const result = await executeTool(block.name, block.input, base);
+      tools.push(toolCall(block.name, block.input, result));
       toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
     }
 
@@ -360,7 +363,14 @@ async function runAgentLoop(
     messages.push({ role: 'user',      content: toolResults });
   }
 
-  return { reply, keepListening };
+  return { reply, keepListening, tools };
+}
+
+/** A tool call for the assistant log: failed if the result says so ({ ok: false } / { error }). */
+function toolCall(name: string, input: unknown, result: unknown): AssistantToolCall {
+  const r = (result ?? {}) as { ok?: unknown; error?: unknown };
+  const error = typeof r.error === 'string' ? r.error : undefined;
+  return { name, input, ok: r.ok !== false && !error, ...(error && { error }) };
 }
 
 interface ChatBody {
@@ -383,14 +393,16 @@ router.post('/chat', async (req, res) => {
       { role: 'user', content: firstMessage },
     ];
 
-    const { reply, keepListening } = await runAgentLoop(messages, base, {
+    const { reply, keepListening, tools } = await runAgentLoop(messages, base, {
       maxTokens: 300,
       watchEndConversation: true,
     });
 
+    assistantLog.record({ trigger: 'voice', device: room, request: message, reply, tools });
     res.json({ reply, keepListening });
   } catch (err) {
     console.error('[voice] error:', errorMessage(err));
+    assistantLog.record({ trigger: 'voice', device: room, request: message, reply: '', tools: [], error: errorMessage(err) });
     res.status(500).json({ error: 'Voice request failed' });
   }
 });
@@ -794,7 +806,13 @@ async function runTimerAction(description: string): Promise<void> {
   const messages: Anthropic.MessageParam[] = [
     { role: 'user', content: `Timer fired. Execute this action now: ${description}` },
   ];
-  await runAgentLoop(messages, apiBase(), { maxTokens: 100 });
+  try {
+    const { reply, tools } = await runAgentLoop(messages, apiBase(), { maxTokens: 100 });
+    assistantLog.record({ trigger: 'timer', request: description, reply, tools });
+  } catch (err) {
+    assistantLog.record({ trigger: 'timer', request: description, reply: '', tools: [], error: errorMessage(err) });
+    throw err;
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -827,10 +845,12 @@ async function getJson<T>(url: string): Promise<T> {
   return await res.json() as T;
 }
 
+// Every call voice makes to our own API is marked as coming from voice, so the logs can
+// tell it apart from the dashboard (see util.requestSource).
 function post(url: string, body?: unknown): Promise<globalThis.Response> {
   return fetch(url, {
     method:  'POST',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers: { 'X-Source': 'voice', ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body:    body ? JSON.stringify(body) : undefined,
   });
 }

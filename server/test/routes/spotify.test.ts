@@ -215,3 +215,47 @@ describe('library', () => {
     expect(body.playlists).toEqual([{ id: 'p', uri: 'u', name: 'P', image: null }]);
   });
 });
+
+describe('media log', () => {
+  it('records plays, track changes and pauses, credited to whoever caused them', async () => {
+    let state: object | null = { ...player, is_playing: false };
+    mockAxios({
+      [TOKEN]: token,
+      [`GET ${API}/me/player`]:          () => state ?? { status: 204 },
+      [`GET ${API}/playlists/abc`]:      () => ({ name: 'Evening Mix' }),
+      [`GET ${API}/me/player/devices`]:  () => ({ devices: [{ id: 'd', name: 'raspotify', is_active: true }] }),
+      [`PUT ${API}/me/player/play`]:     () => ({ status: 204 }),
+      [`PUT ${API}/me/player/pause`]:    () => ({ status: 204 }),
+    });
+    const { mediaLog } = await import('../../services/media');
+    const poll = async () => {
+      vi.setSystemTime(Date.now() + 5_000);
+      await request(app).get('/api/spotify/now-playing').expect(200);
+    };
+
+    await poll(); // paused: the starting point
+    await request(app).post('/api/spotify/play').send({}).expect(200);
+    state = player;
+    await poll();
+
+    vi.setSystemTime(Date.now() + 60_000);
+    state = { ...player, item: { ...player.item, uri: 'spotify:track:t2', name: 'Next Song' } };
+    await poll(); // Spotify moved on by itself
+
+    await request(app).post('/api/spotify/pause').set('X-Source', 'voice').expect(200);
+    state = { ...player, is_playing: false };
+    await poll();
+
+    expect(mediaLog.list().map(({ action, source, title, from }) => ({ action, source, title, from }))).toEqual([
+      { action: 'play',  source: 'dashboard', title: 'Song',      from: 'Evening Mix' },
+      { action: 'track', source: 'other',     title: 'Next Song', from: 'Evening Mix' },
+      { action: 'pause', source: 'voice',     title: 'Next Song', from: undefined },
+    ]);
+    // Exact ids, so the assistant can play the same thing again
+    expect(mediaLog.list().map(({ uri, fromUri }) => [uri, fromUri])).toEqual([
+      ['spotify:track:t1', 'spotify:playlist:abc'],
+      ['spotify:track:t2', 'spotify:playlist:abc'],
+      ['spotify:track:t2', 'spotify:playlist:abc'],
+    ]);
+  });
+});

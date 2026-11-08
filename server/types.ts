@@ -138,6 +138,59 @@ export interface ActivityEntry {
   note?:   string;
 }
 
+/** A room becoming occupied or empty (data/logs/presence.jsonl). */
+export interface PresenceLogEntry {
+  at:       number;
+  /** Sensor IEEE address */
+  sensor:   string;
+  /** Room id, when the sensor is assigned to one */
+  room:     string | null;
+  occupied: boolean;
+}
+
+/** Who started something on Spotify or the TV. 'other' = a phone, the remote, or it just moved on. */
+export type MediaSource = 'dashboard' | 'voice' | 'other';
+
+/** Music and TV (data/logs/media.jsonl). */
+export interface MediaEntry {
+  at:      number;
+  device:  'spotify' | 'tv';
+  /** play / pause / track (next song) for Spotify; on / off / app for the TV */
+  action:  'play' | 'pause' | 'track' | 'on' | 'off' | 'app';
+  source:  MediaSource;
+  /** Track or episode, for Spotify */
+  title?:  string;
+  artist?: string;
+  /** Spotify id of the track or episode (spotify:track:…), so it can be played again exactly */
+  uri?:    string;
+  /** What it's playing from: a playlist / album / show name when known, else its type */
+  from?:   string;
+  /** Spotify id of what it's playing from (spotify:playlist:…, spotify:album:…) */
+  fromUri?: string;
+  /** TV app name */
+  app?:    string;
+}
+
+export interface AssistantToolCall {
+  name:  string;
+  input: unknown;
+  ok:    boolean;
+  error?: string;
+}
+
+/** One conversation turn with the assistant (data/logs/assistant.jsonl). */
+export interface AssistantEntry {
+  at:       number;
+  /** voice = you spoke to it; timer = a timer you set went off */
+  trigger:  'voice' | 'timer';
+  /** Where it came from, e.g. "tablet" */
+  device?:  string | null;
+  request:  string;
+  reply:    string;
+  tools:    AssistantToolCall[];
+  error?:   string;
+}
+
 /** A log entry for display, already phrased. */
 export interface ActivityLine {
   at:     number;

@@ -8,21 +8,19 @@ import * as activity from '../services/activity';
 import * as suggestions from '../services/suggestions';
 import { explain } from '../services/explain';
 import { isMigrated } from '../services/migrate';
-import { ServiceError, errorCode, errorMessage } from '../util';
+import { ServiceError, errorCode, errorMessage, requestSource } from '../util';
 import type { MqttManager } from '../mqtt/client';
-import type { ActivitySource, AppServer, LightValues, PresenceConfigEntry, Rule } from '../types';
+import type { AppServer, LightValues, PresenceConfigEntry, Rule } from '../types';
 
 // Request bodies as the client sends them. Express doesn't validate these — they
 // document the expected shape and give the handlers typed access. `group` is always a
-// target: "all", a room (id or name) or a bulb (IEEE address or name). `source` says
-// who's asking, for the activity log: the dashboard (default) or voice.
+// target: "all", a room (id or name) or a bulb (IEEE address or name). `source` (or an
+// X-Source header) says who's asking, for the activity log: the dashboard or voice.
 interface LightBody { group?: string; brightness?: unknown; colorTemp?: unknown; source?: unknown }
 interface PowerBody { group?: string; on?: unknown; source?: unknown }
 interface AutoBody  { group?: string; enabled?: unknown; source?: unknown }
 interface IdParams  { id: string }
 
-const sourceOf = (body: { source?: unknown } | undefined): ActivitySource =>
-  body?.source === 'voice' ? 'voice' : 'dashboard';
 
 // Brightness bottoms out at 1: 0 makes Zigbee2MQTT switch the bulb off without the app
 // marking it powered off. Sliders send strings, so numeric strings are accepted.
@@ -102,7 +100,7 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
   router.post('/set', handle((req, res) => {
     const body = req.body as LightBody;
     const payload = buildLightPayload(body);
-    controller.manualSet(bulbsFor(body.group), payload, sourceOf(body));
+    controller.manualSet(bulbsFor(body.group), payload, requestSource(req));
     res.json({ ok: true });
   }));
 
@@ -110,7 +108,7 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
     const body  = req.body as PowerBody;
     const on    = requireBoolean('on', body.on);
     const bulbs = bulbsFor(body.group);
-    controller.manualPower(bulbs, on, sourceOf(body));
+    controller.manualPower(bulbs, on, requestSource(req));
     // A manual off starts presence's "don't switch back on" cooldown; on clears it.
     new Set(bulbs.map(roomsSvc.zoneOf)).forEach((zone) => presenceSvc.recordManualPower(zone, on));
     res.json({ ok: true });
@@ -118,7 +116,7 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
 
   router.post('/auto', handle((req, res) => {
     const body = req.body as AutoBody;
-    controller.setAuto(zonesFor(body.group), requireBoolean('enabled', body.enabled), sourceOf(body));
+    controller.setAuto(zonesFor(body.group), requireBoolean('enabled', body.enabled), requestSource(req));
     res.json({ ok: true });
   }));
 
@@ -127,7 +125,7 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
   // "Resume": hand a zone (id or name, or "all") back to automation — ends its manual
   // session and lets its motion sensor switch it on again.
   router.post('/zones/:id/resume', handle<IdParams>((req, res) => {
-    const source = sourceOf(req.body as { source?: unknown });
+    const source = requestSource(req);
     for (const zone of zonesFor(req.params.id)) {
       const ended   = controller.endManual(zone);
       const cleared = presenceSvc.clearCooldown(zone);

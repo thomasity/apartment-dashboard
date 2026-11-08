@@ -82,6 +82,24 @@ describe('POST /api/voice/chat', () => {
     expect(toolResults()).toEqual([{ ok: false, error: 'No light or room named "Garage"' }]);
   });
 
+  it('logs each turn with the tools it used and whether they worked', async () => {
+    mockAxios({});
+    script(
+      turn(tool('control_lights', { group: 'Garage', power: false }), tool('control_lights', { group: 'all', power: false })),
+      turn(text('No garage, so everything is off.')),
+    );
+    await chat('turn off the garage', { room: 'tablet' }).expect(200);
+
+    const { assistantLog } = await import('../../services/assistantLog');
+    expect(assistantLog.list()).toMatchObject([{
+      trigger: 'voice', device: 'tablet', request: 'turn off the garage', reply: 'No garage, so everything is off.',
+      tools: [
+        { name: 'control_lights', ok: false, error: 'No light or room named "Garage"' },
+        { name: 'control_lights', ok: true },
+      ],
+    }]);
+  });
+
   it('"why are the lights like this?" — voice changes count as manual, and resume hands them back', async () => {
     mockAxios({});
     script(

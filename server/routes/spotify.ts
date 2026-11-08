@@ -5,6 +5,7 @@ import {
   type SpAlbum, type SpDevice, type SpEpisode, type SpPage, type SpPlaylist, type SpSearch, type SpShow, type SpTrack,
 } from '../services/spotifyApi';
 import * as player from '../services/spotifyPlayer';
+import { requestSource } from '../util';
 
 const router = express.Router();
 
@@ -73,6 +74,7 @@ router.post('/play', async (req, res) => {
     const deviceId = await getPlayDeviceId();
     const params = deviceId ? `?device_id=${deviceId}` : '';
     await spotify('PUT', `/me/player/play${params}`, Object.keys(body).length ? body : undefined);
+    player.noteCommand(requestSource(req));
     player.refreshSoon(); res.json({ ok: true });
   } catch (err) { spotifyError('play', err, res); }
 });
@@ -98,18 +100,18 @@ router.get('/playlists', async (_req, res) => {
   } catch (err) { spotifyError('playlists', err, res); }
 });
 
-router.post('/pause',    async (_req, res) => {
-  try { await spotify('PUT',  '/me/player/pause');    player.refreshSoon(); res.json({ ok: true }); }
+router.post('/pause',    async (req, res) => {
+  try { await spotify('PUT',  '/me/player/pause');    player.noteCommand(requestSource(req)); player.refreshSoon(); res.json({ ok: true }); }
   catch (err) { spotifyError('pause', err, res); }
 });
 
-router.post('/next',     async (_req, res) => {
-  try { await spotify('POST', '/me/player/next');     player.refreshSoon(); res.json({ ok: true }); }
+router.post('/next',     async (req, res) => {
+  try { await spotify('POST', '/me/player/next');     player.noteCommand(requestSource(req)); player.refreshSoon(); res.json({ ok: true }); }
   catch (err) { spotifyError('next', err, res); }
 });
 
-router.post('/previous', async (_req, res) => {
-  try { await spotify('POST', '/me/player/previous'); player.refreshSoon(); res.json({ ok: true }); }
+router.post('/previous', async (req, res) => {
+  try { await spotify('POST', '/me/player/previous'); player.noteCommand(requestSource(req)); player.refreshSoon(); res.json({ ok: true }); }
   catch (err) { spotifyError('previous', err, res); }
 });
 

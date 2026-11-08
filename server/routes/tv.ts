@@ -3,7 +3,9 @@ import axios from 'axios';
 import dgram from 'dgram';
 import type { Readable } from 'stream';
 import * as config from '../config';
-import { ServiceError, errorCode, errorMessage } from '../util';
+import { errorCode, errorMessage, requestSource } from '../util';
+import { fetchDeviceInfo, parseActiveApp, rokuBase, rokuIp, xmlAttr, xmlTag } from '../services/roku';
+import { noteCommand } from '../services/tvWatcher';
 
 const router = express.Router();
 
@@ -18,30 +20,6 @@ const SSDP_MSG  = Buffer.from(
 );
 
 interface RokuDevice { ip: string; name: string; model: string | null }
-
-function rokuIp(): string | undefined {
-  return config.get('rokuIp') ?? process.env.ROKU_IP;
-}
-
-function rokuBase(): string {
-  const ip = rokuIp();
-  if (!ip) throw new ServiceError('ROKU_IP not configured', 'NO_IP');
-  return `http://${ip}:8060`;
-}
-
-// Roku's ECP responses are small, predictable XML fragments, so a handful of regexes
-// are simpler here than pulling in a full XML parser.
-
-function xmlAttr(xml: string, tag: string, attr: string): string | null {
-  const re    = new RegExp(`<${tag}\\b[^>]*\\s${attr}="([^"]*)"`, 'i');
-  const match = xml.match(re);
-  return match?.[1] ?? null;
-}
-
-function xmlTag(xml: string, tag: string): string | null {
-  const match = xml.match(new RegExp(`<${tag}>([^<]*)<\\/${tag}>`));
-  return match?.[1]?.trim() ?? null;
-}
 
 // Roku reports playback position/duration as "HH:MM:SS" — convert to seconds.
 function parseRokuTime(str: string | null): number {
@@ -60,11 +38,6 @@ function rokuErrorStatus(err: unknown): number {
 function rokuErrorLabel(err: unknown): string | number {
   if (axios.isAxiosError(err)) return err.code ?? err.response?.status ?? err.message;
   return errorMessage(err);
-}
-
-async function fetchDeviceInfo(ip: string, timeout: number): Promise<string> {
-  const { data } = await axios.get<string>(`http://${ip}:8060/query/device-info`, { timeout });
-  return data;
 }
 
 function macFromDeviceInfo(xml: string): string | null {
@@ -179,10 +152,7 @@ router.get('/status', async (_req, res) => {
     ]);
 
     let appId: string | null = null, appName: string | null = null;
-    if (appRes.status === 'fulfilled') {
-      const match = appRes.value.data.match(/<app\b[^>]*id="([^"]*)"[^>]*>([^<]*)<\/app>/);
-      if (match) { appId = match[1] ?? null; appName = match[2]?.trim() ?? null; }
-    }
+    if (appRes.status === 'fulfilled') ({ id: appId, name: appName } = parseActiveApp(appRes.value.data));
 
     let playerState = 'none', position = 0, duration = 0;
     if (mediaRes.status === 'fulfilled') {
@@ -224,7 +194,8 @@ router.get('/icon/:appId', async (req, res) => {
   }
 });
 
-router.post('/power-on', async (_req, res) => {
+router.post('/power-on', async (req, res) => {
+  noteCommand(requestSource(req));
   const ip  = rokuIp();
   let   mac = config.get('rokuMac');
 
@@ -258,6 +229,7 @@ router.post('/keypress/:key', async (req, res) => {
       rokuKey = 'Lit_' + encodeURIComponent(rokuKey.slice(4));
     }
     await axios.post(`${rokuBase()}/keypress/${rokuKey}`, null, { timeout: 6000 });
+    noteCommand(requestSource(req));
     res.json({ ok: true });
   } catch (err) {
     console.error('[tv] keypress failed:', req.params.key, rokuErrorLabel(err));
@@ -293,6 +265,7 @@ router.post('/search', async (req, res) => {
 router.post('/launch/:appId', async (req, res) => {
   try {
     await axios.post(`${rokuBase()}/launch/${req.params.appId}`, null, { timeout: 3000 });
+    noteCommand(requestSource(req));
     res.json({ ok: true });
   } catch (err) {
     res.status(rokuErrorStatus(err)).json({ error: errorMessage(err) });

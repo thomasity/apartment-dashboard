@@ -1,13 +1,20 @@
 // Owns "what's playing on Spotify". One server-side poller serves every dashboard: it
-// runs only while a socket is connected, slows down when nothing is playing, wakes up
-// right after a track should end, and pushes 'spotify:state' only when something
-// actually changed. GET /api/spotify/now-playing reads the same cache.
+// runs while a socket is connected (or always, once watchAlways() is called — so the
+// media log sees music started from your phone too), slows down when nothing is playing
+// or nobody is watching, wakes up right after a track should end, and pushes
+// 'spotify:state' only when something actually changed. GET /api/spotify/now-playing
+// reads the same cache.
+//
+// Plays, pauses and track changes go to the media log. A change shortly after one of our
+// own routes sent a command is credited to whoever sent it; anything else was a phone,
+// Spotify moving to the next song, etc.
 
 import axios from 'axios';
 import { spotify, artistNames, type SpPlayer } from './spotifyApi';
 import * as connectivity from './connectivity';
 import { errorMessage } from '../util';
-import type { AppServer, NowPlaying } from '../types';
+import { mediaLog } from './media';
+import type { AppServer, MediaSource, NowPlaying } from '../types';
 
 const CACHE_MS         = 4_000;  // GET /now-playing reuses a fetch this recent
 const PLAYING_MS       = 5_000;
@@ -18,6 +25,8 @@ const MIN_DELAY_MS     = 1_000;
 const CONTROL_DELAY_MS = 600;    // Spotify takes a moment to reflect a command
 const BACKOFF_MS       = 30_000; // 429 without a Retry-After header
 const DRIFT_MS         = 3_000;  // push if progress jumps this far (e.g. a seek from your phone)
+const UNWATCHED_MS     = 15_000; // slowest poll while playing with no dashboard open
+const COMMAND_MS       = 20_000; // a change this soon after our own command is credited to it
 
 let current:      NowPlaying | null = null;
 let fetchedAt     = 0;
@@ -28,6 +37,58 @@ let io:       AppServer | null      = null;
 let timer:    NodeJS.Timeout | null = null;
 let looping   = 0;
 let lastPush: { key: string; progress: number; at: number } | null = null;
+let always    = false;
+let polledOnce = false; // the first state seen is where things stand, not a change
+let lastCommand: { source: MediaSource; at: number } | null = null;
+const contextNames = new Map<string, string>();
+
+/** Our routes call this when they send Spotify a command, so the change it causes is credited. */
+export function noteCommand(source: MediaSource): void {
+  lastCommand = { source, at: Date.now() };
+}
+
+/** What the music is playing from: a playlist's name (looked up once), album, show… */
+async function describeContext(state: NowPlaying): Promise<string | undefined> {
+  const ctx = state.context;
+  if (!ctx) return undefined;
+  if (ctx.type === 'album')      return state.item.album ?? 'album';
+  if (ctx.type === 'show')       return state.item.artist ?? 'show';
+  if (ctx.type === 'collection') return 'Liked Songs';
+  if (ctx.type !== 'playlist')   return ctx.type;
+  const cached = contextNames.get(ctx.uri);
+  if (cached) return cached;
+  try {
+    const id = ctx.uri.split(':').pop();
+    const { data } = await spotify<{ name: string }>('GET', `/playlists/${id}?fields=name`);
+    contextNames.set(ctx.uri, data.name);
+    return data.name;
+  } catch {
+    return 'playlist';
+  }
+}
+
+async function logChange(prev: NowPlaying | null, next: NowPlaying | null): Promise<void> {
+  const wasPlaying = !!prev?.isPlaying;
+  const playing    = !!next?.isPlaying;
+  const action =
+      playing && !wasPlaying                         ? 'play'
+    : playing && prev!.item.uri !== next!.item.uri   ? 'track'
+    : !playing && wasPlaying                         ? 'pause'
+    : null;
+  if (!action) return;
+  const source = lastCommand && Date.now() - lastCommand.at < COMMAND_MS ? lastCommand.source : 'other';
+  const shown  = action === 'pause' ? prev! : next!;
+  mediaLog.record({
+    device: 'spotify',
+    action,
+    source,
+    ...(shown.item.name   && { title:  shown.item.name }),
+    ...(shown.item.artist && { artist: shown.item.artist }),
+    ...(shown.item.uri    && { uri:    shown.item.uri }),
+    ...(action !== 'pause' && { from: await describeContext(next!) }),
+    ...(shown.context     && { fromUri: shown.context.uri }),
+  });
+}
 
 function toNowPlaying(data: SpPlayer): NowPlaying {
   const item    = data.item;
@@ -70,6 +131,7 @@ function push(): void {
 
 async function fetchPlayer(): Promise<NowPlaying | null> {
   const now = Date.now();
+  const previous = current;
   try {
     const { data } = await spotify<SpPlayer | ''>('GET', '/me/player?additional_types=track,episode');
     current = data ? toNowPlaying(data) : null;
@@ -89,6 +151,8 @@ async function fetchPlayer(): Promise<NowPlaying | null> {
   }
   fetchedAt = now;
   push();
+  if (polledOnce) await logChange(previous, current).catch((err) => console.warn('[spotify] media log:', errorMessage(err)));
+  polledOnce = true;
   return current;
 }
 
@@ -117,7 +181,8 @@ function schedule(ms: number): void {
 
 async function loop(): Promise<void> {
   timer = null;
-  if (!io || io.engine.clientsCount === 0) return; // sleep until a dashboard connects
+  const watched = !!io && io.engine.clientsCount > 0;
+  if (!io || (!watched && !always)) return; // sleep until a dashboard connects
   looping++;
   let next: number;
   try {
@@ -134,6 +199,7 @@ async function loop(): Promise<void> {
   } finally {
     looping--;
   }
+  if (!watched) next = Math.max(next, UNWATCHED_MS);
   next = Math.max(next, backoffUntil - Date.now());
   if (!timer) schedule(next); // a refreshSoon() during this loop already scheduled one
 }
@@ -141,6 +207,12 @@ async function loop(): Promise<void> {
 /** Re-poll shortly — call after sending Spotify a command so dashboards see the result. */
 export function refreshSoon(): void {
   schedule(CONTROL_DELAY_MS);
+}
+
+/** Keep polling with no dashboard open, so the media log sees everything. */
+export function watchAlways(): void {
+  always = true;
+  if (!timer && !looping) schedule(0);
 }
 
 /** Start serving dashboards: push state to new sockets and poll while any are connected. */
