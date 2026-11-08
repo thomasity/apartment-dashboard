@@ -75,6 +75,21 @@ describe('patterns', () => {
     expect(end).toMatchObject({ minutes: 70 }); // 1:10 AM
   });
 
+  it('with a phone set up, leaving and coming home come from the phone', () => {
+    const input = routine();
+    input.home = [];
+    for (const d of DAYS) {
+      if (isWeekend(d)) continue;
+      input.home.push({ at: at(d, 8, 40), mac: 'aa', home: false, lastSeen: at(d, 8, 25) }); // noticed 15 min later
+      input.home.push({ at: at(d, 17, 50), mac: 'aa', home: true });
+    }
+    const outs = computePatterns(input, NOW, names).weekdays.filter((h) => h.kind === 'leave' || h.kind === 'return');
+    expect(outs.map((h) => h.text)).toEqual([
+      '8:25 AM leaves (out about 9.5 h) ±5 min · 20 of 20 weekdays',
+      '5:50 PM home again ±5 min · 20 of 20 weekdays',
+    ]);
+  });
+
   it('leaves out what only happens now and then', () => {
     const input = routine();
     // TV on some evenings — 6 of 20 weekdays isn't a habit

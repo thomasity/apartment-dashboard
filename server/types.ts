@@ -148,6 +148,38 @@ export interface PresenceLogEntry {
   occupied: boolean;
 }
 
+// ── Home / away (phone on the Wi-Fi) ────────────────────────────────────────
+
+/** A phone whose presence on the home network means you're home. */
+export interface TrackedPhone {
+  /** Wi-Fi hardware address, lower case */
+  mac:  string;
+  name: string;
+}
+
+/** A tracked phone arriving or leaving (data/logs/home.jsonl). */
+export interface HomeLogEntry {
+  at:        number;
+  mac:       string;
+  home:      boolean;
+  /** For leaving: when the phone was last actually seen — the real time you left */
+  lastSeen?: number;
+}
+
+/** Something that answered the last network scans. */
+export interface NetworkDevice {
+  ip:       string;
+  mac:      string;
+  vendor:   string | null;
+  lastSeen: number;
+}
+
+export interface HomeState {
+  /** null when no phone is set up yet, or right after startup */
+  home:   boolean | null;
+  phones: Array<TrackedPhone & { home: boolean | null; lastSeen: number | null }>;
+}
+
 /** Who started something on Spotify or the TV. 'other' = a phone, the remote, or it just moved on. */
 export type MediaSource = 'dashboard' | 'voice' | 'other';
 
@@ -331,6 +363,26 @@ export interface Rule {
   presence?:       RulePresence;
   /** Apply even to zones in a manual session (and end that session) */
   overrideManual?: boolean;
+  /** Who made it: you on the dashboard, you by voice, or the assistant on its own */
+  createdBy?:      RuleChangeSource;
+}
+
+export type RuleChangeSource = 'dashboard' | 'voice' | 'assistant';
+
+/** One change to the rules (data/logs/rules.jsonl) — what makes every change undoable. */
+export interface RuleChange {
+  at:      number;
+  /** This change's own id, for undo */
+  id:      string;
+  ruleId:  string;
+  change:  'create' | 'update' | 'delete';
+  by:      RuleChangeSource;
+  /** Why, when the assistant made it */
+  reason?: string;
+  before?: Rule;
+  after?:  Rule;
+  /** Set on a change that was itself an undo */
+  undoes?: string;
 }
 
 // ── Presence ────────────────────────────────────────────────────────────────
@@ -404,6 +456,7 @@ export interface ConfigSchema {
   presence:          PresenceConfigMap;
   suggestions:       SuggestionsState;
   patterns:          Patterns;
+  phones:            TrackedPhone[];
   active_voice:      string;
   voices:            Record<string, Voice>;
   memories:          Record<string, string>;
@@ -421,6 +474,8 @@ export interface ServerToClientEvents {
   'lighting:circadian':    (state: CircadianState) => void;
   'lighting:rooms':        (rooms: RoomsMap) => void;
   'lighting:zones':        (zones: Record<string, ZoneState>) => void;
+  /** The rules changed (by you, voice or the assistant) */
+  'lighting:rules':        (rules: Rule[]) => void;
   'lighting:suggestion':   (suggestion: RuleSuggestion | null) => void;
   'lighting:bridge_event': (event: unknown) => void;
   'spotify:state':         (state: NowPlaying | null) => void;

@@ -23,6 +23,7 @@ import tvRouter from './routes/tv';
 import voiceRouter from './routes/voice';
 import connectivityRouter from './routes/connectivity';
 import patternsRouter from './routes/patterns';
+import homeRouter from './routes/home';
 import type { MqttManager } from './mqtt/client';
 import type { AppServer } from './types';
 import { SERVER_DIR } from './paths';
@@ -51,6 +52,7 @@ export function createApp(mqttManager: MqttManager) {
   app.use('/api/voice',     voiceRouter);
   app.use('/api/connectivity', connectivityRouter);
   app.use('/api/patterns',  patternsRouter);
+  app.use('/api/home',      homeRouter);
 
   if (process.env.NODE_ENV === 'production') {
     const clientBuild = path.join(SERVER_DIR, '../client/dist');

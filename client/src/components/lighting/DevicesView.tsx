@@ -3,6 +3,7 @@ import axios from 'axios';
 import { PencilIcon, TrashIcon, CheckIcon } from '../icons';
 import type { RoomsMap, PresenceEntry, SensorsMap, DeviceEntry } from '../../types';
 import { useLighting } from '../../hooks/useLighting';
+import PhoneSection from './PhoneSection';
 import styles from './DevicesView.module.css';
 
 const SCAN_DURATION = 254;
@@ -255,6 +256,9 @@ export default function DevicesView() {
           </div>
         )}
       </div>
+
+      {/* ── Your phone (home / away) ── */}
+      <PhoneSection />
 
       {/* ── Devices ── */}
       <div className={styles.section}>

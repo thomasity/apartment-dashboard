@@ -4,7 +4,10 @@ import crypto from 'crypto';
 import * as config from '../config';
 import { apiBase, errorMessage, toHHMM } from '../util';
 import { assistantLog } from '../services/assistantLog';
-import type { AssistantToolCall, LightingState, RoomsMap, ZoneExplanation } from '../types';
+import * as patternsSvc from '../services/patterns';
+import * as rulesSvc from '../services/rules';
+import { history, ruleSummary, type Category } from '../services/history';
+import type { AssistantToolCall, LightingState, Rule, RoomsMap, ZoneExplanation } from '../types';
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -144,6 +147,96 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_patterns',
+    description: "Thomas's habits, worked out each night from the last four weeks of logs: when his day starts and ends, when he leaves and gets home, the lights he sets, what he plays and when, TV — each with its usual time and how often. Also what he asks the assistant most and what keeps failing. Use it to understand vague requests (\"the usual\", \"my morning music\") or questions about his routine.",
+    input_schema: {
+      type: 'object',
+      properties: { days: { type: 'string', enum: ['weekdays', 'weekends', 'both'], description: 'Default both.' } },
+    },
+  },
+  {
+    name: 'get_activity',
+    description: 'What actually happened recently, from the logs, as timestamped lines: lights (who changed what), presence (rooms occupied/empty), home (Thomas leaving/arriving, from his phone), music (with Spotify ids to play again), tv, assistant (past requests and failures), rules (changes, with change ids for undo_rule_change). Use for "what was that song last night", "when did I get home", "what did you change".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        categories: { type: 'array', items: { type: 'string', enum: ['lights', 'presence', 'home', 'music', 'tv', 'assistant', 'rules'] }, description: 'Default all.' },
+        hours:      { type: 'number', description: 'How far back. Default 24, up to 720 (30 days).' },
+        room:       { type: 'string', description: 'Narrow lights/presence to one room.' },
+        limit:      { type: 'number', description: 'Most recent N lines. Default 25, up to 100.' },
+      },
+    },
+  },
+
+  // ── Rules ─────────────────────────────────────────────────────────────────
+  {
+    name: 'list_rules',
+    description: 'All lighting rules with their ids, times, days and what they do, plus how many there are against the limit.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'create_rule',
+    description: 'Add a lighting rule. Check list_rules first: prefer editing a similar rule (same room, nearby time) over adding another. At the limit this fails — merge or delete a rule first. Always give a reason.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:           { type: 'string' },
+        time:           { type: 'string', description: '"HH:MM" 24-hour, "sunrise" or "sunset".' },
+        end:            { type: 'string', description: 'Optional end, same format — the rule then holds until it (a window), e.g. Bedtime 22:30–07:00.' },
+        days:           { type: 'array', items: { type: 'string', enum: [...DAY_NAMES] } },
+        target:         { type: 'string', description: '"all", a room name, or a light name.' },
+        action:         { type: 'string', enum: ['turn_on', 'turn_off', 'set_look', 'auto'], description: 'turn_on (optionally with brightness/colorTemp), turn_off, set_look (change lights that are on), auto (follow the daylight curve).' },
+        brightness:     { type: 'number', description: '1–100, for turn_on / set_look.' },
+        colorTemp:      { type: 'number', description: '0 warm – 100 cool, for turn_on / set_look.' },
+        motion:         { type: 'string', enum: ['ignore', 'normal', 'night_light'], description: 'Windows only: what motion may do while the rule holds.' },
+        override_manual:{ type: 'boolean', description: 'Apply even to rooms Thomas has adjusted by hand. Default false.' },
+        reason:         { type: 'string', description: 'Why — shown in the rule history.' },
+      },
+      required: ['name', 'time', 'days', 'target', 'action', 'reason'],
+    },
+  },
+  {
+    name: 'update_rule',
+    description: 'Change a rule (any rule, Thomas\'s or yours). Only pass what changes. enabled:false pauses it. Always give a reason.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        rule_id:        { type: 'string' },
+        name:           { type: 'string' },
+        time:           { type: 'string' },
+        end:            { type: 'string', description: 'A new end, or "none" to make it a one-off moment.' },
+        days:           { type: 'array', items: { type: 'string', enum: [...DAY_NAMES] } },
+        target:         { type: 'string' },
+        action:         { type: 'string', enum: ['turn_on', 'turn_off', 'set_look', 'auto'] },
+        brightness:     { type: 'number' },
+        colorTemp:      { type: 'number' },
+        motion:         { type: 'string', enum: ['ignore', 'normal', 'night_light'] },
+        override_manual:{ type: 'boolean' },
+        enabled:        { type: 'boolean' },
+        reason:         { type: 'string' },
+      },
+      required: ['rule_id', 'reason'],
+    },
+  },
+  {
+    name: 'delete_rule',
+    description: 'Delete a rule. It stays restorable for 30 days (undo_rule_change). Always give a reason.',
+    input_schema: {
+      type: 'object',
+      properties: { rule_id: { type: 'string' }, reason: { type: 'string' } },
+      required: ['rule_id', 'reason'],
+    },
+  },
+  {
+    name: 'undo_rule_change',
+    description: 'Reverse one rule change by its change id (from get_activity with category rules): brings a deleted rule back, puts an edit back, or removes a new rule.',
+    input_schema: {
+      type: 'object',
+      properties: { change_id: { type: 'string' } },
+      required: ['change_id'],
+    },
+  },
+  {
     name: 'explain_lights',
     description: 'Explain why lights are the way they are, or why they did or didn\'t turn on/off: who is in control (Thomas by hand, a rule, motion, Auto), what is holding automation back (motion cooldown, a rule ignoring motion, an unreachable bulb) and what happened recently. Use for any "why" question about the lights.',
     input_schema: {
@@ -185,14 +278,17 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'play_spotify',
-    description: "Play something on Spotify. Use type 'my_playlist' to play one of the user's saved playlists by name. Use type 'search' to search Spotify for an artist, song, genre, or mood.",
+    description: "Play something on Spotify. 'my_playlist': one of Thomas's playlists by name. 'search': search Spotify — say what kind of result to play (a playlist keeps going, which suits moods and genres; a song plays on through its album). 'uri': play an exact Spotify id from get_activity or get_patterns (pass from_uri too to continue the same playlist/album). 'liked_songs': his Liked Songs.",
     input_schema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Playlist name (for my_playlist) or search terms (for search).' },
-        type:  { type: 'string', enum: ['my_playlist', 'search'] },
+        type:     { type: 'string', enum: ['my_playlist', 'search', 'uri', 'liked_songs'] },
+        query:    { type: 'string', description: 'Playlist name (my_playlist) or search terms (search).' },
+        kind:     { type: 'string', enum: ['playlist', 'song', 'album', 'podcast'], description: 'search only: what to play. Default playlist.' },
+        uri:      { type: 'string', description: 'uri only: a spotify:track/album/playlist/episode/show id.' },
+        from_uri: { type: 'string', description: 'uri only, with a track: the playlist/album it was playing from.' },
       },
-      required: ['query', 'type'],
+      required: ['type'],
     },
   },
   {
@@ -305,6 +401,11 @@ Tools:
 - If the current time/day matches a stored routine, the context line will show it (e.g. "Routine: getting ready for work") — let it shape your tone and assumptions without being told explicitly.
 - When Thomas describes a recurring pattern in his day ("weekday mornings I'm rushing out the door", "I wind down around 10 on Sundays"), use remember_routine to store it with the right days/time window. Use get_routines if he asks what you know about his schedule, and forget_routine to remove or let him redefine one.
 - Use set_timer for "turn off the lights in X minutes" style requests.
+- The context line may include "Usually now: …" — what Thomas normally does around this time. Use it to resolve vague requests ("put something on" → his usual playlist for now, via play_spotify type uri with the from_uri from get_patterns). Don't recite it.
+- get_patterns for his routine and habits; get_activity for what actually happened ("what was that song last night?" — then play it again with its uri).
+- Music: for a mood or genre, search with kind playlist so it keeps playing; for a specific song, kind song; for an album, kind album.
+- Rules: you may create, change and delete any lighting rule — Thomas wants you to look after them. Before creating, call list_rules and prefer adjusting a similar rule over adding one. There's a limit; at it, merge or remove a rule first. Always pass a reason. After changing rules, say in one line what you changed. If he wants a change undone, find its change id with get_activity (category rules) and call undo_rule_change.
+- When Thomas describes something he wants to happen regularly ("turn the lights off at 11 on weeknights"), make it a rule rather than a one-off.
 - Call end_conversation when you're clearly done — task completed, question answered, user said goodbye. If you asked a question or need more input, do NOT call it; the mic will stay open by default.`,
     cache_control: { type: 'ephemeral' },
   },
@@ -435,9 +536,71 @@ interface NamedItem { name: string }
 interface PlaylistLite extends NamedItem { id: string; uri: string; total: number }
 interface TvAppLite extends NamedItem { id: string }
 interface SearchLite {
-  tracks?:    Array<{ uri: string; name: string; artist: string }>;
+  tracks?:    Array<{ uri: string; name: string; artist: string; albumUri: string | null }>;
+  albums?:    Array<{ uri: string; name: string; artist: string }>;
   playlists?: Array<{ uri: string; name: string }>;
+  episodes?:  Array<{ uri: string; name: string; artist: string | null }>;
 }
+
+// ── Rules, in the assistant's terms ───────────────────────────────────────────
+
+type RuleToolAction = 'turn_on' | 'turn_off' | 'set_look' | 'auto';
+
+interface RuleToolInput {
+  name?:            string;
+  time?:            string;
+  end?:             string;
+  days?:            DayName[];
+  target?:          string;
+  action?:          RuleToolAction;
+  brightness?:      number;
+  colorTemp?:       number;
+  motion?:          'ignore' | 'normal' | 'night_light';
+  override_manual?: boolean;
+}
+
+/** The tool's simple fields as a (partial) rule, as the rules API takes it. */
+function toRule(input: RuleToolInput, existing?: Rule): Record<string, unknown> {
+  const rule: Record<string, unknown> = {};
+  if (input.name !== undefined) rule.name = input.name;
+  if (input.time !== undefined) rule.time = input.time;
+  if (input.end  !== undefined) rule.end  = input.end === 'none' ? null : input.end;
+  if (input.days !== undefined) rule.days = input.days.map((d) => DAY_NAMES.indexOf(d)).filter((i) => i >= 0);
+  if (input.override_manual !== undefined) rule.overrideManual = input.override_manual;
+
+  if (input.action || input.target || input.brightness !== undefined || input.colorTemp !== undefined) {
+    const group = input.target ?? existing?.action.group ?? 'all';
+    const look  = {
+      brightness: input.brightness ?? existing?.action.brightness ?? 70,
+      colorTemp:  input.colorTemp  ?? existing?.action.colorTemp  ?? 30,
+    };
+    const action = input.action ?? (
+        existing?.action.type === 'power' ? (existing.action.on ? 'turn_on' : 'turn_off')
+      : existing?.action.config === 'auto' ? 'auto' : 'set_look');
+    const withLook = input.brightness !== undefined || input.colorTemp !== undefined || existing?.action.config === 'scene';
+    rule.action =
+        action === 'turn_off' ? { type: 'power', group, on: false }
+      : action === 'turn_on'  ? { type: 'power', group, on: true, config: withLook ? 'scene' : 'none', ...(withLook && look) }
+      : action === 'auto'     ? { type: 'reconfigure', group, config: 'auto' }
+      : { type: 'reconfigure', group, config: 'scene', ...look };
+  }
+  if (input.motion) {
+    rule.presence = input.motion === 'night_light'
+      ? { mode: 'custom', brightness: 10, colorTemp: 0, vacantAfterMinutes: 2 }
+      : { mode: input.motion };
+  }
+  return rule;
+}
+
+/** A failed internal call's message, or null when it worked. */
+async function failure(res: globalThis.Response): Promise<string | null> {
+  if (res.ok) return null;
+  const body = await res.json().catch(() => ({})) as { error?: string };
+  return body.error ?? `HTTP ${res.status}`;
+}
+
+const at = (ms: number): string =>
+  new Date(ms).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 
 // ── Context injection ─────────────────────────────────────────────────────────
 
@@ -455,6 +618,9 @@ async function buildContext(base: string, room: string | null = null): Promise<s
 
   const routine = activeRoutine(now);
   if (routine) parts.push(`Routine: ${routine}`);
+
+  const usual = usuallyNow(now);
+  if (usual) parts.push(`Usually now: ${usual}`);
 
   const activeName = config.get('active_voice');
   const voice      = activeName ? config.get('voices')?.[activeName] : undefined;
@@ -522,7 +688,14 @@ interface ToolInputs {
   get_voices:       Record<string, never>;
   set_voice:        { name: string };
   get_playlists:    Record<string, never>;
-  play_spotify:     { query: string; type: 'my_playlist' | 'search' };
+  play_spotify:     { type: 'my_playlist' | 'search' | 'uri' | 'liked_songs'; query?: string; kind?: 'playlist' | 'song' | 'album' | 'podcast'; uri?: string; from_uri?: string };
+  get_patterns:     { days?: 'weekdays' | 'weekends' | 'both' };
+  get_activity:     { categories?: Category[]; hours?: number; room?: string; limit?: number };
+  list_rules:       Record<string, never>;
+  create_rule:      RuleToolInput & { name: string; time: string; days: DayName[]; target: string; action: RuleToolAction; reason: string };
+  update_rule:      RuleToolInput & { rule_id: string; enabled?: boolean; reason: string };
+  delete_rule:      { rule_id: string; reason: string };
+  undo_rule_change: { change_id: string };
   set_shuffle:      { state: boolean };
   set_repeat:       { state: 'off' | 'context' | 'track' };
   control_tv:       { key: string };
@@ -730,29 +903,107 @@ const toolHandlers: ToolHandlers = {
   },
 
   async play_spotify(input, base) {
+    const play = async (body: object, playing: string) => {
+      const error = await failure(await post(`${base}/spotify/play`, body));
+      return error ? { ok: false, error } : { ok: true, playing };
+    };
+
     if (input.type === 'my_playlist') {
       const playlists = await getJson<PlaylistLite[]>(`${base}/spotify/playlists`);
-      const pl        = fuzzyMatch(playlists, input.query);
+      const pl        = fuzzyMatch(playlists, input.query ?? '');
       if (!pl) return { error: `Playlist "${input.query}" not found.` };
-      await post(`${base}/spotify/play`, { context_uri: pl.uri });
-      return { ok: true, playing: pl.name };
+      return play({ context_uri: pl.uri }, pl.name);
     }
+
+    if (input.type === 'liked_songs') {
+      const { collectionUri } = await getJson<{ collectionUri: string }>(`${base}/spotify/liked-songs?count_only=true`);
+      return play({ context_uri: collectionUri }, 'Liked Songs');
+    }
+
+    if (input.type === 'uri') {
+      const uri = input.uri ?? '';
+      const single = /^spotify:(track|episode):/.test(uri);
+      if (!single) return play({ context_uri: uri }, uri);
+      return play(input.from_uri ? { context_uri: input.from_uri, offset_uri: uri } : { uris: [uri] }, uri);
+    }
+
     if (input.type === 'search') {
-      const results  = await getJson<SearchLite>(`${base}/spotify/search?q=${encodeURIComponent(input.query)}`);
-      const track    = results.tracks?.[0];
-      const playlist = results.playlists?.[0];
-      if (track) {
-        await post(`${base}/spotify/play`, { uris: [track.uri] });
-        return { ok: true, playing: `${track.name} by ${track.artist}` };
-      }
-      if (playlist) {
-        await post(`${base}/spotify/play`, { context_uri: playlist.uri });
-        return { ok: true, playing: playlist.name };
+      const r = await getJson<SearchLite>(`${base}/spotify/search?q=${encodeURIComponent(input.query ?? '')}`);
+      const track = r.tracks?.[0], album = r.albums?.[0], playlist = r.playlists?.[0], episode = r.episodes?.[0];
+      // A song plays on through its album, so the music doesn't stop after one track
+      const playSong = () => track && play(
+        track.albumUri ? { context_uri: track.albumUri, offset_uri: track.uri } : { uris: [track.uri] },
+        `${track.name} by ${track.artist}`,
+      );
+      const playAlbum    = () => album    && play({ context_uri: album.uri }, `${album.name} by ${album.artist}`);
+      const playPlaylist = () => playlist && play({ context_uri: playlist.uri }, playlist.name);
+      const playEpisode  = () => episode  && play({ uris: [episode.uri] }, episode.name);
+      const order = {
+        song:     [playSong, playAlbum, playPlaylist],
+        album:    [playAlbum, playSong, playPlaylist],
+        playlist: [playPlaylist, playAlbum, playSong],
+        podcast:  [playEpisode],
+      }[input.kind ?? 'playlist'];
+      for (const attempt of order) {
+        const result = await attempt();
+        if (result) return result;
       }
       return { error: 'No results found.' };
     }
     // Unrecognized type — same fallback as an unrecognized tool name.
     return { error: 'Unknown tool' };
+  },
+
+  async get_patterns(input) {
+    const p = patternsSvc.current();
+    const which = input.days ?? 'both';
+    return {
+      historyDays: p.historyDays,
+      ...(p.historyDays < 7 && { note: 'Less than a week of history — patterns will appear as the logs fill up.' }),
+      ...(which !== 'weekends' && { weekdays: p.weekdays.map((h) => h.text) }),
+      ...(which !== 'weekdays' && { weekends: p.weekends.map((h) => h.text) }),
+      music: [...p.weekdays, ...p.weekends].filter((h) => h.fromUri).map((h) => ({ habit: h.text, from_uri: h.fromUri })),
+      assistant: p.assistant,
+    };
+  },
+
+  async get_activity(input) {
+    const hours = Math.min(720, Math.max(1, input.hours ?? 24));
+    const lines = history({
+      categories: input.categories,
+      since:      Date.now() - hours * 60 * 60 * 1000,
+      room:       input.room,
+      limit:      Math.min(100, Math.max(1, input.limit ?? 25)),
+    });
+    return lines.map((l) => ({ time: at(l.at), what: l.text, ...(l.uri && { uri: l.uri }), ...(l.fromUri && { from_uri: l.fromUri }) }));
+  },
+
+  async list_rules() {
+    const rules = rulesSvc.getRules();
+    return { count: rules.length, limit: rulesSvc.MAX_RULES, rules: rules.map(ruleSummary) };
+  },
+
+  async create_rule(input, base) {
+    const error = await failure(await post(`${base}/lighting/rules`, { ...toRule(input), reason: input.reason }));
+    return error ? { ok: false, error } : { ok: true };
+  },
+
+  async update_rule(input, base) {
+    const existing = rulesSvc.getRules().find((r) => r.id === input.rule_id);
+    if (!existing) return { ok: false, error: `No rule with id ${input.rule_id}` };
+    const patch = { ...toRule(input, existing), ...(input.enabled !== undefined && { enabled: input.enabled }) };
+    const error = await failure(await send('PATCH', `${base}/lighting/rules/${encodeURIComponent(input.rule_id)}`, { ...patch, reason: input.reason }));
+    return error ? { ok: false, error } : { ok: true };
+  },
+
+  async delete_rule(input, base) {
+    const error = await failure(await send('DELETE', `${base}/lighting/rules/${encodeURIComponent(input.rule_id)}`, { reason: input.reason }));
+    return error ? { ok: false, error } : { ok: true };
+  },
+
+  async undo_rule_change(input, base) {
+    const error = await failure(await post(`${base}/lighting/rule-changes/${encodeURIComponent(input.change_id)}/undo`));
+    return error ? { ok: false, error } : { ok: true };
   },
 
   async set_shuffle(input, base) {
@@ -817,6 +1068,22 @@ async function runTimerAction(description: string): Promise<void> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const USUALLY_WITHIN_MIN = 45;
+
+// What Thomas normally does within USUALLY_WITHIN_MIN of now on this kind of day, from the
+// nightly patterns — "6:50 AM Spotify: Morning Mix, about 40 min; 8:10 AM leaves".
+function usuallyNow(now: Date): string | null {
+  const weekend = now.getDay() === 0 || now.getDay() === 6;
+  const habits  = weekend ? patternsSvc.current().weekends : patternsSvc.current().weekdays;
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const near = habits.filter((h) => {
+    const d = Math.abs(h.minutes - minutes) % 1440;
+    return Math.min(d, 1440 - d) <= USUALLY_WITHIN_MIN;
+  });
+  if (!near.length) return null;
+  return near.slice(0, 4).map((h) => h.text.split(' ±')[0]).join('; ');
+}
+
 // Returns the description of the first stored routine whose day+time window contains `now`,
 // or null if none match. Windows that cross midnight (start > end) wrap correctly.
 function activeRoutine(now: Date): string | null {
@@ -848,8 +1115,12 @@ async function getJson<T>(url: string): Promise<T> {
 // Every call voice makes to our own API is marked as coming from voice, so the logs can
 // tell it apart from the dashboard (see util.requestSource).
 function post(url: string, body?: unknown): Promise<globalThis.Response> {
+  return send('POST', url, body);
+}
+
+function send(method: string, url: string, body?: unknown): Promise<globalThis.Response> {
   return fetch(url, {
-    method:  'POST',
+    method,
     headers: { 'X-Source': 'voice', ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body:    body ? JSON.stringify(body) : undefined,
   });

@@ -7,6 +7,7 @@ import { migrateStorage } from './services/migrate';
 import { flushAll } from './services/logs';
 import * as spotifyPlayer from './services/spotifyPlayer';
 import * as tvWatcher from './services/tvWatcher';
+import * as home from './services/home';
 import { createFakeZigbee } from './dev/fakeZigbee';
 
 // Before anything reads settings: move a pre-split server/config.json into server/data/
@@ -18,11 +19,12 @@ else mqttManager.connect();
 const { server } = createApp(mqttManager);
 fakeZigbee?.start();
 
-// Watch music and the TV even with no dashboard open, for the media log. Only here (not
-// in createApp) so tests and mock mode never poll Spotify or the Roku.
+// Watch music, the TV and your phone even with no dashboard open, for the logs. Only here
+// (not in createApp) so tests and mock mode never poll Spotify, the Roku or the network.
 if (!MOCK) {
   spotifyPlayer.watchAlways();
   tvWatcher.start();
+  home.start();
 }
 
 const PORT = process.env.PORT || 3001;

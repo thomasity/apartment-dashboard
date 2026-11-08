@@ -175,6 +175,88 @@ describe('POST /api/voice/chat', () => {
     expect(toolResults()).toEqual([{ ok: true, launched: 'Netflix' }]);
   });
 
+  it('rule tools: create by room name, list, change, delete — and undo from the history', async () => {
+    mockAxios({});
+    script(turn(tool('create_rule', {
+      name: 'Weeknight off', time: '23:00', days: ['monday', 'tuesday'], target: 'Living Room', action: 'turn_off',
+      motion: 'night_light', end: '07:00', reason: 'You asked for it',
+    })), turn(text('')));
+    await chat('turn the living room off at 11 on mondays and tuesdays').expect(200);
+    expect(toolResults()).toEqual([{ ok: true }]);
+
+    script(turn(tool('list_rules')), turn(text('')));
+    await chat('what rules are there').expect(200);
+    const [list] = toolResults() as Array<{ count: number; limit: number; rules: string[] }>;
+    expect(list).toMatchObject({ count: 1, limit: 15 });
+    expect(list!.rules[0]).toMatch(/^Weeknight off \[id \w+\]: 11:00 PM–7:00 AM Mon, Tue · turn off Living Room · motion: night light 10%$/);
+    const id = list!.rules[0]!.match(/\[id (\w+)\]/)![1]!;
+
+    script(turn(tool('update_rule', { rule_id: id, time: '23:30', reason: 'You keep overriding it at 11:30' })), turn(text('')));
+    await chat('make it later').expect(200);
+    script(turn(tool('delete_rule', { rule_id: id, reason: 'No longer needed' })), turn(text('')));
+    await chat('get rid of it').expect(200);
+    expect(toolResults()).toEqual([{ ok: true }]);
+
+    script(turn(tool('get_activity', { categories: ['rules'] })), turn(text('')));
+    await chat('what did you change').expect(200);
+    const [lines] = toolResults() as Array<Array<{ what: string }>>;
+    expect(lines!.map((l) => l.what.replace(/ \[change \w+\]$/, ''))).toEqual([
+      'you, by voice created rule "Weeknight off" — You asked for it',
+      'you, by voice edited rule "Weeknight off" — You keep overriding it at 11:30',
+      'you, by voice deleted rule "Weeknight off" — No longer needed',
+    ]);
+    const changeId = lines!.at(-1)!.what.match(/\[change (\w+)\]/)![1]!;
+
+    script(turn(tool('undo_rule_change', { change_id: changeId })), turn(text('')));
+    await chat('put it back').expect(200);
+    expect(toolResults()).toEqual([{ ok: true }]);
+    expect(readConfig().rules).toMatchObject([{ id, time: '23:30', createdBy: 'voice' }]);
+  });
+
+  it('play_spotify: a song plays on through its album; Liked Songs; an exact id from the logs', async () => {
+    const calls = mockAxios({
+      'POST https://accounts.spotify.com/api/token': () => ({ access_token: 't', expires_in: 3600 }),
+      [`GET ${SPOTIFY}/search`]: () => ({
+        tracks: { items: [{ id: 't', uri: 'spotify:track:t', name: 'Song', artists: [{ name: 'A' }], duration_ms: 1, album: { uri: 'spotify:album:al', images: [] } }] },
+        albums: { items: [] }, playlists: { items: [] }, shows: { items: [] }, episodes: { items: [] },
+      }),
+      [`GET ${SPOTIFY}/me/player/devices`]: () => ({ devices: [{ id: 'd', name: 'raspotify', is_active: true }] }),
+      [`GET ${SPOTIFY}/me/tracks`]: () => ({ total: 10, items: [], next: null }),
+      [`GET ${SPOTIFY}/me`]: () => ({ id: 'thomas' }),
+      [`PUT ${SPOTIFY}/me/player/play`]: () => ({ status: 204 }),
+    });
+    const plays = () => calls.filter((c) => c.method === 'PUT' && c.url.includes('/me/player/play')).map((c) => c.data);
+
+    script(turn(tool('play_spotify', { type: 'search', query: 'song', kind: 'song' })), turn(text('')));
+    await chat('play song').expect(200);
+    script(turn(tool('play_spotify', { type: 'liked_songs' })), turn(text('')));
+    await chat('play my liked songs').expect(200);
+    script(turn(tool('play_spotify', { type: 'uri', uri: 'spotify:track:x', from_uri: 'spotify:playlist:p' })), turn(text('')));
+    await chat('play that again').expect(200);
+
+    expect(plays()).toEqual([
+      { context_uri: 'spotify:album:al', offset: { uri: 'spotify:track:t' } },
+      { context_uri: 'spotify:user:thomas:collection' },
+      { context_uri: 'spotify:playlist:p', offset: { uri: 'spotify:track:x' } },
+    ]);
+  });
+
+  it('the context line says what Thomas usually does around now', async () => {
+    const now = new Date();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const habit = { kind: 'music', minutes, spread: 5, matched: 9, eligible: 10, text: '9:00 PM Spotify: Evening Mix ±5 min · 9 of 10 weekdays' };
+    const weekend = now.getDay() === 0 || now.getDay() === 6;
+    writeConfig({ ...readConfig(), patterns: {
+      generatedAt: Date.now(), historyDays: 20,
+      weekdays: weekend ? [] : [habit], weekends: weekend ? [habit] : [],
+      assistant: { requests: 0, topTools: [], repeated: [], failures: [] },
+    } as never });
+    mockAxios({});
+    script(turn(text('Hi.')));
+    await chat('hello').expect(200);
+    expect(sent().messages[0]!.content).toContain('Usually now: 9:00 PM Spotify: Evening Mix ·');
+  });
+
   it('plays one of your playlists by name', async () => {
     const calls = mockAxios({
       'POST https://accounts.spotify.com/api/token': () => ({ access_token: 't', expires_in: 3600 }),

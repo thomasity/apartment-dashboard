@@ -4,9 +4,11 @@ import * as controller from './controller';
 import { occupancyHistory } from './presence';
 import { mediaLog } from './media';
 import { assistantLog } from './assistantLog';
+import { homeLog } from './home';
 import { clock, describeLook } from './explain';
 import type {
-  ActivityEntry, AssistantEntry, AssistantSummary, Habit, HabitKind, LightValues, MediaEntry, Patterns, PresenceLogEntry,
+  ActivityEntry, AssistantEntry, AssistantSummary, Habit, HabitKind, HomeLogEntry, LightValues, MediaEntry, Patterns,
+  PresenceLogEntry,
 } from '../types';
 
 // The nightly summary of your habits, from the logs: things that recur at about the same
@@ -27,6 +29,7 @@ const CLUSTER_MIN   = 30;
 const LOOK_SLACK    = 10;
 const AWAY_MIN      = 120;           // no sign of anyone for this long = out…
 const LIGHTS_OFF_MIN = 30;           // …and every light off within this of the last motion
+const PHONE_AWAY_MIN = 30;           // with a tracked phone: gone this long = out
 const SESSION_MAX   = 6 * 60;        // a play with no pause within this has no known length
 const REFRESH_AT    = 3 * 60 + 30;   // 3:30 AM
 const STALE_MS      = 20 * 60 * 60 * 1000;
@@ -36,6 +39,8 @@ export interface PatternInput {
   lighting:  ActivityEntry[];
   media:     MediaEntry[];
   assistant: AssistantEntry[];
+  /** Your phone arriving and leaving — when present, it decides "leaves" / "home again" */
+  home?:     HomeLogEntry[];
 }
 
 interface Day {
@@ -156,8 +161,24 @@ function extract(input: PatternInput, dayOf: (at: number) => Day | undefined): E
   for (const [key, t] of first) out.push({ kind: 'day-start', series: 'day-start', ev: { day: key, m: at(t)!.m } });
   for (const [key, t] of last)  out.push({ kind: 'day-end',   series: 'day-end',   ev: { day: key, m: at(t)!.m } });
 
-  // Out: every sensor empty and nothing done by hand for AWAY_MIN or longer — and the
-  // lights all off soon after. Sensors don't cover every room, so an evening on the sofa
+  // Out, by your phone: from when it was last seen to when it came back. It knows "out"
+  // from "in a room without a sensor", so it's used whenever there's phone data.
+  const outing = (left: number, back: number): void => {
+    const l = at(left), r = at(back);
+    if (!l || !r || l.day.key !== r.day.key) return; // out overnight is travel, not a routine
+    out.push({ kind: 'leave',  series: 'leave',  ev: { day: l.day.key, m: l.m, duration: Math.round((back - left) / 60000) } });
+    out.push({ kind: 'return', series: 'return', ev: { day: r.day.key, m: r.m } });
+  };
+  const phone = [...(input.home ?? [])].sort((a, b) => a.at - b.at);
+  phone.forEach((e, i) => {
+    if (e.home) return;
+    const left = e.lastSeen ?? e.at;
+    const back = phone.slice(i + 1).find((n) => n.mac === e.mac && n.home);
+    if (back && back.at - left >= PHONE_AWAY_MIN * 60000) outing(left, back.at);
+  });
+
+  // Without a phone: every sensor empty and nothing done by hand for AWAY_MIN or longer —
+  // and the lights all off soon after. Sensors don't cover every room, so an evening on the sofa
   // in a room without one would otherwise look like being out; leaving means lights off.
   const lightChanges = [...input.lighting].filter((e) => ['on', 'off', 'set'].includes(e.action)).sort((a, b) => a.at - b.at);
   const lightsOnAt = (t: number): boolean => {
@@ -174,18 +195,14 @@ function extract(input: PatternInput, dayOf: (at: number) => Day | undefined): E
     ...input.media.filter((e) => isManual(e.source)).map((e) => e.at),
   ].sort((a, b) => a - b);
   const occupied = new Set<string>();
-  for (const e of [...input.presence].sort((a, b) => a.at - b.at)) {
+  for (const e of phone.length ? [] : [...input.presence].sort((a, b) => a.at - b.at)) {
     if (e.occupied) { occupied.add(e.sensor); continue; }
     occupied.delete(e.sensor);
     if (occupied.size) continue;
     const back = homeSignals.find((t) => t > e.at);
     if (back === undefined || back - e.at < AWAY_MIN * 60000) continue;
     if (lightsOnAt(e.at + LIGHTS_OFF_MIN * 60000)) continue;
-    const leave = at(e.at), ret = at(back);
-    if (!leave || !ret || leave.day.key !== ret.day.key) continue; // out overnight is sleep or travel, not a routine
-    const duration = Math.round((back - e.at) / 60000);
-    out.push({ kind: 'leave',  series: 'leave',  ev: { day: leave.day.key, m: leave.m, duration } });
-    out.push({ kind: 'return', series: 'return', ev: { day: ret.day.key, m: ret.m } });
+    outing(e.at, back);
   }
 
   // Lights you changed by hand, per room and what you did
@@ -344,6 +361,7 @@ export function refresh(now = Date.now()): Patterns {
     lighting:  activity.list(since),
     media:     mediaLog.list(since),
     assistant: assistantLog.list(since),
+    home:      homeLog.list(since),
   }, now, controller.zoneName);
   config.set('patterns', patterns);
   return patterns;

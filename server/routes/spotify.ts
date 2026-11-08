@@ -266,6 +266,7 @@ router.get('/search', async (req, res) => {
         artist:   artistNames(t.artists),
         duration: t.duration_ms,
         art:      t.album?.images?.[2]?.url ?? null,
+        albumUri: t.album?.uri ?? null,
       })),
       albums: (data.albums?.items ?? []).map((a) => ({
         id:     a.id,

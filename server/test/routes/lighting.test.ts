@@ -215,6 +215,43 @@ describe('rules and presence CRUD', () => {
     expect((await api().get('/api/lighting/rules')).body).toEqual([]);
   });
 
+  it('every change is recorded with who made it, and any change can be undone', async () => {
+    const off = { name: 'Night', time: '23:00', days: [0], action: { type: 'power', group: 'Living Room', on: false } };
+    const { body: rule } = await api().post('/api/lighting/rules').set('X-Source', 'voice').send({ ...off, reason: 'you asked' }).expect(200);
+    expect(rule).toMatchObject({ createdBy: 'voice', action: { group: 'living' } }); // stored by room id
+    expect(rule).not.toHaveProperty('reason');
+
+    await api().patch(`/api/lighting/rules/${rule.id}`).send({ time: '23:30' }).expect(200);
+    await api().delete(`/api/lighting/rules/${rule.id}`).expect(200);
+
+    const changes = (await api().get('/api/lighting/rule-changes').expect(200)).body;
+    expect(changes.map((c: { change: string; by: string }) => `${c.change}/${c.by}`)).toEqual(['delete/dashboard', 'update/dashboard', 'create/voice']);
+    expect(changes[2].reason).toBe('you asked');
+    expect((await api().get('/api/lighting/rule-changes/removed')).body).toMatchObject([{ rule: { id: rule.id, time: '23:30' } }]);
+
+    // Undo the delete: it's back, with the same id
+    await api().post(`/api/lighting/rule-changes/${changes[0].id}/undo`).expect(200);
+    expect((await api().get('/api/lighting/rules')).body).toMatchObject([{ id: rule.id, time: '23:30' }]);
+    await api().post(`/api/lighting/rule-changes/${changes[0].id}/undo`).expect(409);
+    // Undo the edit: back to 23:00
+    await api().post(`/api/lighting/rule-changes/${changes[1].id}/undo`).expect(200);
+    expect((await api().get('/api/lighting/rules')).body[0].time).toBe('23:00');
+    expect((await api().get('/api/lighting/rule-changes/removed')).body).toEqual([]);
+  });
+
+  it('the assistant can\'t go past 15 rules, but you can', async () => {
+    const rule = (i: number) => ({ name: `R${i}`, time: '12:00', days: [1], action: { type: 'power', group: 'all', on: true } });
+    for (let i = 0; i < 15; i++) await api().post('/api/lighting/rules').send(rule(i)).expect(200);
+    const { body } = await api().post('/api/lighting/rules').set('X-Source', 'voice').send(rule(15)).expect(409);
+    expect(body.error).toMatch(/limit is 15/);
+    await api().post('/api/lighting/rules').send(rule(15)).expect(200);
+  });
+
+  it('a rule for a name that matches nothing is a 404', async () => {
+    await api().post('/api/lighting/rules')
+      .send({ name: 'X', time: '12:00', days: [1], action: { type: 'power', group: 'Garage', on: true } }).expect(404);
+  });
+
   it('presence: 400 on bad input, 404 on unknown sensor', async () => {
     await api().post('/api/lighting/presence').send({ room: 'bedroom' }).expect(400);
     await api().patch('/api/lighting/presence/0xghost').send({ enabled: false }).expect(404);

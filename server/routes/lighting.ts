@@ -56,7 +56,7 @@ function handle<P = object>(fn: (req: express.Request<P>, res: express.Response)
       fn(req, res);
     } catch (err) {
       const code   = errorCode(err);
-      const status = code === 'NOT_FOUND' ? 404 : code === 'EXISTS' ? 409 : code ? 400 : 500;
+      const status = code === 'NOT_FOUND' ? 404 : code === 'EXISTS' || code === 'FULL' ? 409 : code ? 400 : 500;
       res.status(status).json({ error: errorMessage(err) });
     }
   };
@@ -168,20 +168,55 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
 
   router.get('/rules', (_req, res) => res.json(rulesSvc.getRules()));
 
-  router.post('/rules', handle((req, res) => {
-    res.json(rulesSvc.create(req.body as rulesSvc.NewRule));
+  // Open dashboards update when rules change — including by voice or the assistant
+  const rulesChanged = () => {
+    io.emit('lighting:rules', rulesSvc.getRules());
     controller.emitZones();
+  };
+
+  // Who changed it (and, from the assistant, why) goes into the rule change history.
+  // `reason` rides along in the body; it isn't part of the rule.
+  const changeMeta = (req: express.Request<object>) => {
+    const { reason } = (req.body ?? {}) as { reason?: unknown };
+    return { by: requestSource(req), ...(typeof reason === 'string' && reason && { reason }) };
+  };
+  // A rule's target may come as a name ("Living Room", "Desk Lamp"); it's stored by id.
+  const ruleBody = <T>(req: express.Request<object>): T => {
+    const { reason: _reason, source: _source, ...rule } = (req.body ?? {}) as Record<string, unknown>;
+    const action = rule.action as { group?: string } | undefined;
+    if (action?.group && action.group !== 'all' && !roomsSvc.getRoom(action.group) && !mqttManager.groups[action.group]) {
+      const room  = roomsSvc.findRoom(action.group);
+      const bulbs = room ? [] : controller.resolveTargets(action.group);
+      if (!room && bulbs.length !== 1) throw new ServiceError(`No light or room named "${action.group}"`, 'NOT_FOUND');
+      rule.action = { ...action, group: room ?? bulbs[0] };
+    }
+    return rule as T;
+  };
+
+  router.post('/rules', handle((req, res) => {
+    res.json(rulesSvc.create(ruleBody<rulesSvc.NewRule>(req), changeMeta(req)));
+    rulesChanged();
   }));
 
   router.patch('/rules/:id', handle<IdParams>((req, res) => {
-    res.json(rulesSvc.update(req.params.id, req.body as Partial<Rule>));
-    controller.emitZones();
+    res.json(rulesSvc.update(req.params.id, ruleBody<Partial<Rule>>(req), changeMeta(req)));
+    rulesChanged();
   }));
 
   router.delete('/rules/:id', handle<IdParams>((req, res) => {
-    rulesSvc.remove(req.params.id);
-    controller.emitZones();
+    rulesSvc.remove(req.params.id, changeMeta(req));
+    rulesChanged();
     res.json({ ok: true });
+  }));
+
+  // The last 30 days of rule changes, newest first, and the deleted rules among them
+  router.get('/rule-changes', (_req, res) => res.json(rulesSvc.changes()));
+  router.get('/rule-changes/removed', (_req, res) => res.json(rulesSvc.removedRules()));
+
+  // Undo one change: restores a deleted rule, puts an edit back, or removes a new rule
+  router.post('/rule-changes/:id/undo', handle<IdParams>((req, res) => {
+    res.json({ ok: true, rule: rulesSvc.undo(req.params.id, changeMeta(req)) });
+    rulesChanged();
   }));
 
   // ── Presence (sensors by IEEE address) ───────────────────────────────────

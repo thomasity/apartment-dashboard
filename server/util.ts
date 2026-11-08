@@ -1,4 +1,4 @@
-export type ServiceErrorCode = 'INVALID' | 'NOT_FOUND' | 'EXISTS' | 'NO_IP';
+export type ServiceErrorCode = 'INVALID' | 'NOT_FOUND' | 'EXISTS' | 'NO_IP' | 'FULL';
 
 /** An error the routes translate into a specific HTTP status via its `code`. */
 export class ServiceError extends Error {

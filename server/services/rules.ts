@@ -2,7 +2,8 @@ import suncalc from 'suncalc';
 import * as config from '../config';
 import { ServiceError, errorMessage, genId, toHHMM } from '../util';
 import { LAT, LON } from '../location';
-import type { Rule } from '../types';
+import { createLog } from './logs';
+import type { Rule, RuleChange, RuleChangeSource } from '../types';
 
 // A rule starts at `time` on its `days`. With an `end` it's a window that stays in effect
 // until then (overnight if the end is earlier than the start); without one it's an instant.
@@ -44,6 +45,8 @@ export interface RulesDebugInfo {
 }
 
 const GRACE_MS = 30 * 60 * 1000;
+/** The most rules the assistant may build up to — you can always add more yourself */
+export const MAX_RULES = 15;
 const TICK_MS  = 10_000;
 
 let intervalId:      NodeJS.Timeout | undefined;
@@ -155,25 +158,47 @@ function seedLastFired(rule: Rule): void {
   saveLastFired(fired);
 }
 
-export function create(rule: NewRule): Rule {
-  validate(rule, false);
-  const rules   = getRules();
-  const newRule: Rule = { ...rule, id: genId(), enabled: rule.enabled ?? true };
-  if (!newRule.end) delete newRule.end;
-  rules.push(newRule);
-  saveRules(rules);
-  seedLastFired(newRule);
-  notifyIfWindowsChanged();
-  return newRule;
+// ── Change history ──────────────────────────────────────────────────────────
+// Every create / edit / delete is logged with the rule before and after, so any change —
+// yours or the assistant's — can be undone, and deleted rules stay restorable for 30 days.
+
+export const changeLog = createLog<RuleChange>({ category: 'rules', retentionDays: 30 });
+
+interface ChangeMeta { by?: RuleChangeSource; reason?: string; undoes?: string }
+
+function logChange(change: Omit<RuleChange, 'at' | 'id' | 'by'>, meta: ChangeMeta): void {
+  changeLog.record({ id: genId(), by: meta.by ?? 'dashboard', ...change,
+    ...(meta.reason && { reason: meta.reason }), ...(meta.undoes && { undoes: meta.undoes }) });
 }
 
-export function update(id: string, patch: Partial<Rule>): Rule {
+function insert(rule: Rule, meta: ChangeMeta): Rule {
+  const rules = getRules();
+  // The assistant tidies before it adds; you're never blocked
+  if (meta.by && meta.by !== 'dashboard' && rules.length >= MAX_RULES) {
+    throw new ServiceError(`There are already ${rules.length} rules (the limit is ${MAX_RULES}) — merge, edit or delete one first`, 'FULL');
+  }
+  rules.push(rule);
+  saveRules(rules);
+  seedLastFired(rule);
+  notifyIfWindowsChanged();
+  logChange({ ruleId: rule.id, change: 'create', after: rule }, meta);
+  return rule;
+}
+
+export function create(rule: NewRule, meta: ChangeMeta = {}): Rule {
+  validate(rule, false);
+  const newRule: Rule = { ...rule, id: genId(), enabled: rule.enabled ?? true, createdBy: meta.by ?? 'dashboard' };
+  if (!newRule.end) delete newRule.end;
+  return insert(newRule, meta);
+}
+
+export function update(id: string, patch: Partial<Rule>, meta: ChangeMeta = {}): Rule {
   validate(patch, true);
   const rules = getRules();
   const idx   = rules.findIndex((r) => r.id === id);
   const existing = rules[idx];
   if (!existing) throw new ServiceError('Rule not found', 'NOT_FOUND');
-  const updated: Rule = { ...existing, ...patch, id };
+  const updated: Rule = { ...existing, ...patch, id, ...(existing.createdBy && { createdBy: existing.createdBy }) };
   // The client sends null to clear these (undefined doesn't survive JSON)
   if (!updated.end) delete updated.end;
   if (!updated.presence) delete updated.presence;
@@ -182,15 +207,55 @@ export function update(id: string, patch: Partial<Rule>): Rule {
   const timingChanged = ['time', 'end', 'days', 'enabled'].some((k) => k in patch);
   if (timingChanged) seedLastFired(updated);
   notifyIfWindowsChanged();
+  logChange({ ruleId: id, change: 'update', before: existing, after: updated }, meta);
   return updated;
 }
 
-export function remove(id: string): void {
+export function remove(id: string, meta: ChangeMeta = {}): void {
+  const existing = getRules().find((r) => r.id === id);
   saveRules(getRules().filter((r) => r.id !== id));
   const fired = getLastFired();
   delete fired[id];
   saveLastFired(fired);
   notifyIfWindowsChanged();
+  if (existing) logChange({ ruleId: id, change: 'delete', before: existing }, meta);
+}
+
+/** Recent changes, newest first. */
+export function changes(since = 0): RuleChange[] {
+  return changeLog.list(since).reverse();
+}
+
+/** Rules deleted in the last 30 days that haven't been brought back, newest first. */
+export function removedRules(): Array<{ change: RuleChange; rule: Rule }> {
+  const live = new Set(getRules().map((r) => r.id));
+  const latest = new Map<string, RuleChange>(); // ruleId → its most recent delete
+  for (const c of changes()) {
+    if (c.change === 'delete' && c.before && !live.has(c.ruleId) && !latest.has(c.ruleId)) latest.set(c.ruleId, c);
+  }
+  return [...latest.values()].map((c) => ({ change: c, rule: c.before! }));
+}
+
+/** Reverses one change: a delete is restored, an edit put back, a create removed. */
+export function undo(changeId: string, meta: ChangeMeta = {}): Rule | null {
+  const c = changeLog.list().find((x) => x.id === changeId);
+  if (!c) throw new ServiceError('No such change (changes are kept 30 days)', 'NOT_FOUND');
+  const live = getRules().find((r) => r.id === c.ruleId);
+  const m = { ...meta, undoes: c.id };
+  switch (c.change) {
+    case 'delete':
+      if (live) throw new ServiceError('That rule is already back', 'EXISTS');
+      return insert(c.before!, m);
+    case 'update': {
+      if (!live) throw new ServiceError('That rule has since been deleted', 'NOT_FOUND');
+      const { id: _id, ...before } = c.before!;
+      return update(c.ruleId, { ...before, end: before.end ?? null, presence: before.presence ?? null } as Partial<Rule>, m);
+    }
+    case 'create':
+      if (!live) throw new ServiceError('That rule is already gone', 'NOT_FOUND');
+      remove(c.ruleId, m);
+      return null;
+  }
 }
 
 function notifyIfWindowsChanged(): void {

@@ -21,6 +21,12 @@ else
     warn ".env created from .env.example — fill in your API keys before starting the server."
 fi
 
+# arp-scan finds your phone on the Wi-Fi (home / away). cap_net_raw lets the dashboard's
+# user run it without sudo.
+log "Installing arp-scan..."
+apt-get install -y -qq arp-scan
+setcap cap_net_raw+eip "$(command -v arp-scan)"
+
 # Server deps + compile. The server is written in TypeScript; on the Pi it runs as plain
 # JavaScript from server/dist, so no compiler stays in memory.
 log "Installing server dependencies..."

@@ -123,6 +123,7 @@ export interface Rule {
   presence?: RulePresence;
   /** Apply even to rooms in a manual session */
   overrideManual?: boolean;
+  createdBy?: 'dashboard' | 'voice' | 'assistant';
   /** 0 = Sunday … 6 = Saturday */
   days: number[];
   enabled: boolean;
@@ -173,6 +174,12 @@ export interface DevicesState {
   devices: DeviceEntry[];
   pairing: boolean;
   availability?: Record<string, boolean>;
+}
+
+/** A deleted rule that can still be restored (for 30 days) */
+export interface RemovedRule {
+  change: { id: string; at: number; by: 'dashboard' | 'voice' | 'assistant'; reason?: string };
+  rule: Rule;
 }
 
 /** Editable fields of a rule in the schedule form */

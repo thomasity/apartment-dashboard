@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { TrashIcon } from "../icons";
-import type { Rule, RuleAction, RuleFormState, RoomsMap, RuleSuggestion } from "../../types";
+import type { Rule, RuleAction, RuleFormState, RoomsMap, RuleSuggestion, RemovedRule } from "../../types";
 import { useLighting } from "../../hooks/useLighting";
+import { getSocket } from "../../lib/socket";
 import RuleForm from "./RuleForm";
 import styles from "./ScheduleView.module.css";
 
@@ -85,12 +86,31 @@ export default function ScheduleView() {
   const [form, setForm] = useState<RuleFormState>(BLANK_FORM);
   /** The suggestion the open form was started from — cleared once the rule is saved */
   const [fromSuggestion, setFromSuggestion] = useState<string | null>(null);
+  const [removed, setRemoved] = useState<RemovedRule[]>([]);
+  const [showRemoved, setShowRemoved] = useState(false);
 
+  const fetchRemoved = () =>
+    axios
+      .get<RemovedRule[]>("/api/lighting/rule-changes/removed")
+      .then((r) => setRemoved(r.data))
+      .catch(() => {});
+
+  // Rules can change from voice or the assistant too, so follow the server's broadcasts
   useEffect(() => {
     axios
       .get("/api/lighting/rules")
       .then((r) => setRules(r.data))
       .catch(() => {});
+    fetchRemoved();
+    const onRules = (next: Rule[]) => {
+      setRules(next);
+      fetchRemoved();
+    };
+    const socket = getSocket();
+    socket.on("lighting:rules", onRules);
+    return () => {
+      socket.off("lighting:rules", onRules);
+    };
   }, []);
 
   const refetch = () =>
@@ -98,6 +118,9 @@ export default function ScheduleView() {
       .get("/api/lighting/rules")
       .then((r) => setRules(r.data))
       .catch(() => {});
+
+  const restore = (changeId: string) =>
+    axios.post(`/api/lighting/rule-changes/${changeId}/undo`).catch(console.warn);
 
   const openAdd = () => {
     setEditId(null);
@@ -197,7 +220,10 @@ export default function ScheduleView() {
                 onClick={() => openEdit(rule)}
                 className={styles.ruleBody}
               >
-                <div className={styles.ruleName}>{rule.name}</div>
+                <div className={styles.ruleName}>
+                  {rule.name}
+                  {rule.createdBy === "assistant" && <span className={styles.madeBy}>assistant</span>}
+                </div>
                 <div className={styles.ruleWhen}>
                   {fmt12(rule.time)}{rule.end ? `–${fmt12(rule.end)}` : ""} · {fmtDays(rule.days)}
                 </div>
@@ -229,6 +255,27 @@ export default function ScheduleView() {
               >
                 <TrashIcon size={20} />
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {removed.length > 0 && (
+        <div className={styles.removed}>
+          <button onClick={() => setShowRemoved((v) => !v)} className={styles.removedToggle}>
+            Recently removed ({removed.length}) {showRemoved ? "▾" : "▸"}
+          </button>
+          {showRemoved && removed.map(({ change, rule }) => (
+            <div key={change.id} className={styles.removedRow}>
+              <div className={styles.ruleBody}>
+                <div className={styles.ruleName}>{rule.name}</div>
+                <div className={styles.ruleWhen}>
+                  Removed {new Date(change.at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                  {change.by === "assistant" ? " by the assistant" : change.by === "voice" ? " by voice" : ""}
+                  {change.reason ? ` · ${change.reason}` : ""}
+                </div>
+              </div>
+              <button onClick={() => restore(change.id)} className={styles.restoreButton}>Restore</button>
             </div>
           ))}
         </div>
