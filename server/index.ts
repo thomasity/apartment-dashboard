@@ -1,10 +1,14 @@
 import './env'; // must stay first — other modules read process.env at import time
-import { MOCK } from './dev/mock'; // must stay second — points config at a throwaway file in mock mode
+import { MOCK } from './dev/mock'; // must stay second — points config at a throwaway data folder in mock mode
 
 import mqttManager from './mqtt/client';
 import { createApp } from './app';
+import { migrateStorage } from './services/migrate';
 import * as activity from './services/activity';
 import { createFakeZigbee } from './dev/fakeZigbee';
+
+// Before anything reads settings: move a pre-split server/config.json into server/data/
+if (!MOCK) migrateStorage();
 
 const fakeZigbee = MOCK ? createFakeZigbee() : null;
 if (fakeZigbee) mqttManager.attach(fakeZigbee.client);

@@ -1,5 +1,5 @@
 // Runs before every test file. Two jobs:
-//  1. Point config.ts at a throwaway file so tests never touch server/config.json.
+//  1. Point config.ts at a throwaway data folder so tests never touch server/data/.
 //  2. Refuse real network traffic, so a missing mock fails loudly instead of quietly
 //     hitting Spotify / your Roku / Open-Meteo.
 
@@ -10,8 +10,7 @@ import axios from 'axios';
 import { afterAll } from 'vitest';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-test-'));
-process.env.CONFIG_PATH = path.join(dir, 'config.json');
-fs.writeFileSync(process.env.CONFIG_PATH, '{}');
+process.env.DATA_DIR = dir;
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 

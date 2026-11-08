@@ -1,25 +1,27 @@
 import fs from 'fs';
-import path from 'path';
+import * as config from '../../config';
 import type { ConfigSchema } from '../../types';
 
-// setup.ts points CONFIG_PATH at a temp file. If it's missing, config.ts would fall back
-// to the real server/config.json — refuse rather than let a test overwrite it.
-function testConfigPath(): string {
-  const p = process.env.CONFIG_PATH;
-  if (!p) throw new Error('CONFIG_PATH is not set — is test/setup.ts registered in vitest.config.mts?');
-  return p;
+// setup.ts points DATA_DIR at a temp folder. If it's missing, config.ts would fall back
+// to the real server/data/ — refuse rather than let a test overwrite it.
+function requireTestDataDir(): void {
+  if (!process.env.DATA_DIR) throw new Error('DATA_DIR is not set — is test/setup.ts registered in vitest.config.mts?');
 }
 
-/** Replace the test config file wholesale. */
+/** Replace all stored settings and state wholesale (each key lands in its own file). */
 export function writeConfig(data: Partial<ConfigSchema> = {}): void {
-  fs.writeFileSync(testConfigPath(), JSON.stringify(data, null, 2));
+  requireTestDataDir();
+  config.writeAll(data);
 }
 
+/** Everything stored, merged back into one object. */
 export function readConfig(): Partial<ConfigSchema> {
-  return JSON.parse(fs.readFileSync(testConfigPath(), 'utf8'));
+  requireTestDataDir();
+  return config.readAll() as Partial<ConfigSchema>;
 }
 
-/** Delete the lighting activity log that sits next to the test config. */
+/** Delete the lighting activity log. */
 export function clearActivityLog(): void {
-  fs.rmSync(path.join(path.dirname(testConfigPath()), 'lighting-log.jsonl'), { force: true });
+  requireTestDataDir();
+  fs.rmSync(config.logPath('lighting'), { force: true });
 }

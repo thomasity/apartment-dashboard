@@ -21,12 +21,18 @@ const legacy = {
   active_voice: 'Jarvis',
 };
 
-const backups = () => fs.readdirSync(path.dirname(process.env.CONFIG_PATH!)).filter((f) => f.includes('pre-ids'));
+const backupsDir = () => path.join(process.env.DATA_DIR!, 'backups');
+const backups = () => (fs.existsSync(backupsDir()) ? fs.readdirSync(backupsDir()) : []).filter((f) => f.startsWith('pre-ids'));
+/** A backup folder's files merged back into one object */
+const readBackup = (dir: string) => Object.assign({}, ...['settings/lighting', 'settings/assistant', 'settings/tv', 'state/lighting']
+  .map((s) => path.join(backupsDir(), dir, `${s}.json`))
+  .filter((f) => fs.existsSync(f))
+  .map((f) => JSON.parse(fs.readFileSync(f, 'utf8'))));
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 9, 26, 8, 0)); // Monday 8am — rule "b" and "c" already started today
-  backups().forEach((f) => fs.rmSync(path.join(path.dirname(process.env.CONFIG_PATH!), f)));
+  fs.rmSync(backupsDir(), { recursive: true, force: true });
   writeConfig(legacy as never);
 });
 afterEach(() => vi.useRealTimers());
@@ -65,11 +71,10 @@ describe('lighting migration', () => {
     expect(readConfig().ruleLastFired).toEqual({ a: 'skip:2026-10-25', b: 'skip:2026-10-26', c: 'skip:2026-10-26' });
   });
 
-  it('backs up config.json first, and runs only once', () => {
+  it('backs up the data files first, and runs only once', () => {
     migrateLighting(devices);
     expect(backups()).toHaveLength(1);
-    const backup = JSON.parse(fs.readFileSync(path.join(path.dirname(process.env.CONFIG_PATH!), backups()[0]!), 'utf8'));
-    expect(backup).toEqual(legacy);
+    expect(readBackup(backups()[0]!)).toEqual(legacy);
 
     expect(migrateLighting(devices)).toBe(false);
     expect(backups()).toHaveLength(1);

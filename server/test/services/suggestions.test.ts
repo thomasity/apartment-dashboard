@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bulb, id } from '../helpers/fakeMqtt';
 import { lightingStack } from '../helpers/lighting';
 import { readConfig } from '../helpers/config';
+import { logPath } from '../../config';
 import { detect, type DetectOptions } from '../../services/suggestions';
 import type { ActivityEntry, LightValues } from '../../types';
 
@@ -91,7 +92,8 @@ describe('suggestions service', () => {
     const stack = await lightingStack([bulb('Lamp'), bulb('Ceiling')], {
       rooms: { living: { name: 'Living Room', devices: [LAMP, CEILING] } },
     });
-    const log = path.join(path.dirname(process.env.CONFIG_PATH!), 'lighting-log.jsonl');
+    const log = logPath('lighting');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
     fs.writeFileSync(log, [oldest, ...entries].map((e) => JSON.stringify(e) + '\n').join(''));
     const suggestions = await import('../../services/suggestions');
     return { ...stack, suggestions };

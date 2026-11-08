@@ -1,11 +1,12 @@
 import fs from 'fs';
-import { siblingPath } from '../config';
+import path from 'path';
+import { logPath as categoryLog } from '../config';
 import { errorMessage } from '../util';
 import type { ActivityEntry } from '../types';
 
 // What happened to the lights, and who did it — the record behind "why are the lights
 // like this?" and the source data for rule suggestions. One JSON object per line in
-// lighting-log.jsonl next to config.json, kept for RETENTION_DAYS.
+// data/logs/lighting.jsonl, kept for RETENTION_DAYS.
 //
 // Only changes are logged, never Auto's gradual drift. Repeats of the same thing in the
 // same zone close together (dragging a slider, three bulbs on one wall switch) merge into
@@ -17,7 +18,11 @@ const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 const MERGE_MS     = 10_000;
 const PRUNE_MS     = 24 * 60 * 60 * 1000;
 
-const logPath = (): string => siblingPath('lighting-log.jsonl');
+const logPath = (): string => categoryLog('lighting');
+
+function ensureDir(): void {
+  fs.mkdirSync(path.dirname(logPath()), { recursive: true });
+}
 
 let entries: ActivityEntry[] | null = null;
 /** zone → the entry that can still absorb a repeat */
@@ -47,7 +52,7 @@ function prune(force = false): void {
   const kept = entries.filter((e) => now - e.at < RETENTION_MS);
   if (kept.length === entries.length) return;
   entries = kept;
-  try { fs.writeFileSync(logPath(), kept.map((e) => JSON.stringify(e) + '\n').join('')); }
+  try { ensureDir(); fs.writeFileSync(logPath(), kept.map((e) => JSON.stringify(e) + '\n').join('')); }
   catch (err) { console.error('[activity] prune failed:', errorMessage(err)); }
 }
 
@@ -57,7 +62,7 @@ function close(zone: string): void {
   clearTimeout(item.timer);
   open.delete(zone);
   load().push(item.entry);
-  try { fs.appendFileSync(logPath(), JSON.stringify(item.entry) + '\n'); }
+  try { ensureDir(); fs.appendFileSync(logPath(), JSON.stringify(item.entry) + '\n'); }
   catch (err) { console.error('[activity] write failed:', errorMessage(err)); }
   prune();
 }

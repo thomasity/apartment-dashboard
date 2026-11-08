@@ -2,9 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearActivityLog } from '../helpers/config';
+import { logPath } from '../../config';
 
 const DAY = 24 * 60 * 60 * 1000;
-const logFile = () => path.join(path.dirname(process.env.CONFIG_PATH!), 'lighting-log.jsonl');
+const logFile = () => logPath('lighting');
 const lines = () => fs.readFileSync(logFile(), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
 
 async function load() {
@@ -53,6 +54,7 @@ describe('activity log', () => {
 
   it('survives a restart and forgets entries older than 30 days', async () => {
     const now = Date.now();
+    fs.mkdirSync(path.dirname(logFile()), { recursive: true });
     fs.writeFileSync(logFile(), [
       { at: now - 31 * DAY, zone: 'living', source: 'dashboard', action: 'off' },
       { at: now - 2 * DAY,  zone: 'living', source: 'dashboard', action: 'on' },

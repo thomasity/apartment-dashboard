@@ -6,13 +6,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { seedConfig } from './mockData';
+import { writeAll } from '../config';
 
 // PROD=false is the older spelling of the same switch.
 export const MOCK = process.env.MOCK === 'true' || process.env.PROD === 'false';
 
-if (MOCK && !process.env.CONFIG_PATH) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-mock-'));
-  process.env.CONFIG_PATH = path.join(dir, 'config.json');
-  fs.writeFileSync(process.env.CONFIG_PATH, JSON.stringify(seedConfig, null, 2));
-  console.log(`[mock] MOCK=true — fake devices and services; config at ${process.env.CONFIG_PATH}`);
+if (MOCK && !process.env.DATA_DIR) {
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-mock-'));
+  writeAll(seedConfig);
+  console.log(`[mock] MOCK=true — fake devices and services; data in ${process.env.DATA_DIR}`);
 }
