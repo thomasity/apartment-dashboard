@@ -9,6 +9,7 @@ import * as roomsSvc from './services/rooms';
 import * as rulesSvc from './services/rules';
 import * as presenceSvc from './services/presence';
 import * as suggestions from './services/suggestions';
+import * as patterns from './services/patterns';
 import { isMigrated, migrateLighting } from './services/migrate';
 import * as spotifyPlayer from './services/spotifyPlayer';
 import * as connectivity from './services/connectivity';
@@ -21,6 +22,7 @@ import bluetoothRouter from './routes/bluetooth';
 import tvRouter from './routes/tv';
 import voiceRouter from './routes/voice';
 import connectivityRouter from './routes/connectivity';
+import patternsRouter from './routes/patterns';
 import type { MqttManager } from './mqtt/client';
 import type { AppServer } from './types';
 import { SERVER_DIR } from './paths';
@@ -48,6 +50,7 @@ export function createApp(mqttManager: MqttManager) {
   app.use('/api/tv',        tvRouter);
   app.use('/api/voice',     voiceRouter);
   app.use('/api/connectivity', connectivityRouter);
+  app.use('/api/patterns',  patternsRouter);
 
   if (process.env.NODE_ENV === 'production') {
     const clientBuild = path.join(SERVER_DIR, '../client/dist');
@@ -119,6 +122,7 @@ export function createApp(mqttManager: MqttManager) {
       rulesSvc.init(runRule, () => controller.reconcile());
       controller.reconcile();
       suggestions.init(io);
+      patterns.init();
     }
   };
   mqttManager.on('devicesChange', startWhenMigrated);

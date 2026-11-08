@@ -191,6 +191,53 @@ export interface AssistantEntry {
   error?:   string;
 }
 
+// ── Patterns (nightly summary of the logs) ──────────────────────────────────
+
+export type HabitKind = 'day-start' | 'day-end' | 'leave' | 'return' | 'lights' | 'music' | 'tv';
+
+/** Something that recurs at about the same time on most weekdays (or weekends). */
+export interface Habit {
+  kind:      HabitKind;
+  /** Typical time, minutes after midnight */
+  minutes:   number;
+  /** How much it varies, ± minutes */
+  spread:    number;
+  /** On how many of the eligible days it happened, and how many there were */
+  matched:   number;
+  eligible:  number;
+  /** Typical length in minutes, for things that last (music, TV, being out) */
+  duration?: number;
+  /** lights */
+  zone?:     string;
+  action?:   'on' | 'off' | 'set';
+  look?:     LightValues;
+  /** music: the usual playlist / album, with its Spotify id; tv: the usual app */
+  from?:     string;
+  fromUri?:  string;
+  app?:      string;
+  /** e.g. "6:40 day starts ±10 min · 9 of 10 weekdays" */
+  text:      string;
+}
+
+export interface AssistantSummary {
+  requests:  number;
+  /** Tools used most, most first */
+  topTools:  Array<{ name: string; count: number }>;
+  /** Things asked for again and again, word for word */
+  repeated:  Array<{ request: string; count: number }>;
+  /** Tool failures that keep happening */
+  failures:  Array<{ name: string; error: string; count: number }>;
+}
+
+export interface Patterns {
+  generatedAt: number;
+  /** Days of history the summary is based on */
+  historyDays: number;
+  weekdays:    Habit[];
+  weekends:    Habit[];
+  assistant:   AssistantSummary;
+}
+
 /** A log entry for display, already phrased. */
 export interface ActivityLine {
   at:     number;
@@ -356,6 +403,7 @@ export interface ConfigSchema {
   ruleLastFired:     Record<string, string>;
   presence:          PresenceConfigMap;
   suggestions:       SuggestionsState;
+  patterns:          Patterns;
   active_voice:      string;
   voices:            Record<string, Voice>;
   memories:          Record<string, string>;
