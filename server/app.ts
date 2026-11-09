@@ -10,6 +10,8 @@ import * as rulesSvc from './services/rules';
 import * as presenceSvc from './services/presence';
 import * as suggestions from './services/suggestions';
 import * as patterns from './services/patterns';
+import * as home from './services/home';
+import * as notices from './services/notices';
 import { isMigrated, migrateLighting } from './services/migrate';
 import * as spotifyPlayer from './services/spotifyPlayer';
 import * as connectivity from './services/connectivity';
@@ -24,6 +26,7 @@ import voiceRouter from './routes/voice';
 import connectivityRouter from './routes/connectivity';
 import patternsRouter from './routes/patterns';
 import homeRouter from './routes/home';
+import assistantRouter from './routes/assistant';
 import type { MqttManager } from './mqtt/client';
 import type { AppServer } from './types';
 import { SERVER_DIR } from './paths';
@@ -53,6 +56,7 @@ export function createApp(mqttManager: MqttManager) {
   app.use('/api/connectivity', connectivityRouter);
   app.use('/api/patterns',  patternsRouter);
   app.use('/api/home',      homeRouter);
+  app.use('/api/assistant', assistantRouter);
 
   if (process.env.NODE_ENV === 'production') {
     const clientBuild = path.join(SERVER_DIR, '../client/dist');
@@ -99,6 +103,8 @@ export function createApp(mqttManager: MqttManager) {
 
   controller.init(mqttManager, io);
   presenceSvc.init(mqttManager);
+  home.init(mqttManager);
+  notices.init(io);
 
   // A rule start goes to the controller. An instant "off" (no window to carry a presence
   // setting) also starts presence's cooldown, so bedtime-style rules aren't undone by the

@@ -14,7 +14,9 @@ import type { ConfigSchema } from './types';
 // Callers don't need to know any of that: get('rules') / set('rules', …) find the right
 // file through STORE_OF. DATA_DIR lets tests and mock mode use a throwaway folder.
 
-export type StoreFile = 'settings/lighting' | 'settings/assistant' | 'settings/tv' | 'settings/home' | 'state/lighting' | 'state/patterns';
+export type StoreFile =
+  | 'settings/lighting' | 'settings/assistant' | 'settings/tv' | 'settings/home'
+  | 'state/lighting' | 'state/patterns' | 'state/assistant';
 
 /** Which file each key lives in. Every key must be listed — TypeScript enforces it. */
 const STORE_OF: { [K in keyof ConfigSchema]: StoreFile } = {
@@ -28,6 +30,8 @@ const STORE_OF: { [K in keyof ConfigSchema]: StoreFile } = {
   suggestions:    'state/lighting',
   patterns:       'state/patterns',
   phones:         'settings/home',
+  speakerRoom:    'settings/assistant',
+  notices:        'state/assistant',
   active_voice:   'settings/assistant',
   voices:         'settings/assistant',
   memories:       'settings/assistant',

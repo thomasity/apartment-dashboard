@@ -6,6 +6,7 @@ import Lighting from "./components/lighting";
 import Spotify from "./components/spotify";
 import TV from "./components/tv";
 import VoiceOverlay from "./components/voice/VoiceOverlay";
+import AssistantNotes from "./components/AssistantNotes";
 import { useVoice } from "./hooks/useVoice";
 import styles from './App.module.css';
 
@@ -167,6 +168,7 @@ export default function App() {
         ))}
       </nav>
 
+      <AssistantNotes />
       <VoiceOverlay />
     </div>
   );

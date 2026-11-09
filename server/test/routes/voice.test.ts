@@ -257,6 +257,60 @@ describe('POST /api/voice/chat', () => {
     expect(sent().messages[0]!.content).toContain('Usually now: 9:00 PM Spotify: Evening Mix ·');
   });
 
+  it('on its own: a narrower toolset — no TV, no manual light control — plus say and adjust_lights', async () => {
+    const { runProactive } = await import('../../routes/voice');
+    mockAxios({});
+    script(turn(text('nothing')));
+    expect(await runProactive({ trigger: 'event', event: 'Thomas just got home.' })).toBe('nothing');
+
+    const call = claude.create.mock.calls.at(-1)![0] as { tools: Array<{ name: string }>; system: Array<{ text: string }>; messages: Array<{ content: string }> };
+    const names = call.tools.map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(['say', 'adjust_lights', 'play_spotify', 'create_rule', 'get_patterns']));
+    expect(names).not.toEqual(expect.arrayContaining(['control_tv']));
+    expect(names).not.toContain('control_lights');
+    expect(names).not.toContain('launch_tv_app');
+    expect(call.system[0]!.text).toMatch(/acting on your own initiative/);
+    expect(call.messages[0]!.content).toMatch(/^\[Event: Thomas just got home\.\]\n\[Context: .*\]\n\[Feedback: /);
+  });
+
+  it('its light changes are temporary looks, and what it says waits until Thomas is in the living room', async () => {
+    const { runProactive } = await import('../../routes/voice');
+    mockAxios({});
+    script(
+      turn(tool('adjust_lights', { target: 'Living Room', brightness: 30, colorTemp: 0, minutes: 90, reason: 'rainy evening' }),
+           tool('say', { text: 'Made it cosy in here.' })),
+      turn(text('dimmed the living room')),
+    );
+    await runProactive({ trigger: 'event', event: 'It started raining.' });
+    expect(toolResults()).toMatchObject([{ ok: true }, { ok: true, delivered: 'when Thomas is home and in the living room' }]);
+
+    const zones = (await request(ctx.app).get('/api/lighting/zones')).body;
+    expect(Object.values(zones)[0]).toMatchObject({ control: 'assistant', reason: 'rainy evening' });
+    expect(readConfig().notices?.items).toMatchObject([{ text: 'Made it cosy in here.', held: true }]);
+
+    const { assistantLog } = await import('../../services/assistantLog');
+    expect(assistantLog.list().at(-1)).toMatchObject({ trigger: 'event', request: 'It started raining.', reply: 'dimmed the living room' });
+  });
+
+  it('rules it makes are its own, announced with an Undo — and at most two new ones a week', async () => {
+    const { runProactive } = await import('../../routes/voice');
+    mockAxios({});
+    const make = (name: string) => tool('create_rule', {
+      name, time: '23:00', days: ['monday'], target: 'Living Room', action: 'turn_off', reason: 'you do this most nights',
+    });
+    script(turn(make('A'), make('B'), make('C')), turn(text('made rules')));
+    await runProactive({ trigger: 'event', event: 'Nightly-ish.' });
+
+    expect(toolResults()).toMatchObject([{ ok: true }, { ok: true }, { ok: false, error: expect.stringMatching(/already added 2 rules this week/) }]);
+    expect(readConfig().rules?.map((r) => [r.name, r.createdBy])).toEqual([['A', 'assistant'], ['B', 'assistant']]);
+    const notes = readConfig().notices!.items;
+    expect(notes.map((n) => n.text)).toEqual([
+      'I made a rule: "A" — you do this most nights.',
+      'I made a rule: "B" — you do this most nights.',
+    ]);
+    expect(notes[0]!.undo).toEqual({ kind: 'rule', changeId: expect.any(String) });
+  });
+
   it('plays one of your playlists by name', async () => {
     const calls = mockAxios({
       'POST https://accounts.spotify.com/api/token': () => ({ access_token: 't', expires_in: 3600 }),

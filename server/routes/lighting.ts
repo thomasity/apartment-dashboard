@@ -122,14 +122,35 @@ export default function lightingRouter(io: AppServer, mqttManager: MqttManager) 
 
   router.get('/zones', (_req, res) => res.json(controller.getZonesState()));
 
+  // The assistant changing lights on its own: a look that ends by itself (it never freezes
+  // the room like your changes do), or switching off. Always with a reason.
+  router.post('/assistant', handle((req, res) => {
+    const body = req.body as LightBody & { power?: unknown; minutes?: unknown; reason?: unknown };
+    if (typeof body.reason !== 'string' || !body.reason.trim()) throw new ServiceError('reason required', 'INVALID');
+    if (body.power !== undefined && body.power !== 'on' && body.power !== 'off') throw new ServiceError('power must be "on" or "off"', 'INVALID');
+    const values = buildLightPayload(body);
+    const look = values.brightness !== undefined || values.colorTemp !== undefined
+      ? { brightness: values.brightness ?? 70, colorTemp: values.colorTemp ?? 30 }
+      : undefined;
+    if (!look && !body.power) throw new ServiceError('give a look (brightness/colorTemp) or power', 'INVALID');
+    const results = controller.assistantSet(zonesFor(body.group), {
+      ...(body.power && { power: body.power }),
+      ...(look && { look }),
+      ...(typeof body.minutes === 'number' && { minutes: body.minutes }),
+      reason: body.reason.trim(),
+    });
+    res.json({ ok: results.every((r) => r.ok), results });
+  }));
+
   // "Resume": hand a zone (id or name, or "all") back to automation — ends its manual
   // session and lets its motion sensor switch it on again.
   router.post('/zones/:id/resume', handle<IdParams>((req, res) => {
     const source = requestSource(req);
     for (const zone of zonesFor(req.params.id)) {
-      const ended   = controller.endManual(zone);
-      const cleared = presenceSvc.clearCooldown(zone);
-      if (ended || cleared) activity.record({ zone, source, action: 'resume' });
+      const ended     = controller.endManual(zone);
+      const cleared   = presenceSvc.clearCooldown(zone);
+      const unassisted = controller.endAssistant(zone, true); // you overruling the assistant is a "no"
+      if (ended || cleared || unassisted) activity.record({ zone, source, action: 'resume' });
     }
     res.json({ ok: true });
   }));

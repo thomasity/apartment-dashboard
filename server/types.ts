@@ -97,9 +97,22 @@ export interface ManualSession {
   looks:     Record<string, LightValues>;
 }
 
+/**
+ * A look the assistant chose on its own — a one-off window that ends by itself. It never
+ * freezes the room: your changes replace it, and a rule starting later wins over it.
+ */
+export interface AssistantLook {
+  look:      LightValues;
+  startedAt: number;
+  until:     number;
+  /** Why, in a few words — shown on the dashboard and in the history */
+  reason:    string;
+}
+
 /** Persisted per-zone controller state. */
 export interface ZoneRuntime {
   manual?:       ManualSession;
+  assistant?:    AssistantLook;
   /** Set when presence switched the zone on under a rule's custom look */
   presenceLook?: LightValues;
 }
@@ -107,16 +120,18 @@ export interface ZoneRuntime {
 /** What the dashboard shows for a zone: who is deciding its look right now, and until when. */
 export interface ZoneState {
   auto:     boolean;
-  control:  'manual' | 'presence' | 'rule' | 'auto' | 'none';
+  control:  'manual' | 'presence' | 'assistant' | 'rule' | 'auto' | 'none';
   ruleName: string | null;
-  /** ISO end of the rule window in control, if any */
+  /** ISO end of the rule window (or assistant look) in control, if any */
   until:    string | null;
+  /** Why the assistant set it, when it's in control */
+  reason?:  string | null;
 }
 
 // ── Activity / explanations / suggestions ───────────────────────────────────
 
 /** Who changed the lights. dashboard and voice are you (manual). */
-export type ActivitySource = 'dashboard' | 'voice' | 'rule' | 'presence' | 'wall';
+export type ActivitySource = 'dashboard' | 'voice' | 'rule' | 'presence' | 'wall' | 'assistant';
 
 export interface ActivityEntry {
   /** ms */
@@ -174,6 +189,27 @@ export interface NetworkDevice {
   lastSeen: number;
 }
 
+/** A remark from the assistant: shown on dashboards, and spoken when it can be. */
+export interface Notice {
+  id:            string;
+  at:            number;
+  text:          string;
+  /** What Undo on the note reverses, if anything */
+  undo?:         { kind: 'look'; zone: string } | { kind: 'rule'; changeId: string };
+  /** Say it out loud (not during quiet hours, not past the daily limit) */
+  speak:         boolean;
+  /** Waiting for Thomas to be home and in the living room */
+  held:          boolean;
+  deliveredAt?:  number;
+  dismissed?:    boolean;
+}
+
+export interface NoticesState {
+  items: Notice[];
+  /** Remarks delivered today, for the daily limit */
+  today: { day: string; count: number };
+}
+
 export interface HomeState {
   /** null when no phone is set up yet, or right after startup */
   home:   boolean | null;
@@ -181,7 +217,7 @@ export interface HomeState {
 }
 
 /** Who started something on Spotify or the TV. 'other' = a phone, the remote, or it just moved on. */
-export type MediaSource = 'dashboard' | 'voice' | 'other';
+export type MediaSource = 'dashboard' | 'voice' | 'assistant' | 'other';
 
 /** Music and TV (data/logs/media.jsonl). */
 export interface MediaEntry {
@@ -213,8 +249,11 @@ export interface AssistantToolCall {
 /** One conversation turn with the assistant (data/logs/assistant.jsonl). */
 export interface AssistantEntry {
   at:       number;
-  /** voice = you spoke to it; timer = a timer you set went off */
-  trigger:  'voice' | 'timer';
+  /**
+   * voice = you spoke to it; timer = a timer you set went off; event = it woke on its own
+   * (you got home, a habit coming up…); nightly = its nightly review
+   */
+  trigger:  'voice' | 'timer' | 'event' | 'nightly';
   /** Where it came from, e.g. "tablet" */
   device?:  string | null;
   request:  string;
@@ -457,6 +496,9 @@ export interface ConfigSchema {
   suggestions:       SuggestionsState;
   patterns:          Patterns;
   phones:            TrackedPhone[];
+  /** Room id where the assistant's speaker is; defaults to a room named "Living Room" */
+  speakerRoom:       string;
+  notices:           NoticesState;
   active_voice:      string;
   voices:            Record<string, Voice>;
   memories:          Record<string, string>;
@@ -476,6 +518,10 @@ export interface ServerToClientEvents {
   'lighting:zones':        (zones: Record<string, ZoneState>) => void;
   /** The rules changed (by you, voice or the assistant) */
   'lighting:rules':        (rules: Rule[]) => void;
+  /** A remark from the assistant, for every dashboard to show */
+  'assistant:notice':      (notice: Notice) => void;
+  /** Read this aloud — sent to one dashboard only, the one used most recently */
+  'assistant:say':         (say: { id: string; text: string }) => void;
   'lighting:suggestion':   (suggestion: RuleSuggestion | null) => void;
   'lighting:bridge_event': (event: unknown) => void;
   'spotify:state':         (state: NowPlaying | null) => void;
@@ -483,6 +529,9 @@ export interface ServerToClientEvents {
 }
 
 // The client never emits anything to the server.
-export type ClientToServerEvents = Record<string, never>;
+export interface ClientToServerEvents {
+  /** Someone touched this dashboard (it can play sound now) — make it the one that speaks */
+  'assistant:active': () => void;
+}
 
 export type AppServer = Server<ClientToServerEvents, ServerToClientEvents>;

@@ -20,3 +20,14 @@ export interface NetworkDevice {
   vendor: string | null;
   lastSeen: number;
 }
+
+// ── The assistant's remarks ──────────────────────────────────────────────────
+
+export interface Notice {
+  id: string;
+  at: number;
+  text: string;
+  /** Present when the note has an Undo */
+  undo?: { kind: 'look'; zone: string } | { kind: 'rule'; changeId: string };
+  deliveredAt?: number;
+}

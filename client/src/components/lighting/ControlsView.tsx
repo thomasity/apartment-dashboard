@@ -50,6 +50,18 @@ function ZoneBadge({ zone, onResume, onExplain }: { zone: ZoneState | undefined;
       </button>
     );
   }
+  if (zone?.control === 'assistant') {
+    return (
+      <span className={styles.ruleBadge} title={zone.reason ?? undefined}>
+        <button onClick={onExplain} className={styles.badgeLabel}>
+          Assistant{zone.until ? ` · until ${clock(zone.until)}` : ''}
+        </button>
+        <button onClick={onResume} className={styles.overrideClear} title="Undo the assistant's change">
+          ✕
+        </button>
+      </span>
+    );
+  }
   if (zone?.control === 'presence') return <button onClick={onExplain} className={styles.ruleBadge}>Night light</button>;
   return <button onClick={onExplain} className={styles.infoButton} title="Why is it like this?">ⓘ</button>;
 }

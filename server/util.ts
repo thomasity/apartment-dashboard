@@ -29,10 +29,12 @@ export function apiBase(): string {
 }
 
 /**
- * Who sent a request to our own API: voice marks its internal calls with an
- * `X-Source: voice` header (or `source: "voice"` in the body); anything else is a dashboard.
+ * Who sent a request to our own API. The assistant marks its internal calls with an
+ * `X-Source` header — `voice` when you asked it, `assistant` when it acted on its own (or
+ * `source` in the body); anything else is a dashboard.
  */
-export function requestSource(req: { body?: unknown; get(name: string): string | undefined }): 'voice' | 'dashboard' {
+export function requestSource(req: { body?: unknown; get(name: string): string | undefined }): 'voice' | 'assistant' | 'dashboard' {
   const body = req.body as { source?: unknown } | undefined;
-  return body?.source === 'voice' || req.get('x-source') === 'voice' ? 'voice' : 'dashboard';
+  const source = req.get('x-source') ?? body?.source;
+  return source === 'voice' || source === 'assistant' ? source : 'dashboard';
 }

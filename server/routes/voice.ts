@@ -1,12 +1,16 @@
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'crypto';
+import { AsyncLocalStorage } from 'async_hooks';
 import * as config from '../config';
 import { apiBase, errorMessage, toHHMM } from '../util';
 import { assistantLog } from '../services/assistantLog';
 import * as patternsSvc from '../services/patterns';
 import * as rulesSvc from '../services/rules';
 import { history, ruleSummary, type Category } from '../services/history';
+import * as notices from '../services/notices';
+import * as home from '../services/home';
+import { feedbackLog } from '../services/feedback';
 import type { AssistantToolCall, LightingState, Rule, RoomsMap, ZoneExplanation } from '../types';
 
 const router = express.Router();
@@ -414,6 +418,9 @@ Tools:
 interface AgentLoopOptions {
   maxTokens:             number;
   watchEndConversation?: boolean;
+  /** Defaults to the conversational assistant */
+  system?:               Anthropic.TextBlockParam[];
+  tools?:                Anthropic.Tool[];
 }
 
 // Drives the Claude tool-use loop: send messages, execute any requested tools, feed the
@@ -426,7 +433,7 @@ interface AgentLoopOptions {
 async function runAgentLoop(
   messages: Anthropic.MessageParam[],
   base: string,
-  { maxTokens, watchEndConversation = false }: AgentLoopOptions,
+  { maxTokens, watchEndConversation = false, system = SYSTEM, tools: toolset = TOOLS }: AgentLoopOptions,
 ): Promise<{ reply: string; keepListening: boolean; tools: AssistantToolCall[] }> {
   let reply         = '';
   let keepListening = true; // default: stay open; AI calls end_conversation to close
@@ -436,8 +443,8 @@ async function runAgentLoop(
     const response = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
       max_tokens: maxTokens,
-      system:     SYSTEM,
-      tools:      TOOLS,
+      system,
+      tools:      toolset,
       messages,
     });
 
@@ -696,6 +703,8 @@ interface ToolInputs {
   update_rule:      RuleToolInput & { rule_id: string; enabled?: boolean; reason: string };
   delete_rule:      { rule_id: string; reason: string };
   undo_rule_change: { change_id: string };
+  say:              { text: string };
+  adjust_lights:    { target: string; power?: 'on' | 'off'; brightness?: number; colorTemp?: number; minutes?: number; reason: string };
   set_shuffle:      { state: boolean };
   set_repeat:       { state: 'off' | 'context' | 'track' };
   control_tv:       { key: string };
@@ -985,7 +994,9 @@ const toolHandlers: ToolHandlers = {
 
   async create_rule(input, base) {
     const error = await failure(await post(`${base}/lighting/rules`, { ...toRule(input), reason: input.reason }));
-    return error ? { ok: false, error } : { ok: true };
+    if (error) return { ok: false, error };
+    announceRuleChange(`I made a rule: "${input.name}" — ${input.reason}.`);
+    return { ok: true };
   },
 
   async update_rule(input, base) {
@@ -993,12 +1004,38 @@ const toolHandlers: ToolHandlers = {
     if (!existing) return { ok: false, error: `No rule with id ${input.rule_id}` };
     const patch = { ...toRule(input, existing), ...(input.enabled !== undefined && { enabled: input.enabled }) };
     const error = await failure(await send('PATCH', `${base}/lighting/rules/${encodeURIComponent(input.rule_id)}`, { ...patch, reason: input.reason }));
-    return error ? { ok: false, error } : { ok: true };
+    if (error) return { ok: false, error };
+    announceRuleChange(`I changed "${existing.name}" — ${input.reason}.`);
+    return { ok: true };
   },
 
   async delete_rule(input, base) {
+    const name = rulesSvc.getRules().find((r) => r.id === input.rule_id)?.name ?? 'a rule';
     const error = await failure(await send('DELETE', `${base}/lighting/rules/${encodeURIComponent(input.rule_id)}`, { reason: input.reason }));
-    return error ? { ok: false, error } : { ok: true };
+    if (error) return { ok: false, error };
+    announceRuleChange(`I removed "${name}" — ${input.reason}.`);
+    return { ok: true };
+  },
+
+  async say(input) {
+    const run = currentRun();
+    if (run) run.said = true;
+    const notice = notices.notify({ text: input.text });
+    return { ok: true, delivered: notice.held ? 'when Thomas is home and in the living room' : 'now' };
+  },
+
+  async adjust_lights(input, base) {
+    const res = await post(`${base}/lighting/assistant`, {
+      group:      input.target,
+      ...(input.power      !== undefined && { power: input.power }),
+      ...(input.brightness !== undefined && { brightness: input.brightness }),
+      ...(input.colorTemp  !== undefined && { colorTemp: input.colorTemp }),
+      ...(input.minutes    !== undefined && { minutes: input.minutes }),
+      reason:     input.reason,
+    });
+    const body = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; results?: Array<{ zone: string; ok: boolean; error?: string }> };
+    if (!res.ok) return { ok: false, error: body.error ?? `HTTP ${res.status}` };
+    return { ok: !!body.ok, results: body.results };
   },
 
   async undo_rule_change(input, base) {
@@ -1121,7 +1158,7 @@ function post(url: string, body?: unknown): Promise<globalThis.Response> {
 function send(method: string, url: string, body?: unknown): Promise<globalThis.Response> {
   return fetch(url, {
     method,
-    headers: { 'X-Source': 'voice', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { 'X-Source': currentRun()?.source ?? 'voice', ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body:    body ? JSON.stringify(body) : undefined,
   });
 }
@@ -1173,5 +1210,142 @@ router.post('/speak', async (req, res) => {
     res.status(500).json({ error: errorMessage(err) });
   }
 });
+
+// ── Acting on its own ─────────────────────────────────────────────────────────
+// The same assistant, woken by an event (you got home, a habit is coming up, lights left
+// on while you're out) or its nightly review instead of by you. It has a narrower toolset
+// — no TV, no manual light control (its changes are temporary looks that never freeze a
+// room), plus `say` — and the limits live in code, not the prompt: the remark limit and
+// quiet hours (notices.ts), new rules per week (rules.ts), runs per day (agent.ts).
+
+interface RunContext {
+  source:        'voice' | 'assistant';
+  /** Say each rule change with an Undo (not during the nightly review — it sums up once) */
+  announceRules: boolean;
+  said:          boolean;
+}
+
+const runContext = new AsyncLocalStorage<RunContext>();
+const currentRun = (): RunContext | undefined => runContext.getStore();
+
+function announceRuleChange(text: string): void {
+  const run = currentRun();
+  if (run?.source !== 'assistant' || !run.announceRules) return;
+  // The change just made is the newest one in the history
+  const change = rulesSvc.changes()[0];
+  notices.notify({ text, ...(change && { undo: { kind: 'rule' as const, changeId: change.id } }) });
+  run.said = true;
+}
+
+const PROACTIVE_ONLY: Anthropic.Tool[] = [
+  {
+    name: 'say',
+    description: 'Tell Thomas something, in one short sentence: something you did that he\'d want to know about, or something you noticed. Shown on his dashboards and spoken aloud (held until he\'s home and in the living room). Not for small talk.',
+    input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+  },
+  {
+    name: 'adjust_lights',
+    description: 'Change lights on your own: a look that lasts a while and then ends by itself (it never locks the room — his changes and later rules replace it), or switching off. Rooms he\'s adjusting by hand, or where he undid your change today, are refused.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        target:     { type: 'string', description: '"all", a room name, or a light name.' },
+        power:      { type: 'string', enum: ['on', 'off'], description: 'on also switches dark rooms on — only when he\'s home.' },
+        brightness: { type: 'number', description: '1–100' },
+        colorTemp:  { type: 'number', description: '0 warm – 100 cool' },
+        minutes:    { type: 'number', description: 'How long the look lasts. Default 120.' },
+        reason:     { type: 'string', description: 'A few words — shown on the room and in the history.' },
+      },
+      required: ['target', 'reason'],
+    },
+  },
+];
+
+const PROACTIVE_ALLOWED = new Set([
+  'get_home_state', 'get_patterns', 'get_activity', 'explain_lights', 'get_memories', 'get_routines',
+  'get_playlists', 'play_spotify', 'control_music', 'list_rules', 'create_rule', 'update_rule', 'delete_rule',
+  'undo_rule_change',
+]);
+const NIGHTLY_EXTRA = new Set(['remember', 'forget']);
+
+const toolsFor = (nightly: boolean): Anthropic.Tool[] => [
+  ...TOOLS.filter((t) => PROACTIVE_ALLOWED.has(t.name) || (nightly && NIGHTLY_EXTRA.has(t.name)))
+    .map(({ cache_control: _c, ...t }) => t),
+  ...PROACTIVE_ONLY,
+];
+
+const SYSTEM_PROACTIVE: Anthropic.TextBlockParam[] = [{
+  type: 'text',
+  text: `You are the assistant in Thomas's apartment, acting on your own initiative: nobody asked you anything. An event woke you, described in the message. Decide whether anything is worth doing.
+
+Doing nothing is the right answer most of the time. Act only when his patterns, what's happening now and his past reactions make it clearly welcome. If he undid something like it recently, don't do it. When you're done, reply with one line saying what you did (or "nothing") — nobody sees it.
+
+What you may do:
+- Lights: adjust_lights. Do it silently — don't say anything about routine light changes.
+- Music: play_spotify / control_music only when his patterns strongly suggest it right now (e.g. he usually starts a playlist at this time). Use the exact uri/from_uri from get_patterns. It's announced for you.
+- Rules: when a habit clearly repeats with no rule for it, or a rule keeps being overridden or skipped, create, update or delete rules (look at list_rules first, prefer editing). At most two new rules a week; never past the limit. Always give a reason. Each change is announced to him with an Undo.
+- say: one short sentence, for things worth hearing — what you did while he was out, something left on, a habit he might have forgotten. Keep the active voice's personality. Never chatter.
+- Never touch the TV, and never act when unsure.`,
+}];
+
+const SYSTEM_NIGHTLY: Anthropic.TextBlockParam[] = [{
+  type: 'text',
+  text: `You are the assistant in Thomas's apartment, doing your nightly review while he sleeps. Nobody is listening now.
+
+1. Learn from today. Look at get_activity (last 24 hours) and the feedback in the message: what he undid, what he kept, what he asked for, what failed. Record durable preferences with remember (reuse an existing label to update it — check get_memories first; don't duplicate). Only things likely to hold, like "doesn't want the living room dimmed before 9pm".
+2. Look after the rules (list_rules, get_patterns): merge duplicates, retire rules he keeps overriding or that keep being skipped, move rules whose times have drifted from what he actually does. Stay within the limit. Add a rule only for a clear, repeated habit (at most two new a week). Always give a reason.
+3. If you changed any rules, call say once with a one-sentence summary — he'll hear it when he's up. Otherwise say nothing.
+
+Finish with one line on what you did.`,
+}];
+
+function feedbackSummary(): string {
+  const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const entries = feedbackLog.list(since);
+  const undone = entries.filter((f) => f.kind === 'undone').slice(-8).map((f) => `"${f.what}"`);
+  const kept = entries.filter((f) => f.kind === 'kept').length;
+  return [
+    undone.length ? `He undid (last 2 weeks): ${undone.join(', ')}.` : 'He hasn\'t undone anything you did lately.',
+    kept ? `${kept} of your changes stood.` : '',
+  ].filter(Boolean).join(' ');
+}
+
+/** Wake the assistant on its own. Returns what it did, in a line. */
+export async function runProactive({ trigger, event }: { trigger: 'event' | 'nightly'; event: string }): Promise<string> {
+  const nightly = trigger === 'nightly';
+  const now = new Date();
+  const voice = config.get('active_voice');
+  const away = home.awayFor();
+  const context = [
+    now.toLocaleString('en-US', { weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: true }),
+    away !== null ? `Thomas is out (for ${Math.round(away / 60000)} min)` : home.isHome() ? 'Thomas is home' : null,
+    !nightly && usuallyNow(now) ? `Usually now: ${usuallyNow(now)}` : null,
+    notices.quietHours(now) ? 'Quiet hours: anything you say is shown, not spoken' : null,
+    voice ? `Voice: ${voice} — ${config.get('voices')?.[voice]?.description ?? ''}` : null,
+  ].filter(Boolean).join(' · ');
+  const messages: Anthropic.MessageParam[] = [{
+    role: 'user',
+    content: `[Event: ${event}]\n[Context: ${context}]\n[Feedback: ${feedbackSummary()}]`,
+  }];
+
+  const run: RunContext = { source: 'assistant', announceRules: !nightly, said: false };
+  try {
+    const { reply, tools } = await runContext.run(run, () =>
+      runAgentLoop(messages, apiBase(), { maxTokens: nightly ? 1200 : 400, system: nightly ? SYSTEM_NIGHTLY : SYSTEM_PROACTIVE, tools: toolsFor(nightly) }));
+
+    // Music it starts is always announced, unless it already said something about it
+    const played = tools.filter((t) => t.name === 'play_spotify' && t.ok);
+    if (played.length && !run.said) {
+      const input = played.at(-1)!.input as { query?: string };
+      notices.notify({ text: `Put some music on${input.query ? ` — ${input.query}` : ''}.` });
+    }
+    assistantLog.record({ trigger, request: event, reply, tools });
+    console.log(`[assistant] ${trigger}: ${event} → ${reply}`);
+    return reply;
+  } catch (err) {
+    assistantLog.record({ trigger, request: event, reply: '', tools: [], error: errorMessage(err) });
+    throw err;
+  }
+}
 
 export default router;

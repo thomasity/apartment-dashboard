@@ -40,8 +40,8 @@ describe('socket.io', () => {
     expect(received['lighting:rooms']).toEqual({ living: { name: 'Living Room', devices: [id('Lamp')] } });
     expect(received['lighting:circadian']).toMatchObject({ nextChange: expect.any(String) });
     expect(received['lighting:zones']).toEqual({
-      living:          { auto: false, control: 'none', ruleName: null, until: null },
-      [id('Ceiling')]: { auto: false, control: 'none', ruleName: null, until: null },
+      living:          { auto: false, control: 'none', ruleName: null, until: null, reason: null },
+      [id('Ceiling')]: { auto: false, control: 'none', ruleName: null, until: null, reason: null },
     });
   });
 

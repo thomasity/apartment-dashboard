@@ -21,10 +21,16 @@ const by = (e: ActivityEntry): string =>
   : e.source === 'voice'     ? 'You (voice)'
   : e.source === 'rule'      ? `"${e.rule}"`
   : e.source === 'presence'  ? 'Motion'
+  : e.source === 'assistant' ? 'The assistant'
   : 'The wall switch';
 
-/** One log entry as a sentence, without its time. */
+/** One log entry as a sentence, without its time. The assistant's say why. */
 export function describe(e: ActivityEntry, bulbName: (id: string) => string = (id) => id): string {
+  const text = describeAction(e, bulbName);
+  return e.source === 'assistant' && e.note ? `${text} — ${e.note}` : text;
+}
+
+function describeAction(e: ActivityEntry, bulbName: (id: string) => string): string {
   const what = e.bulbs ? e.bulbs.map(bulbName).join(', ') : 'it';
   const look = e.look ? ` (${describeLook(e.look)})` : '';
   switch (e.action) {
@@ -79,6 +85,8 @@ export function explain(zone: string, since = Date.now() - 24 * 60 * 60 * 1000):
     reasons.push(`You adjusted it${how} at ${clock(rt.manual.startedAt)}; it stays that way until it's turned off.`);
     if (window) blocked.push(`"${window.rule.name}" is leaving it alone because you adjusted it.`);
     else if (auto) blocked.push('Auto is paused until it\'s turned off.');
+  } else if (control === 'assistant' && rt.assistant) {
+    reasons.push(`The assistant set it to ${describeLook(rt.assistant.look)} until ${clock(rt.assistant.until)} — ${rt.assistant.reason}.`);
   } else if (control === 'presence' && rt.presenceLook) {
     reasons.push(`Motion turned it on as a night light (${describeLook(rt.presenceLook)})${window ? ` for "${window.rule.name}"` : ''}.`);
   } else if (control === 'rule' && window) {

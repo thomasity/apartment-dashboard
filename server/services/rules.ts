@@ -47,6 +47,8 @@ export interface RulesDebugInfo {
 const GRACE_MS = 30 * 60 * 1000;
 /** The most rules the assistant may build up to — you can always add more yourself */
 export const MAX_RULES = 15;
+/** New rules the assistant may add on its own per week */
+export const ASSISTANT_RULES_PER_WEEK = 2;
 const TICK_MS  = 10_000;
 
 let intervalId:      NodeJS.Timeout | undefined;
@@ -176,6 +178,14 @@ function insert(rule: Rule, meta: ChangeMeta): Rule {
   // The assistant tidies before it adds; you're never blocked
   if (meta.by && meta.by !== 'dashboard' && rules.length >= MAX_RULES) {
     throw new ServiceError(`There are already ${rules.length} rules (the limit is ${MAX_RULES}) — merge, edit or delete one first`, 'FULL');
+  }
+  // On its own, it adds slowly: a couple of new rules a week at most
+  if (meta.by === 'assistant' && !meta.undoes) {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recent = changeLog.list(weekAgo).filter((c) => c.by === 'assistant' && c.change === 'create' && !c.undoes).length;
+    if (recent >= ASSISTANT_RULES_PER_WEEK) {
+      throw new ServiceError(`The assistant has already added ${recent} rules this week — edit an existing rule instead, or wait`, 'FULL');
+    }
   }
   rules.push(rule);
   saveRules(rules);

@@ -1,7 +1,10 @@
 import { execFile } from 'child_process';
+import { EventEmitter } from 'events';
 import * as config from '../config';
+import * as roomsSvc from './rooms';
 import { ServiceError, errorMessage } from '../util';
 import { createLog } from './logs';
+import type { MqttManager } from '../mqtt/client';
 import type { HomeLogEntry, HomeState, NetworkDevice, TrackedPhone } from '../types';
 
 // Whether you're home, from your phone being on the Wi-Fi. Every minute the Pi asks the
@@ -9,10 +12,28 @@ import type { HomeLogEntry, HomeState, NetworkDevice, TrackedPhone } from '../ty
 // answers, unlike ping). Phones still go quiet now and then to save battery, so a phone
 // only counts as gone after AWAY_AFTER_MS without a sighting; arriving is noticed on the
 // next scan. Arrivals and departures go to data/logs/home.jsonl.
+//
+// Arriving has two stages, because the phone often joins the Wi-Fi from outside: the
+// phone appearing is "arriving"; the first motion in the speaker room (the living room)
+// within INSIDE_WITHIN_MS after that is "inside" — the moment the assistant may speak.
 
 const SCAN_MS       = 60_000;
 const AWAY_AFTER_MS = 15 * 60_000;
 const MAC           = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/;
+const INSIDE_WITHIN_MS = 20 * 60_000;
+/** Someone moved in the speaker room this recently = there's someone to talk to */
+const LISTENING_MS  = 30 * 60_000;
+
+/**
+ * 'arriving' (phone joined the Wi-Fi), 'inside' (then motion in the speaker room), and
+ * 'speaker-motion' (any motion there — someone to talk to)
+ */
+export const homeEvents = new EventEmitter();
+
+let arrivingSince: number | null = null;
+/** When Thomas left (his phone last seen), while he's out */
+let awaySince: number | null = null;
+let lastSpeakerMotion = 0;
 
 export const homeLog = createLog<HomeLogEntry>({ category: 'home', retentionDays: 30 });
 
@@ -51,8 +72,52 @@ export function update(found: Array<Omit<NetworkDevice, 'lastSeen'>>, now = Date
     status.set(mac, home);
     if (before === undefined || before === home) continue; // the first verdict is where things stand
     homeLog.record({ mac, home, ...(!home && lastSeen !== undefined && { lastSeen }) });
+    if (home) {
+      arrivingSince = now;
+      awaySince = null;
+      homeEvents.emit('arriving');
+    } else {
+      awaySince = lastSeen ?? now;
+    }
     console.log(`[home] ${phones().find((p) => p.mac === mac)?.name ?? mac}: ${home ? 'arrived' : 'left'}`);
   }
+}
+
+/** The room the assistant speaks in: the setting, else a room called "Living Room". */
+export function speakerRoom(): string | null {
+  return config.get('speakerRoom') ?? roomsSvc.findRoom('living room');
+}
+
+/** Motion somewhere; in the speaker room it can complete an arrival. */
+export function noteMotion(room: string | null, now = Date.now()): void {
+  const speaker = speakerRoom();
+  if (speaker && room !== speaker) return;
+  lastSpeakerMotion = now;
+  if (arrivingSince !== null && now - arrivingSince <= INSIDE_WITHIN_MS) {
+    arrivingSince = null;
+    homeEvents.emit('inside');
+  }
+  homeEvents.emit('speaker-motion');
+}
+
+/** How long Thomas has been out (ms), or null when he isn't. */
+export function awayFor(now = Date.now()): number | null {
+  return isHome() === false && awaySince !== null ? now - awaySince : null;
+}
+
+/** When he last left — for "what happened while you were out". */
+export function lastLeft(): number | null {
+  return [...homeLog.list()].reverse().find((e) => !e.home)?.lastSeen ?? null;
+}
+
+/** When his phone last came back onto the Wi-Fi. */
+export function lastArrived(): number | null {
+  return [...homeLog.list()].reverse().find((e) => e.home)?.at ?? null;
+}
+
+/** Is there someone to talk to: not away, and recent motion in the speaker room. */
+export function listening(now = Date.now()): boolean {
+  return isHome() !== false && now - lastSpeakerMotion < LISTENING_MS;
 }
 
 /** Home if any tracked phone is; null when there's no phone set up or it's too soon to say. */
@@ -103,6 +168,13 @@ async function tick(): Promise<void> {
     if (!warned) console.warn('[home] network scan failed (is arp-scan installed with cap_net_raw?):', errorMessage(err));
     warned = true;
   }
+}
+
+/** Follow motion sensors (for arriving → inside). Scanning starts separately, in start(). */
+export function init(mgr: MqttManager): void {
+  mgr.on('occupancyChange', ({ sensor, occupancy }) => {
+    if (occupancy) noteMotion(config.get('presence')?.[sensor]?.room ?? null);
+  });
 }
 
 /** Start scanning. Only from index.ts — tests and mock mode never touch the network. */

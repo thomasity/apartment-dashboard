@@ -45,10 +45,12 @@ export type RoomsMap = Record<string, Room>;
 export interface ZoneState {
   auto: boolean;
   /** Who is deciding the zone's look right now */
-  control: 'manual' | 'presence' | 'rule' | 'auto' | 'none';
+  control: 'manual' | 'presence' | 'assistant' | 'rule' | 'auto' | 'none';
   ruleName: string | null;
-  /** ISO end of the rule window in control */
+  /** ISO end of the rule window (or the assistant's look) in control */
   until: string | null;
+  /** Why the assistant set it, when it's in control */
+  reason?: string | null;
 }
 
 export type ZonesMap = Record<string, ZoneState>;

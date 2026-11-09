@@ -3,8 +3,10 @@ import * as roomsSvc from './rooms';
 import * as circadian from './circadian';
 import * as rulesSvc from './rules';
 import * as activity from './activity';
+import { feedbackLog, UNDO_WINDOW_MS } from './feedback';
+import { dateKey } from './rules';
 import type { MqttManager } from '../mqtt/client';
-import type { ActivityEntry, ActivitySource, AppServer, LightValues, Rule, RulePresence, ZoneRuntime, ZoneState } from '../types';
+import type { ActivityEntry, ActivitySource, AppServer, AssistantLook, LightValues, Rule, RulePresence, ZoneRuntime, ZoneState } from '../types';
 
 // The one place that decides what lights look like. Sources (dashboard/voice, rules,
 // presence, Auto) never talk to bulbs themselves — they call into here, and the look of
@@ -13,7 +15,8 @@ import type { ActivityEntry, ActivitySource, AppServer, LightValues, Rule, RuleP
 //   1. a manual session  — any manual change starts one for the whole zone; it lasts
 //                          until the zone is off, however it got there
 //   2. presence's look   — when presence switched the zone on under a rule's custom look
-//   3. the latest rule window covering the zone, if it sets a look (scene / auto)
+//   3. whichever started last of: the latest rule window covering the zone (if it sets a
+//      look), or the assistant's own look (a one-off window that ends by itself)
 //   4. Auto (circadian), if the zone is on Auto
 //   5. nothing           — the bulb is left as it is
 //
@@ -147,11 +150,23 @@ function ruleLook(rule: Rule): LightValues | null {
   return null;
 }
 
+/** The assistant's look for a zone, while it lasts. */
+function liveAssistant(rt: ZoneRuntime | undefined): AssistantLook | null {
+  return rt?.assistant && rt.assistant.until > Date.now() ? rt.assistant : null;
+}
+
+/** The assistant's look wins over a rule window that started before it, not after. */
+function assistantBeatsRule(a: AssistantLook | null, window: rulesSvc.ActiveWindow | null): a is AssistantLook {
+  return !!a && (!window || a.startedAt >= window.start.getTime());
+}
+
 export function resolveLook(zone: string, bulb: string): LightValues | null {
   const rt = runtime()[zone];
   if (rt?.manual) return rt.manual.looks[bulb] ?? null;
   if (rt?.presenceLook) return rt.presenceLook;
   const window = governingWindow(zone);
+  const a = liveAssistant(rt);
+  if (assistantBeatsRule(a, window)) return a.look;
   const fromRule = window && ruleLook(window.rule);
   if (fromRule) return fromRule;
   if (autoZones().has(zone)) return circadian.currentValues();
@@ -219,11 +234,98 @@ function endSessionsForDarkZones(): void {
 
 // ── Sources ─────────────────────────────────────────────────────────────────
 
+// ── The assistant's own looks ───────────────────────────────────────────────
+
+/** zone → the day the assistant's change there was undone; it leaves the zone alone until tomorrow */
+const undoneOn = new Map<string, string>();
+const expiryTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * You touched a zone the assistant had set. Within UNDO_WINDOW_MS that's a "no" (logged,
+ * and the zone is off-limits to it for the rest of the day); either way your change wins.
+ */
+function replaceAssistant(rt: Record<string, ZoneRuntime>, zone: string, undone = false): void {
+  const a = rt[zone]?.assistant;
+  if (!a) return;
+  delete rt[zone]!.assistant;
+  if (undone || Date.now() - a.startedAt < UNDO_WINDOW_MS) {
+    undoneOn.set(zone, dateKey(new Date()));
+    feedbackLog.record({ kind: 'undone', what: a.reason, zone });
+  }
+}
+
+export interface AssistantLightsRequest {
+  power?:   'on' | 'off';
+  look?:    LightValues;
+  /** How long the look lasts */
+  minutes?: number;
+  reason:   string;
+}
+
+/**
+ * The assistant changing lights on its own. A look is a one-off window that ends by itself
+ * (default 2 h); "off" is just off. Rooms you're adjusting by hand, and rooms where you
+ * undid its change today, are left alone. Returns what happened per zone.
+ */
+export function assistantSet(zones: string[], req: AssistantLightsRequest): Array<{ zone: string; ok: boolean; error?: string }> {
+  const rt = runtime();
+  const today = dateKey(new Date());
+  const results = zones.map((zone) => {
+    if (rt[zone]?.manual) return { zone, ok: false, error: 'Thomas is adjusting it by hand' };
+    if (undoneOn.get(zone) === today) return { zone, ok: false, error: 'Thomas undid a change there today' };
+    const bulbs = zoneBulbs(zone);
+    if (req.power === 'off') {
+      if (!bulbs.some((b) => !isOff(b))) return { zone, ok: true };
+      bulbs.forEach(powerOff);
+      activity.record({ zone, source: 'assistant', action: 'off', note: req.reason });
+      return { zone, ok: true };
+    }
+    if (req.look) {
+      const minutes = Math.min(12 * 60, Math.max(5, req.minutes ?? 120));
+      const now = Date.now();
+      (rt[zone] ??= {}).assistant = { look: req.look, startedAt: now, until: now + minutes * 60000, reason: req.reason };
+      clearTimeout(expiryTimers.get(zone));
+      const timer = setTimeout(() => endAssistant(zone), minutes * 60000);
+      timer.unref?.();
+      expiryTimers.set(zone, timer);
+    }
+    const wasDark = bulbs.every(isOff);
+    saveRuntime(rt);
+    if (req.power === 'on' && wasDark) bulbs.forEach((b) => powerOn(b));
+    activity.record({
+      zone, source: 'assistant', action: req.power === 'on' && wasDark ? 'on' : 'set',
+      ...(req.look && { look: req.look }), note: req.reason,
+    });
+    return { zone, ok: true };
+  });
+  saveRuntime(rt);
+  reconcile(zones);
+  return results;
+}
+
+/** End the assistant's look in a zone — when it runs out, or when you undo it. */
+export function endAssistant(zone: string, undone = false): boolean {
+  const rt = runtime();
+  const a = rt[zone]?.assistant;
+  if (!a) return false;
+  if (undone) replaceAssistant(rt, zone, true);
+  else {
+    delete rt[zone]!.assistant;
+    // It ran its course without you changing it: a quiet "yes"
+    if (Date.now() >= a.until) feedbackLog.record({ kind: 'kept', what: a.reason, zone });
+  }
+  saveRuntime(rt);
+  clearTimeout(expiryTimers.get(zone));
+  reconcile([zone]);
+  return true;
+}
+
 /** You changed brightness/colour (dashboard, voice): starts or extends a manual session. */
 export function manualSet(bulbs: string[], values: Partial<LightValues>, source: ActivitySource = 'dashboard'): void {
   if (!mgr) return;
   const rt = runtime();
   const touched = bulbs.filter((b) => !isOff(b)); // nothing to adjust on a dark bulb
+  new Set(touched.map(roomsSvc.zoneOf)).forEach((zone) => replaceAssistant(rt, zone));
   for (const bulb of touched) {
     const zone  = roomsSvc.zoneOf(bulb);
     const entry = (rt[zone] ??= {});
@@ -250,6 +352,11 @@ export function manualSet(bulbs: string[], values: Partial<LightValues>, source:
 
 /** You switched lights on or off. On comes up with the zone's resolved look. */
 export function manualPower(bulbs: string[], on: boolean, source: ActivitySource = 'dashboard'): void {
+  if (source !== 'assistant') {
+    const rt = runtime();
+    new Set(bulbs.map(roomsSvc.zoneOf)).forEach((zone) => replaceAssistant(rt, zone));
+    saveRuntime(rt);
+  }
   bulbs.forEach((b) => (on ? powerOn(b) : powerOff(b)));
   recordForBulbs(bulbs, { source, action: on ? 'on' : 'off' });
   endSessionsForDarkZones();
@@ -377,17 +484,20 @@ export function getZonesState(): Record<string, ZoneState> {
   for (const [zone, bulbs] of Object.entries(zoneMap())) {
     if (bulbs.length === 0 && !roomsSvc.getRoom(zone)) continue;
     const window = governingWindow(zone);
+    const a = liveAssistant(rt[zone]);
     const control: ZoneState['control'] =
-        rt[zone]?.manual       ? 'manual'
-      : rt[zone]?.presenceLook ? 'presence'
+        rt[zone]?.manual                ? 'manual'
+      : rt[zone]?.presenceLook          ? 'presence'
+      : assistantBeatsRule(a, window)   ? 'assistant'
       : window && ruleLook(window.rule) ? 'rule'
-      : auto.has(zone)         ? 'auto'
+      : auto.has(zone)                  ? 'auto'
       : 'none';
     result[zone] = {
       auto:     auto.has(zone),
       control,
       ruleName: control === 'rule' ? window!.rule.name : null,
-      until:    control === 'rule' ? window!.end.toISOString() : null,
+      until:    control === 'rule' ? window!.end.toISOString() : control === 'assistant' ? new Date(a!.until).toISOString() : null,
+      reason:   control === 'assistant' ? a!.reason : null,
     };
   }
   return result;

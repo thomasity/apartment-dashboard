@@ -8,6 +8,8 @@ import { flushAll } from './services/logs';
 import * as spotifyPlayer from './services/spotifyPlayer';
 import * as tvWatcher from './services/tvWatcher';
 import * as home from './services/home';
+import * as agent from './services/agent';
+import { runProactive } from './routes/voice';
 import { createFakeZigbee } from './dev/fakeZigbee';
 
 // Before anything reads settings: move a pre-split server/config.json into server/data/
@@ -25,6 +27,8 @@ if (!MOCK) {
   spotifyPlayer.watchAlways();
   tvWatcher.start();
   home.start();
+  // The assistant acting on its own needs Claude
+  if (process.env.ANTHROPIC_API_KEY) agent.start(mqttManager, runProactive);
 }
 
 const PORT = process.env.PORT || 3001;

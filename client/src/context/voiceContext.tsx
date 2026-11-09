@@ -2,10 +2,12 @@ import React, { createContext, useState, useRef, useCallback, useEffect } from '
 import type { VoiceStatus } from '../types';
 import { useSpotify } from '../hooks/useSpotify';
 import { useConnectivity } from '../hooks/useConnectivity';
+import { getSocket } from '../lib/socket';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 const MAX_HISTORY = 12; // 6 exchanges
 const DUCK_VOLUME = 15;
+const ACTIVE_EVERY_MS = 30_000;
 
 type VoiceContextValue = {
   status: VoiceStatus;
@@ -245,6 +247,41 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [status]);
+
+  // ── The assistant's remarks, read aloud ─────────────────────────────────────
+  // A browser only plays sound after a tap, so a tap unlocks audio here and tells the
+  // server this dashboard is the one to speak (the most recently touched one does).
+  // Remarks wait while a voice session is going and are read once it's idle.
+  const sayQueue = useRef<string[]>([]);
+  const [saysWaiting, setSaysWaiting] = useState(0);
+
+  useEffect(() => {
+    let lastActive = 0;
+    const onTouch = () => {
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') audioCtxRef.current = new AudioContext();
+      audioCtxRef.current.resume().catch(() => {});
+      if (Date.now() - lastActive < ACTIVE_EVERY_MS) return;
+      lastActive = Date.now();
+      getSocket().emit('assistant:active');
+    };
+    const onSay = ({ text }: { id: string; text: string }) => {
+      sayQueue.current.push(text);
+      setSaysWaiting((n) => n + 1);
+    };
+    window.addEventListener('pointerdown', onTouch);
+    const socket = getSocket();
+    socket.on('assistant:say', onSay);
+    return () => {
+      window.removeEventListener('pointerdown', onTouch);
+      socket.off('assistant:say', onSay);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'idle') return;
+    const next = sayQueue.current.shift();
+    if (next) speak(next);
+  }, [status, saysWaiting, speak]);
 
   const micDisabled = !online && status === 'idle';
 

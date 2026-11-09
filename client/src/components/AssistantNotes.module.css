@@ -1,0 +1,58 @@
+.stack {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 25;
+  display: flex;
+  width: min(22rem, calc(100% - 2rem));
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 0.875rem;
+  border-width: 1px;
+  border-color: rgb(168 200 255 / 0.18);
+  background-color: rgb(24 24 27 / 0.92);
+  padding: 0.75rem 0.875rem;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+.text {
+  flex: 1 1 0%;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.8);
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.undo {
+  touch-action: manipulation;
+  border-radius: 9999px;
+  background-color: rgb(168 200 255 / 0.15);
+  padding: 0.1875rem 0.625rem;
+  font-size: 0.75rem;
+  color: rgb(168 200 255 / 0.9);
+}
+.undo:hover {
+  background-color: rgb(168 200 255 / 0.25);
+}
+
+.dismiss {
+  touch-action: manipulation;
+  font-size: 0.75rem;
+  color: rgb(255 255 255 / 0.35);
+}
+.dismiss:hover {
+  color: rgb(255 255 255 / 0.7);
+}
